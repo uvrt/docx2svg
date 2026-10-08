@@ -275,6 +275,7 @@ def _entry(name: str) -> zipfile.ZipInfo:
     info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
     info.compress_type = zipfile.ZIP_DEFLATED
     info.external_attr = 0o600 << 16
+    info.create_system = 3  # not the platform default (0 on Windows)
     return info
 
 
