@@ -4,6 +4,12 @@ docx2svg has not been released to PyPI. The public repository starts from a sing
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## Unreleased
+
+- Chart labels as Word draws them (ooxml-common 0.7): tick, category and legend text in
+  its `c:txPr` colour (`tx1` at 65%, as Office writes it), data labels in their own number
+  format (`€41.2m`), and a radar's category labels 4% of the radius off their vertex.
+
 ## 0.1.0 -- 2026-10-08 (initial public release)
 
 Developed 2026-09-24 to 2026-10-07, phase by phase against Microsoft Word's PDF export:
