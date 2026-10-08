@@ -6698,12 +6698,14 @@ the twip grid.
 | --- | --- | --- | --- |
 | before (a placeholder) | 0 / 804 | 0 / 665 | 0 / 1,576 |
 | the shared code, PowerPoint's rules | 569 / 804 | 331 / 890 | 961 / 1,955 |
-| Word's rules | **790 / 804** | **664 / 666** | **1,574 / 1,578** |
+| Word's rules | 790 / 804 | **664 / 666** | **1,574 / 1,578** |
+| ooxml-common 0.7 (the radar's category labels) | **794 / 804** | 664 / 666 | 1,574 / 1,578 |
 
 A family's count is what agreed within 0.5 pt (face and device size too, for text), out
-of Word's items and the model's left over. **What is left**: the radar's nine labels (half
-a point to 2.4 pt: its value labels' offset and its category labels' distance from the
-rim are not measured beyond PowerPoint's), five labels of charts whose text is 6, 14 or
+of Word's items and the model's left over. **What is left**: the radar's five value labels
+(0.51 to 0.65 pt: their offset is not measured beyond PowerPoint's; its four category
+labels, up to 2.4 pt out until 0.7 placed them 4% of the radius off the rim, now agree),
+five labels of charts whose text is 6, 14 or
 18 pt (two value labels and three legend names, 0.55 to 0.6 pt), and one scatter marker
 Word draws 0.6 pt off its point. Pinned in `tests/test_chart.py`.
 
@@ -6714,6 +6716,19 @@ writes it), a chart style part (`c14:style`, `cs:chartStyle`), number formats in
 locale, and the chart types the layout does not draw (`chart-unsupported-type`, a
 placeholder). The committed documents and the local corpora hold no chart (the one
 `filesamples` "chart" is a picture): their output and fidelity are unchanged.
+
+**Chart labels, measured later** (ooxml-common 0.7, its `tests/test_chart_labels.py`): on
+the charts docx-agent's `insert_chart` writes, Word draws tick, category and legend text in
+the `c:txPr` fill they state (`tx1` at 65%, `595959` on Office's theme), each element's own
+fill over the chart space's, and plain `tx1` where no `c:txPr` states one -- as PowerPoint
+does; data labels in their own number format (`"€"#,##0.0"m"` reads `€41,2m`) unless it is
+source-linked; and a radar's category labels 4% of the radius off their vertex, centred on
+the anchor on a sloping spoke. docx-agent's w14 radar had looked "slightly larger" than
+Word's: its labels were the same size (9.12 pt on Word's device pixel, widths within
+0.3 pt) round the same web (its value labels 0 to 5 span 94.99 pt, Word's 95.04), but drawn black where Word drew
+them `595959`, and the four on sloping spokes hung up to 5.5 pt further out. Every label
+of eight radars of 3 to 8 categories in Aptos 9 and 14 pt now lands within 0.13 pt across
+and 0.22 pt down of Word's PDF.
 
 ### F.21 SmartArt (`dgm:relIds`) — measured
 
@@ -7228,8 +7243,8 @@ between numbered levels.
    body wraps around.
    ~~Charts and SmartArt~~ **Drawn** -- a chart by `ooxml-common`'s chart layout under
    Word's measured rules (white frame and plot, a title's band and baseline, side legends
-   against the frame, legend order, stated line widths), 790 / 804 texts, 664 / 666 fills
+   against the frame, legend order, stated line widths), 794 / 804 texts, 664 / 666 fills
    and 1,574 / 1,578 strokes of 58 probe charts where Word drew them, in every setting;
    SmartArt from the drawing Word caches, its text in the face's own line box, every
-   probe glyph and shape exact. See F.20 and F.21. **Next:** the radar's labels, and
+   probe glyph and shape exact. See F.20 and F.21. **Next:** the radar's value labels, and
    SmartArt layouts other than the block list, which need a layout definition written out.

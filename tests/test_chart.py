@@ -4,7 +4,8 @@ in ``tests/fixtures/chart-observations.json`` -- every text span, fill and strok
 -- and drawn here by ``ooxml-common``'s chart layout under its ``WORD`` rules
 (``docx2svg.chart``).
 
-What is left is pinned by family: the radar's labels (nine, half a point to 2.4 pt off),
+What is left is pinned by family: the radar's value labels (five, 0.51 to 0.65 pt off; its
+four category labels agree since ooxml-common 0.7 stood them 4% of the radius off the rim),
 five labels of charts whose text is 6, 14 or 18 pt (0.55 to 0.6 pt), and one scatter marker
 Word draws 0.6 pt off its point (two fills and four strokes, counting the model's own).
 """
@@ -28,7 +29,7 @@ import render_record  # noqa: E402
 
 DATA = json.loads(reader.OBSERVATIONS.read_text(encoding="utf-8"))
 #: What the comparison is known to miss, per family (module docstring).
-KNOWN = {"text": 14, "fills": 2, "strokes": 4}
+KNOWN = {"text": 10, "fills": 2, "strokes": 4}
 
 
 @pytest.mark.parametrize("name,data", reader.documents(), ids=[name for name, _ in reader.documents()])
@@ -94,6 +95,59 @@ def test_a_chart_type_not_drawn_is_said():
         make_chart_probe.NO_TITLE + "<c:plotArea><c:layout/><c:unknownChart/></c:plotArea>")
     layout, warnings = _render(_one(make_chart_probe.Case("type", "unknown", space)))
     assert any("chart-unsupported-type" in w for w in warnings), warnings
+
+
+def _chart_texts(chart_xml: str) -> dict[str, str]:
+    """Every run of chart text ``docx2svg.chart`` lays out for ``chart_xml`` in a probe
+    document (Office's theme), mapped to its colour."""
+    from ooxml_common.drawingml import scene as m
+    from ooxml_common.opc import OpcPackage
+
+    from docx2svg.chart import chart_element
+    from docx2svg.parse.document import parse_package
+
+    data = _one(make_chart_probe.Case("text", "labels", chart_xml))
+    package = OpcPackage.open(data)
+    owner = "word/document.xml"
+    rid = next(key for key, rel in package.relationships(owner).items() if rel.type.endswith("/chart"))
+    warnings: list[str] = []
+    element = chart_element(package, owner, rid, 5486400.0, 3200400.0, parse_package(data), warnings)
+    assert element is not None, warnings
+    return {run.text: run.properties.color.hex.upper()
+            for child in element.children if isinstance(child, m.ShapeElement) and child.text_body
+            for paragraph in child.text_body.paragraphs for run in paragraph.runs}
+
+
+def test_chart_labels_take_their_text_properties_colour_and_number_format():
+    """Word's PDF of docx-agent's w9 (a line chart ``insert_chart`` wrote): tick, category
+    and legend text ``595959`` -- the ``tx1`` at 65% each ``c:txPr`` states -- and, with data
+    labels in ``"€"#,##0.0"m"`` turned on, ``€41,2m``; source-linked, its cache's format.
+    This drew the first three black and the labels without their text."""
+    fill = ("<a:solidFill><a:schemeClr val='tx1'><a:lumMod val='65000'/><a:lumOff val='35000'/></a:schemeClr>"
+            "</a:solidFill>")
+    tx = f"<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz='900'>{fill}</a:defRPr></a:pPr></a:p></c:txPr>"
+    euro = "<c:numFmt formatCode='&quot;€&quot;#,##0.0&quot;m&quot;' sourceLinked='{linked}'/>"
+    labels = ("<c:dLbls>{fmt}<c:showLegendKey val='0'/><c:showVal val='1'/><c:showCatName val='0'/>"
+              "<c:showSerName val='0'/><c:showPercent val='0'/><c:showBubbleSize val='0'/></c:dLbls>")
+
+    def chart(linked: int) -> str:
+        sers = "".join(make_chart_probe.series(k, name, values, invert=False,
+                                               before_cat=labels.format(fmt=euro.format(linked=linked)))
+                       for k, (name, values) in enumerate(make_chart_probe.SERIES))
+        groups = (f"<c:lineChart><c:grouping val='standard'/><c:varyColors val='0'/>{sers}"
+                  "<c:axId val='1'/><c:axId val='2'/></c:lineChart>")
+        axes = make_chart_probe.bar_axes().replace("<c:crossAx", tx + "<c:crossAx")
+        legend = make_chart_probe.legend("b").replace("</c:legend>", tx + "</c:legend>")
+        return make_chart_probe.chart_space(make_chart_probe.NO_TITLE + make_chart_probe.plot(groups, axes)
+                                            + make_chart_probe.tail(legend))
+
+    texts = _chart_texts(chart(0))
+    name, values = make_chart_probe.SERIES[0]
+    category = make_chart_probe.REGIONS[0]
+    assert texts[category] == texts[name] == "#595959"
+    first = f"€{values[0]:,.1f}m"
+    assert first in texts, sorted(texts)
+    assert "€" not in "".join(_chart_texts(chart(1)))
 
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
