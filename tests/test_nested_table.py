@@ -69,6 +69,8 @@ def _layout(case: int):
 
 
 @pytest.mark.faces
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows' own copies of the faces put these baselines a "
+                    "device pixel lower (592 and 536): the values are Word's, measured with Office's")
 def test_an_empty_paragraph_after_a_nested_table_takes_no_room():
     """The cell ends at the nested table's bottom border: ``After`` follows it directly."""
     import make_nested_table_probe as probe
