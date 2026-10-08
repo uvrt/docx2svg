@@ -95,7 +95,7 @@ def test_headers_and_footers_move_the_margins():
     baseline and line count, and every page top, as Word's."""
     for score in read_header_probe.offline().values():
         assert (score.tops_matched, score.word_tops) == (37, 37)
-    data = json.loads(read_header_probe.OBSERVATIONS.read_text())
+    data = json.loads(read_header_probe.OBSERVATIONS.read_text(encoding="utf-8"))
     advances, metrics = pages.recorded(data)
     face = metrics("Calibri")
     for setting in make_header_probe.SETTINGS:

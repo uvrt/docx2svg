@@ -20,7 +20,7 @@ import baselines
 import make_page_top_probe as probe
 import read_page_top_probe as reader
 
-DATA = json.loads((Path(__file__).parent / "fixtures" / "page-top-observations.json").read_text())
+DATA = json.loads((Path(__file__).parent / "fixtures" / "page-top-observations.json").read_text(encoding="utf-8"))
 
 
 #: Computed on first use, not when the module is collected: every pytest-xdist worker

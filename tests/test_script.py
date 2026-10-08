@@ -26,7 +26,7 @@ import read_script_probe as reader
 
 from docx2svg.resolve import script_half_points
 
-DATA = json.loads((Path(__file__).parent / "fixtures" / "script-observations.json").read_text())
+DATA = json.loads((Path(__file__).parent / "fixtures" / "script-observations.json").read_text(encoding="utf-8"))
 
 
 #: Word drew every line of the three compatibility settings alike (the recording keeps

@@ -23,7 +23,7 @@ import make_mark_probe as probe
 import read_mark_probe as reader
 from docx2svg import vertical
 
-DATA = json.loads((Path(__file__).parent / "fixtures" / "mark-observations.json").read_text())
+DATA = json.loads((Path(__file__).parent / "fixtures" / "mark-observations.json").read_text(encoding="utf-8"))
 
 #: The sweep's families under the model, [exact, scored], the same in each of the four
 #: settings: every line.

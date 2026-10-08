@@ -146,8 +146,8 @@ def test_a_letter_is_charged_its_pair_with_the_space_after_it(monkeypatch):
 
 # -- real documents -------------------------------------------------------------------------
 
-DATA = json.loads((FIXTURES / "baseline-observations.json").read_text())
-ADVANCES = json.loads((FIXTURES / "break-advances.json").read_text())
+DATA = json.loads((FIXTURES / "baseline-observations.json").read_text(encoding="utf-8"))
+ADVANCES = json.loads((FIXTURES / "break-advances.json").read_text(encoding="utf-8"))
 
 #: (lines that agree, lines scored) per document; every one.
 DOCUMENTS = {
@@ -243,7 +243,7 @@ def test_src_imports_the_standard_library_and_ooxml_common_only():
     source = FIXTURES.parent.parent / "src" / "docx2svg"
     for path in source.rglob("*.py"):
         permitted = allowed | extras.get(path.name, set())
-        for node in ast.walk(ast.parse(path.read_text())):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Import):
                 names = [alias.name for alias in node.names]
             elif isinstance(node, ast.ImportFrom) and node.level == 0:

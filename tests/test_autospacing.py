@@ -24,7 +24,7 @@ import read_autospacing_probe as reader
 from docx2svg import parse_package
 from docx2svg.resolve import resolve_paragraph
 
-DATA = json.loads((Path(__file__).parent / "fixtures" / "autospacing-observations.json").read_text())
+DATA = json.loads((Path(__file__).parent / "fixtures" / "autospacing-observations.json").read_text(encoding="utf-8"))
 SCORED = reader.offline(DATA)
 
 #: (exact, scored) per case, in each of the three settings that use autospacing.

@@ -62,7 +62,7 @@ def scores(documents: dict, advances, metrics) -> dict:
 def offline() -> dict:
     import pages
 
-    data = json.loads(OBSERVATIONS.read_text())
+    data = json.loads(OBSERVATIONS.read_text(encoding="utf-8"))
     advances, metrics = pages.recorded(data)
     return scores(data["documents"], advances, metrics)
 

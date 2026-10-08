@@ -38,7 +38,7 @@ def score(drawn, advances=None):
 
 
 def offline(advances=None):
-    data = json.loads(OBSERVATIONS.read_text())
+    data = json.loads(OBSERVATIONS.read_text(encoding="utf-8"))
     return score(probe_documents.expand(data["lines"]), advances)
 
 

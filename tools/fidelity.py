@@ -1309,7 +1309,7 @@ def main(argv: list[str]) -> int:
             print(f"not written: {', '.join(refused)} made another number of pages than Word; a page count that is "
                   "not Word's is a regression, not a baseline", file=sys.stderr)
             return 2
-        previous = json.loads(BASELINES.read_text()) if BASELINES.exists() else None
+        previous = json.loads(BASELINES.read_text(encoding="utf-8")) if BASELINES.exists() else None
         try:
             payload = baselines_payload({truth: _summary(results[truth], glyph_sizes) for truth in truths}, previous,
                                         __import__("pdf_svg").converter_version())

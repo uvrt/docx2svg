@@ -37,7 +37,7 @@ def tabulate(scored) -> dict:
 
 
 def offline(data: dict | None = None):
-    data = data or json.loads(OBSERVATIONS.read_text())
+    data = data or json.loads(OBSERVATIONS.read_text(encoding="utf-8"))
     metrics = probe_documents.recorded_metrics(data["faces"])
     return [(setting, probe_documents.score(probe.build(setting), probe_documents.expand(data["documents"][setting]),
                                             metrics))

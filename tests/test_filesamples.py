@@ -74,7 +74,7 @@ def _data():
     path = SCRATCH / "baseline-observations.json"
     if not path.is_file():
         pytest.skip(f"no {path}; see this module's docstring")
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _document(name: str) -> bytes:
@@ -148,7 +148,7 @@ def test_filesamples_line_breaks(name):
     path = SCRATCH / "break-advances.json"
     if not path.is_file():
         pytest.skip(f"no {path}; run tools/read_breaks.py --record-scratch")
-    advances = face_advances.RecordedAdvances(json.loads(path.read_text())["faces"])
+    advances = face_advances.RecordedAdvances(json.loads(path.read_text(encoding="utf-8"))["faces"])
     drawn = [baselines.DrawnLine(*line) for line in recorded["documents"][name]]
     results = breaks.score(parse_package(data), drawn, advances, _metrics(recorded), package=data)
     scored = [r for r in results if r.status == "scored"]

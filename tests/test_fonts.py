@@ -26,7 +26,7 @@ SCRATCH_SAMPLE1 = Path(__file__).parent.parent / "scratch" / "filesamples" / "sa
 
 def _recordings():
     for path in sorted(FIXTURES.glob("*.json")):
-        data = json.loads(path.read_text())
+        data = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             continue
         faces = data.get("faces") or {}

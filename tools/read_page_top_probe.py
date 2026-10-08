@@ -46,7 +46,7 @@ def tabulate(scored) -> dict:
 
 def offline(data: dict | None = None):
     """``[(probe, results)]`` from the recording, without Word."""
-    data = data or json.loads(OBSERVATIONS.read_text())
+    data = data or json.loads(OBSERVATIONS.read_text(encoding="utf-8"))
     metrics = probe_documents.recorded_metrics(data["faces"])
     return [(p, probe_documents.score(probe.build(p), probe_documents.expand(data["documents"][p.name]),
                                       metrics))

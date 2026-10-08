@@ -203,7 +203,7 @@ def recorded(data: dict, section: str, name: str):
 
 def offline(data: dict | None = None, which=lambda p: True):
     """``[(probe, results)]`` from the recording, for the documents ``which`` selects."""
-    data = data or json.loads(OBSERVATIONS.read_text())
+    data = data or json.loads(OBSERVATIONS.read_text(encoding="utf-8"))
     metrics = probe_documents.recorded_metrics(data["faces"])
     return [(p, probe_documents.score(probe.build(p), expand(p, recorded(data, "documents", p.name)), metrics))
             for p in probe.PROBES if p.name in data["documents"] and which(p)]

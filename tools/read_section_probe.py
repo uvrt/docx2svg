@@ -38,7 +38,7 @@ def scores(documents: dict, advances, metrics, rules=None) -> dict:
 
 
 def offline(rules=None) -> dict:
-    data = json.loads(OBSERVATIONS.read_text())
+    data = json.loads(OBSERVATIONS.read_text(encoding="utf-8"))
     advances, metrics = pages.recorded(data)
     return scores(data["documents"], advances, metrics, rules)
 

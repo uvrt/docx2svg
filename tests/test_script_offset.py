@@ -22,7 +22,7 @@ import read_script_offset_probe as reader  # noqa: E402
 from docx2svg.resolve import script_raise_half_points  # noqa: E402
 from docx2svg.vertical import FaceMetrics  # noqa: E402
 
-DATA = json.loads(reader.OBSERVATIONS.read_text())
+DATA = json.loads(reader.OBSERVATIONS.read_text(encoding="utf-8"))
 LINES = [row for row in DATA["lines"] if row[0] == "size"]
 
 

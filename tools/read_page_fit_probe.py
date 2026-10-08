@@ -132,7 +132,7 @@ def model_scores(documents: dict, advances, metrics, rules=None) -> dict[str, pa
 
 def offline(data: dict | None = None):
     """``(observed fits, model scores)`` from the recording, without Word or fonts."""
-    data = data or json.loads(OBSERVATIONS.read_text())
+    data = data or json.loads(OBSERVATIONS.read_text(encoding="utf-8"))
     advances, metrics = pages.recorded(data)
     words = {setting: pages.expand_pages(data["documents"][setting]) for setting in probe.SETTINGS}
     return {s: fitted(w) for s, w in words.items()}, model_scores(data["documents"], advances, metrics)

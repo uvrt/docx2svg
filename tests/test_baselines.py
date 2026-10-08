@@ -30,7 +30,7 @@ import baselines  # noqa: E402
 from docx2svg import parse_package  # noqa: E402
 from docx2svg.vertical import FaceMetrics  # noqa: E402
 
-DATA = json.loads((FIXTURES / "baseline-observations.json").read_text())
+DATA = json.loads((FIXTURES / "baseline-observations.json").read_text(encoding="utf-8"))
 
 
 def metrics(face, bold=False, italic=False):

@@ -26,7 +26,7 @@ from docx2svg.vertical import (
     FaceMetrics, LineBox, baseline_in_box, border_px, paragraph_gap_px, round_half_up, twips_to_px,
 )
 
-DATA = json.loads((Path(__file__).parent / "fixtures" / "line-box-observations.json").read_text())
+DATA = json.loads((Path(__file__).parent / "fixtures" / "line-box-observations.json").read_text(encoding="utf-8"))
 FACES = {name: FaceMetrics(*values) for name, values in DATA["faces"].items()}
 PROBES = {p.name: p for p in probe.PROBES}
 
@@ -90,7 +90,7 @@ def test_space_below_the_text_anchors_the_line_at_its_top():
     assert len({baseline_in_box(t, plain) - round_half_up(t) for t in tops}) == 2
 
 
-MIXED = json.loads((Path(__file__).parent / "fixtures" / "mixed-line-observations.json").read_text())
+MIXED = json.loads((Path(__file__).parent / "fixtures" / "mixed-line-observations.json").read_text(encoding="utf-8"))
 MIXED_FACES = {name: FaceMetrics(*values) for name, values in MIXED["faces"].items()}
 
 

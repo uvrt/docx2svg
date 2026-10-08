@@ -112,7 +112,7 @@ def real_faces() -> dict:
 
 def score_real(faces: dict) -> dict:
     """The rule on ``make_script_probe.py``'s size sweep (``script-observations.json``)."""
-    data = json.loads(SCRIPT_OBSERVATIONS.read_text())["scripts"]["script-sizes"]
+    data = json.loads(SCRIPT_OBSERVATIONS.read_text(encoding="utf-8"))["scripts"]["script-sizes"]
     names = {name.replace(" ", ""): name for name in faces}
     out = {"superscript": [0, 0, 0], "subscript": [0, 0, 0]}
     per_face: Counter = Counter()

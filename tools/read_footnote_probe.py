@@ -113,7 +113,7 @@ def offline(rules=None) -> dict[str, tuple[int, int]]:
     """Per setting, cases the model agrees with Word on, from the recording."""
     import pages
 
-    data = json.loads(OBSERVATIONS.read_text())
+    data = json.loads(OBSERVATIONS.read_text(encoding="utf-8"))
     advances, metrics = pages.recorded(data)
     return {setting: agreement(observe(lines), model(setting, advances, metrics, rules))
             for setting, lines in data["documents"].items()}

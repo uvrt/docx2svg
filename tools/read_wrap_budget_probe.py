@@ -98,7 +98,7 @@ def score(name: str, drawn, advances=None, *, right_shift: int = 0):
 def offline(right_shift: int = 0) -> dict:
     import probe_documents
 
-    data = json.loads(OBSERVATIONS.read_text())
+    data = json.loads(OBSERVATIONS.read_text(encoding="utf-8"))
     return {name: score(name, probe_documents.expand(lines), right_shift=right_shift)
             for name, lines in data["documents"].items()}
 

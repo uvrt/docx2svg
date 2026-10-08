@@ -87,8 +87,8 @@ def offline(recording: Path, observations: Path, paths: list[Path], rules=None) 
     import face_advances
     import probe_documents
 
-    recorded = json.loads(recording.read_text())
-    lines = json.loads(observations.read_text())
+    recorded = json.loads(recording.read_text(encoding="utf-8"))
+    lines = json.loads(observations.read_text(encoding="utf-8"))
     advances = face_advances.RecordedAdvances(recorded["advances"])
     metrics = probe_documents.recorded_metrics(recorded["faces"])
     return {path.name: score(path, lines, advances, metrics, rules) for path in paths if path.name in lines["documents"]}
@@ -106,7 +106,7 @@ def main(argv: list[str]) -> int:
     for paths, observations, target in sets:
         faces: dict = {}
         advance_faces: dict = {}
-        recorded = json.loads(observations.read_text())
+        recorded = json.loads(observations.read_text(encoding="utf-8"))
         results = live([p for p in paths if p.name in recorded["documents"]], recorded, faces, advance_faces,
                        args.verbose)
         if args.record:

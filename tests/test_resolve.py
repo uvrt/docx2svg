@@ -25,7 +25,7 @@ from docx2svg import parse_package  # noqa: E402
 from docx2svg.model import Document, FontScheme, ThemeFonts  # noqa: E402
 from docx2svg.resolve import character_format, resolve_paragraph, resolve_run, slot_for, theme_face  # noqa: E402
 
-OBSERVATIONS = json.loads((Path(__file__).parent / "fixtures" / "style-observations.json").read_text())
+OBSERVATIONS = json.loads((Path(__file__).parent / "fixtures" / "style-observations.json").read_text(encoding="utf-8"))
 PROBES = {p.name: p for p in probe.probes()}
 
 

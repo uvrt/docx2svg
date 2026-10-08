@@ -147,8 +147,8 @@ def convert(pdf: Path, cache: bool = True) -> list[tuple[str, dict]]:
     pdf = Path(pdf)
     directory = cache_dir(pdf) if cache else None
     if directory is not None and (directory / "done").exists():
-        count = int((directory / "done").read_text())
-        return [((directory / f"p{i + 1}.svg").read_text(), json.loads((directory / f"p{i + 1}.json").read_text()))
+        count = int((directory / "done").read_text(encoding="utf-8"))
+        return [((directory / f"p{i + 1}.svg").read_text(encoding="utf-8"), json.loads((directory / f"p{i + 1}.json").read_text(encoding="utf-8")))
                 for i in range(count)]
     document = pymupdf.open(str(pdf))
     out = [unhinted_outlines(document, index, page.get_svg_image(text_as_path=True))

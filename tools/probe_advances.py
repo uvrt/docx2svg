@@ -73,7 +73,7 @@ def record() -> dict:
 
 @functools.lru_cache(maxsize=1)
 def load() -> dict:
-    return json.loads(PATH.read_text())["faces"]
+    return json.loads(PATH.read_text(encoding="utf-8"))["faces"]
 
 
 class Advances:

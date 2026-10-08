@@ -66,7 +66,7 @@ def _make_corpus(root: Path, **entry_overrides) -> Path:
     one is."""
     name = "sample-simple.docx"
     data = (FIXTURES / "samplelib" / name).read_bytes()
-    recorded = json.loads((FIXTURES / "baseline-observations.json").read_text())
+    recorded = json.loads((FIXTURES / "baseline-observations.json").read_text(encoding="utf-8"))
     corpus = root / "example"
     corpus.mkdir(parents=True)
     shutil.copyfile(FIXTURES / "samplelib" / name, corpus / name)

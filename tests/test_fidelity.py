@@ -83,7 +83,7 @@ def _explained(truth: str, name: str, page: int | None, ssim: float) -> bool:
 
 
 def _baselines() -> dict:
-    return json.loads(BASELINES.read_text())
+    return json.loads(BASELINES.read_text(encoding="utf-8"))
 
 
 def _recorded(truth: str) -> dict:
@@ -163,7 +163,7 @@ def _committed(name: str) -> tuple[bytes, Path]:
 
 @pytest.mark.slow
 @pytest.mark.parametrize("truth", SCORED_TRUTHS)
-@pytest.mark.parametrize("name", sorted(json.loads(BASELINES.read_text())["documents"]) if BASELINES.exists() else [])
+@pytest.mark.parametrize("name", sorted(json.loads(BASELINES.read_text(encoding="utf-8"))["documents"]) if BASELINES.exists() else [])
 def test_fidelity_does_not_regress(name, truth, request):
     """Rasters come from the harness's cache where it has them -- read-only, every entry's
     key components and pixel digest checked on the way in -- and are drawn otherwise."""
@@ -427,7 +427,7 @@ def test_a_cached_raster_that_is_not_what_was_stored_is_refused(tmp_path):
     cache.put("ours", components, image)
     meta = cache.root / "ours" / f"{raster_cache.key(components)}.json"
 
-    stored = json.loads(meta.read_text())
+    stored = json.loads(meta.read_text(encoding="utf-8"))
     meta.write_text(json.dumps(dict(stored, components={"svg": "other"})))
     with pytest.raises(raster_cache.CacheMismatch, match="components"):
         cache.get("ours", components)
@@ -536,7 +536,7 @@ def test_a_stale_cached_raster_discards_the_cache_and_stops_the_run(tmp_path):
     assert fidelity.score_corpus(documents, ("device",), None, ("svg",), 1, "off") == first
 
     # Stale but self-consistent: other pixels, recorded under the right key.
-    stored = json.loads(entries[0].read_text())
+    stored = json.loads(entries[0].read_text(encoding="utf-8"))
     image = raster_cache._array(entries[0].with_suffix(".png").read_bytes()).copy()
     image[10, 10] = 255 - image[10, 10]
     entries[0].with_suffix(".png").write_bytes(raster_cache._png(image))
@@ -574,7 +574,7 @@ def test_a_default_record_keeps_every_entry_it_did_not_score_exactly():
     the same bytes."""
     baselines = _baselines()
     payload = _payload(_fresh(baselines), baselines)
-    assert json.dumps(payload, indent=1, sort_keys=True) + "\n" == BASELINES.read_text()
+    assert json.dumps(payload, indent=1, sort_keys=True) + "\n" == BASELINES.read_text(encoding="utf-8")
 
 
 def test_a_full_record_writes_what_it_scored():
@@ -582,7 +582,7 @@ def test_a_full_record_writes_what_it_scored():
 
     baselines = _baselines()
     fresh = {"svg": {k: baselines[k] for k in ("documents", "page_median")}, "pdfium": baselines["pdfium"]}
-    assert json.dumps(_payload(fresh, baselines), indent=1, sort_keys=True) + "\n" == BASELINES.read_text()
+    assert json.dumps(_payload(fresh, baselines), indent=1, sort_keys=True) + "\n" == BASELINES.read_text(encoding="utf-8")
     changed = copy.deepcopy(fresh)
     name = next(iter(changed["svg"]["documents"]))
     changed["pdfium"]["documents"][name]["exact"]["ssim"] = 0.5

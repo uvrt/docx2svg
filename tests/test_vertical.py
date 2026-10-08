@@ -30,7 +30,7 @@ OBSERVATIONS = Path(__file__).parent / "fixtures" / "line-advance-observations.j
 
 
 def _load():
-    data = json.loads(OBSERVATIONS.read_text())
+    data = json.loads(OBSERVATIONS.read_text(encoding="utf-8"))
     faces = {name: FaceMetrics(**fields) for name, fields in data["faces"].items()}
     groups = []
     for g in data["groups"]:

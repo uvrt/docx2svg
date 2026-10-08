@@ -73,13 +73,13 @@ def discover(root: Path = SCRATCH) -> list[Path]:
 
 
 def manifest(corpus: Path) -> dict:
-    return json.loads((corpus / MANIFEST).read_text())
+    return json.loads((corpus / MANIFEST).read_text(encoding="utf-8"))
 
 
 def observations(corpus: Path, listed: dict | None = None) -> dict | None:
     listed = listed or manifest(corpus)
     path = corpus / listed.get("observations", OBSERVATIONS)
-    return json.loads(path.read_text()) if path.is_file() else None
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
 
 
 def recorded_metrics(recorded: dict):

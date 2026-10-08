@@ -98,7 +98,7 @@ def report(compared: dict, verbose: bool = False) -> None:
 
 
 def offline(data: dict | None = None, rules=None):
-    data = data or json.loads(OBSERVATIONS.read_text())
+    data = data or json.loads(OBSERVATIONS.read_text(encoding="utf-8"))
     advances, metrics = pages.recorded(data)
     return compare(data["documents"], advances, metrics, rules)
 
