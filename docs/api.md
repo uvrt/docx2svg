@@ -14,6 +14,24 @@ result.svgs            # the selected pages' SVGs, byte for byte convert_docx_to
 result.page_numbers    # [2, 3]: the page each SVG is of
 ```
 
+- **Coverage.** Every conversion sets `options.coverage` (and `layout.coverage`), a
+  `docx2svg.coverage.Coverage` that sums up the warnings: `complete`; `pages` and
+  `estimated_pages` (Word's count from `docProps/app.xml` when the layout stopped, else
+  `None`; `estimate_source` says which); `blocks`, `blocks_laid_out` and
+  `blocks_skipped`; `stop` (the body's first stop: `code`, `reason`, `message`, `page`
+  and the element `path`); `story_stops`; `substituted_fonts` (`family`, `substitute`,
+  `metric_compatible`) and `missing_fonts`. `as_dict()` gives it as JSON-ready data and
+  `summary()` as one line. Faces absent from the machine are laid out with their open
+  metric compatible substitutes, and each substitution is reported (`font-substituted`).
+  `ConvertOptions(substitute_fonts=False)` turns this off, and `font_substitutes={...}`
+  names more substitutes, which are reported as approximate. See the README, "Fonts".
+
+  ```python
+  options = ConvertOptions()
+  layout = convert_docx_to_layout("report.docx", options)
+  if not options.coverage.complete:
+      print(options.coverage.summary())   # partial: 1 of ~12 page(s), 4 of 230 block(s) laid out; ...
+  ```
 - **`convert_docx(source, options)`** lays the document out once and returns a
   `Conversion`: the layout and the selected pages' SVGs. `convert_docx_to_layout` and
   `convert_docx_to_svg` each lay it out on their own, as they always have.

@@ -27,12 +27,27 @@ jobs:
           python -m pip install "ooxml-common @ git+https://github.com/uvrt/ooxml-common@main"
           python -m pip install -e .[dev]
 
+      # The open metric compatible substitutes (README.md, "Fonts"): with them the layout
+      # code runs past the first paragraph on a runner without Office's faces, and
+      # tests/test_substitutes.py holds Carlito's layout to Word's Calibri numbers.  Never
+      # a font file in the repository.  Windows has Calibri, Arial, Times New Roman and
+      # Courier New itself, so there the real faces are laid out with and nothing is added.
+      - name: Install the open substitute fonts (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-crosextra-carlito fonts-crosextra-caladea fonts-liberation
+      - name: Install the open substitute fonts (macOS)
+        if: runner.os == 'macOS'
+        run: brew install --cask font-carlito font-caladea font-liberation
+
       # The oracle needs Microsoft Word, which no runner has -- including the macOS one.
       # Every test that needs it skips (tests/conftest.py), so this matrix checks the
-      # reader, the units and the fixture generator on twelve legs and checks *nothing*
-      # about fidelity.  That gap is real and ROADMAP.md says so: correctness is
-      # established on the one Mac that has Word, and CI only catches regressions in
-      # what can be checked without it.
+      # reader, the units, the fixture generator and -- with the substitutes above -- the
+      # layout code on twelve legs, and checks fidelity only where it is recorded (Word's
+      # observations under tests/fixtures/).  That gap is real and ROADMAP.md says so:
+      # correctness is established on the one Mac that has Word, and CI only catches
+      # regressions in what can be checked without it.
       - name: Test
         run: python -m pytest -q
 

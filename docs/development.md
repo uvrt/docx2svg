@@ -80,4 +80,10 @@ not an embedded blob inside a test artefact, not a Word-exported PDF (which carr
 subsets, and is why the ground-truth exports live in the Office group container
 (`~/Library/Group Containers/UBF8T346G9.Office/docx2svg-oracle/`) rather than in the tree). Measurements taken from those faces are facts and are recorded here as numbers.
 The files stay on the machine that measured them.
+`src/docx2svg/recorded.py` is such a record: Symbol's and Wingdings' metrics and
+advances, written by `tools/record_symbol_faces.py` from Word's copies. No open font file
+enters the repository either. CI installs Carlito, Caladea and Liberation from the
+system's package manager. To lay out locally as a machine without Office does, point
+`DOCX2SVG_SUBSTITUTE_FONTS` at a folder holding those faces: `tests/test_substitutes.py`
+then lays out with nothing else visible.
 
