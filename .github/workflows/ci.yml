@@ -37,6 +37,7 @@ jobs:
         run: python -m pytest -q
 
       - name: The fixture is regenerable and the committed one is current
+        shell: bash  # the default on Windows is PowerShell, which this script is not
         run: |
           python tools/make_layout_sweep.py
           git diff --exit-code tests/fixtures/ || \
