@@ -4618,9 +4618,18 @@ invented. `complete` is true only when nothing was skipped, so a caller (docx-ag
 `check`, `render` and `save_document`) can tell "laid out, and nothing was wrong" from
 "could not lay it all out".
 
-**Word verification.** The substitute layouts were compared with the layouts in Word's
-own faces, which are measured against Word. The run that exports the symbol-bullet probe
-with Word itself is recorded below once it has been made.
+**Word verification.** Word exported the symbol-bullet probe: Calibri body text, then six
+bullets in Symbol `U+F0B7`, Wingdings `U+F0A7`, `U+F0D8`, `U+F076` and `U+F0FC`, and Courier
+New `o`, in one list. Under the oracle's lock, Word closed it without saving. In
+docx2svg's layout, with only Carlito, Liberation and the recorded Symbol and Wingdings
+faces visible, Word's PDF matches glyph for glyph (`tools/glyphs.py`'s comparison, layout
+against PDF): **420 of 420 glyphs matched; x 420/420 (object starts 16/16 exact, advances
+404/404); baseline, face and size 420/420; nothing extra or undrawn.** The worst advance
+was 0.517/1000 em, which is within the instrument. This is the same score as the layout in
+Word's own faces. The bullets' pen positions, the text after them at the hanging indent
+and the lines' baselines (SymbolMT's taller line among them) are Word's. The drawn glyph is
+the only thing that differs: a Unicode equivalent instead of the symbol face's outline. The
+probe and the scripts that build and score it are kept locally, not committed.
 
 ---
 
