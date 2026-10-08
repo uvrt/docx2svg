@@ -4562,6 +4562,66 @@ A leader in a face whose advance is not known is still warned (`tab-leader-not-d
 Not measured, and left: a bar tab (`w:val="bar"`), a leader beside a floating drawing, a
 leader in a right-to-left paragraph. Pinned in `tests/test_tab_leaders.py`.
 
+### 5.20 Without Word's faces: open substitutes, recorded symbol faces, coverage -- measured
+
+Production feedback (2026-10): on a machine without Office's faces, a real document's
+layout stopped on page 1 and its PNG was drawn in fallback faces. Every Calibri, Arial,
+Times New Roman or Courier New paragraph is unmeasurable without its face. On the
+committed fixtures, with only open faces visible, the commonest stop after the text faces
+was **a symbol-font bullet** (Symbol `U+F0B7`, Wingdings `U+F0A7`/`U+F0D8`...):
+`sample-resume.docx`, `style-document.docx` and a filesamples document all stopped at
+their first bulleted paragraph.
+
+**Open substitutes, measured** (`docx2svg.fonts.SUBSTITUTES`). Each pair was read with
+docx2svg's own reader, against the copy Word lays out with, in all four styles:
+
+| Word's face | Open face | Advances compared / differing | Line metrics, script sizes and offsets |
+| --- | --- | --- | --- |
+| Calibri | Carlito 1.1 | 2,094 / 3 (U+0192, U+026A, U+0299) | equal |
+| Arial | Liberation Sans 2.1.5 | 2,209 / 38 to 40, none Latin, Greek or modern Cyrillic | equal; sampled `kern` pairs equal |
+| Times New Roman | Liberation Serif 2.1.5 | 2,209 / 40 to 50, likewise | equal; sampled `kern` pairs equal |
+| Courier New | Liberation Mono 2.1.5 | 2,118 / 179, the combining marks | equal |
+| Cambria | Caladea | -1.8 to -5.7% over a sentence | 1.150 em against 1.172: **not compatible** |
+| Calibri Light | Carlito | +1.2 to +3.4% | **not compatible** |
+
+Only the first four are substituted, and only where Word's face is neither installed nor
+embedded. Each substitution is reported (`font-substituted`). What still differs is the
+drawing: outlines, and the underline and strikeout geometry (Carlito's underline is at
+-103 units where Calibri's is at -232). Also, Carlito has no legacy `kern` table, so a
+Calibri run Word kerns (`w:kern`) is laid out unkerned. With only the substitutes visible,
+`layout-sweep.docx` (Calibri) lays out glyph for glyph as from Word's recorded Calibri
+numbers, which `tests/test_render.py` holds to Word's PDF. A filesamples document
+(Courier New, Symbol, Wingdings) and two probes lay out identically to their layout in
+Word's own faces, line by line. A caller-named substitute (`font_substitutes`) is used
+and reported as approximate. With Caladea for Cambria, `sample-long.docx` lays out to 19
+pages where Word draws 36, because the break differences cascade through its keeps. That
+is why such a substitute is never a default.
+
+**Symbol and Wingdings, recorded** (`docx2svg.recorded`, written by
+`tools/record_symbol_faces.py`). These are Microsoft's faces, with no open clone. A bullet
+needs only these numbers from them: the vertical metrics (SymbolMT's 2,059 + 450, the
+1.2251 em line of 2.4), the script sizes, the decoration integers and an advance per
+character (Symbol's 188 private-use codes and the same codes below U+0100; Wingdings'
+223). They are facts, recorded from the copies Word lays out with: Word's bundle's
+SymbolMT and macOS's Wingdings. No outline is recorded, and no file. Where the face is
+absent, the layout answers from them. The glyph is drawn as its Unicode equivalent (•, ▪,
+➢, ❖, ✓, ☑...: `recorded.UNICODE`, each checked against the face's own glyph by eye) in a
+generic face, at the position Word's face gives it. `tests/test_substitutes.py` holds the
+module to the installed faces where they are present.
+
+**Coverage** (`docx2svg.coverage`). Every conversion now sets `ConvertOptions.coverage`
+(also `layout.coverage`), a summary of the warnings: the pages laid out, the blocks laid
+out and skipped, the first stop (reason, page, element path), every header, footer and
+text-box stop, and the faces substituted or missing. Where the layout stopped, the
+estimated page count is Word's own count from `docProps/app.xml`, and otherwise none is
+invented. `complete` is true only when nothing was skipped, so a caller (docx-agent's
+`check`, `render` and `save_document`) can tell "laid out, and nothing was wrong" from
+"could not lay it all out".
+
+**Word verification.** The substitute layouts were compared with the layouts in Word's
+own faces, which are measured against Word. The run that exports the symbol-bullet probe
+with Word itself is recorded below once it has been made.
+
 ---
 
 ## Tables — measured (Phase 6, Tables row)
@@ -5213,6 +5273,13 @@ width at their narrowest, a cell with `w:noWrap` and no width giving way, a tabl
 in `dxa` wider than the room, and a table narrower than its narrowest content (since
 measured: stage 7c). Pinned in `tests/test_autofit_width.py`.
 
+Production feedback (2026-10) met this stop again: real templates stop at their first such
+table. The layout reports the stop and never guesses, which is right. But until the
+layout had a coverage summary (5.20), a caller saw only a short layout, with no sign that
+anything had been skipped. The coverage summary now says how many blocks were skipped and
+names this table (`coverage.stop`: `table`, with its path). The rule is still not
+settled, so the layout still stops here.
+
 ### Stage 7c -- autofit narrower than its content: measured
 
 A table whose columns' narrowest content -- each its widest word with the cell's margins
@@ -5510,6 +5577,16 @@ beyond anti-aliasing.
 * A `w:pgNumType/@w:start` on a continuous section that starts mid-page; `w:vAlign`
   of the body; footnotes under a story that pushes the body; a story taller than half
   the page.
+* **A header's or footer's VML drawing** (`w:pict`: a `v:rect` band, a `v:line` rule, a
+  watermark's `v:shape` with a `v:textpath`, a VML picture) is not laid out. The story is
+  drawn up to its paragraph (`story-stopped:drawing`, and in `coverage.story_stops`); the
+  rest of that header is not drawn. The body is unaffected: its pages and positions are
+  laid out in full. Templates use these often (production feedback, 2026-10). They are
+  not a small gap: VML's geometry, its positioning (`mso-position-*` against the page,
+  margin or text), its wrap (`w10:wrap`) and its paint order against the story's text and
+  the body's drawings each need probes. Next step: a probe of absolutely positioned VML
+  shapes in a header with no wrap, which should leave the header's text where it is, so
+  the text after them could be laid out before their outlines are drawn.
 
 ### H.8 `PAGEREF`, `REF` and `SEQ` computed (`make_xref_field_probe.py`)
 

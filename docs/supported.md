@@ -25,7 +25,11 @@ modelled), a marked band on the page where it stops and no page invented after i
 
 Faces are named in the SVG, not embedded. The layout reads the faces Word uses where
 they are installed -- Office's cloud-font cache too, where Word 365 keeps Aptos Display --
-(standard library only); a PNG is drawn with the same files.
+(standard library only); a PNG is drawn with the same files. Where an Office face is
+absent, its open metric compatible substitute is used: Carlito for Calibri, and
+Liberation Sans, Serif or Mono for Arial, Times New Roman or Courier New. An absent Symbol
+or Wingdings is laid out from metrics recorded from Word's copies. Each substitution is
+reported (README.md, "Fonts").
 
 ## Status by area
 

@@ -284,6 +284,9 @@ class Layout:
     pages: list[Page]
     #: ``(code, message, 1-based page or None)``, deduplicated, in order.
     warnings: list[tuple[str, str, int | None]] = field(default_factory=list)
+    #: How much of the document this covers (:class:`docx2svg.coverage.Coverage`): set by
+    #: :func:`docx2svg.convert_docx_to_layout` and its siblings, ``None`` from :func:`lay_out`.
+    coverage: object = None
 
     def warn(self, code: str, message: str, page: int | None = None) -> None:
         entry = (code, message, page)
