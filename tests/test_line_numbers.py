@@ -50,6 +50,7 @@ def test_refuted_rules_keep_their_scores(index, expected):
     assert (result.matched, result.y_agree, result.extra, result.not_drawn) == expected
 
 
+@pytest.mark.faces
 def test_line_numbers_are_spans_of_their_own_with_the_section_s_path():
     from docx2svg import convert_docx_to_layout
 

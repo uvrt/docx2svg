@@ -147,6 +147,31 @@ def pytest_runtest_setup(item) -> None:
                     "or in parallel with --dist loadgroup")
 
 
+#: What a layout reports when a face its document names is not installed: a paragraph (or a
+#: table cell's) cannot be measured, or a line number has no advances.  On a machine without Office's
+#: faces (every CI runner but Windows) a test marked ``faces`` that meets one skips: it was
+#: written against a layout in those faces and says nothing about the code without them.
+_FACE_ABSENT = ("layout-stopped:unmeasurable", "layout-stopped:no face metrics", "line-numbers-not-drawn")
+
+
+@pytest.fixture(autouse=True)
+def _skip_where_faces_are_absent(request, monkeypatch):
+    if request.node.get_closest_marker("faces") is None:
+        return
+    import docx2svg
+
+    lay_out = docx2svg._lay_out
+
+    def checked(source, options):
+        result = lay_out(source, options)
+        for code, message, *_ in result[0].warnings:
+            if code in _FACE_ABSENT or (code.startswith("layout-stopped:") and "cannot be measured" in message):
+                pytest.skip(f"a face this document is laid out in is not installed here: [{code}] {message}")
+        return result
+
+    monkeypatch.setattr(docx2svg, "_lay_out", checked)
+
+
 @pytest.fixture
 def update_snapshots(request) -> bool:
     """Whether ``--update-snapshots`` was passed; see :mod:`tests.test_vrt`."""

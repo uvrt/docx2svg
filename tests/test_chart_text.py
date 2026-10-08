@@ -62,6 +62,7 @@ def _render(data: bytes):
     return texts, [str(warning) for warning in options.warnings]
 
 
+@pytest.mark.faces
 def test_word_s_own_titles_are_said_and_take_their_band():
     texts, warnings = _render(_one(probe.CASES[21]))
     assert any("chart-title-not-drawn" in w for w in warnings), warnings
@@ -69,6 +70,7 @@ def test_word_s_own_titles_are_said_and_take_their_band():
     assert ">Plan<" in texts[0] and not [w for w in warnings if "chart" in w], warnings
 
 
+@pytest.mark.faces
 def test_an_axis_title_drawn_turned_and_one_not_laid_out_is_said():
     texts, warnings = _render(_one(probe.CASES[28]))
     assert "Revenue" in texts[0] and "rotate(-90" in texts[0] and not [w for w in warnings if "chart" in w]

@@ -169,6 +169,7 @@ def test_one_call_lays_out_once_and_returns_the_layout_and_the_svgs(monkeypatch)
     assert len(selected.layout.pages) == len(alone.pages)
 
 
+@pytest.mark.faces
 def test_every_page_carries_its_public_page_info():
     """``Page.info`` is a :class:`docx2svg.PageInfo`: the number Word prints, the section,
     whether it starts there, the story kind and whether the page is blank."""

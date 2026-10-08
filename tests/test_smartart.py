@@ -38,6 +38,7 @@ def test_the_probe_carries_the_cache_it_was_recorded_with():
     assert {int(k): v for k, v in DATA["caches"].items()} == make_smartart_probe.CACHES
 
 
+@pytest.mark.faces
 def test_a_diagram_with_no_cached_drawing_is_a_placeholder_and_a_warning():
     from docx2svg import ConvertOptions, convert_docx_to_layout
 

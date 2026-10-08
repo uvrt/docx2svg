@@ -68,6 +68,7 @@ def _layout(case: int):
     return layout
 
 
+@pytest.mark.faces
 def test_an_empty_paragraph_after_a_nested_table_takes_no_room():
     """The cell ends at the nested table's bottom border: ``After`` follows it directly."""
     import make_nested_table_probe as probe

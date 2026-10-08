@@ -90,6 +90,7 @@ def test_a_cell_starts_on_a_whole_pixel_held_in_layout_units():
     assert abs(box.text_left - round(box.text_left)) < Fraction(1, 1000)
 
 
+@pytest.mark.faces
 def test_an_autofit_table_word_resizes_is_laid_out_and_what_is_not_settled_stops():
     """Stage 7 recorded, and stage 7b models (``make_autofit_width_probe.py``), what
     ``make_table_autofit_probe.py`` shows Word resizing: a cell with no width, a table width

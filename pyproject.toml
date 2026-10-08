@@ -63,6 +63,8 @@ dev = [
   # `pytest -n auto` (docs/development.md).  Opt-in: a bare `pytest` stays serial,
   # and so does CI.
   "pytest-xdist>=3",
+  # The scores held against recorded observations (tools/read_render.py and its kin).
+  "numpy",
   "pypdfium2>=4",
   "fonttools>=4.40",
   "resvg-py>=0.5",
@@ -103,5 +105,6 @@ testpaths = ["tests"]
 markers = [
   "slow: minutes long, and needs Word's exports and faces (tools/fidelity.py); run with --run-slow",
   "pdfium: scores against the fidelity harness's old instrument (tools/fidelity.py --truth pdfium); skipped unless `pytest --pdfium`, since the default truth is svg",
+  "faces: lays out a document in faces only an Office machine has (Georgia, Cambria, ...); skips where the layout finds one absent (tests/conftest.py)",
   "word: drives Microsoft Word (tools/oracle.py's export), which is one instance per machine; such a test runs only serially or in the one xdist group `--dist loadgroup` keeps on a single worker (tests/conftest.py)",
 ]

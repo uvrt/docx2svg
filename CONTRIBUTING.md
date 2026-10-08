@@ -11,7 +11,9 @@ python -m pytest -n auto       # every core (pytest-xdist)
 
 The **oracle tests are local-only**: they need Microsoft Word (driven by AppleScript on
 macOS), its faces, or Word's exports outside the tree, and they skip wherever those are
-absent -- including on every CI runner. `--run-slow` adds the raster fidelity scores.
+absent -- including on every CI runner. Tests marked `faces` lay a document out in faces
+only an Office machine has (Georgia, Cambria, ...) and skip where one is not installed.
+`--run-slow` adds the raster fidelity scores.
 More in [docs/development.md](docs/development.md).
 
 ## What never goes into the repository

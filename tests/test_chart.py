@@ -68,6 +68,7 @@ def _one(case: make_chart_probe.Case) -> bytes:
         make_chart_probe.CASES = saved
 
 
+@pytest.mark.faces
 def test_a_chart_is_drawn_inline_and_floating_in_its_frame():
     for where in ("inline", "float"):
         layout, warnings = _render(_one(make_chart_probe.Case("text", "one", make_chart_probe.column_chart(),
@@ -78,6 +79,7 @@ def test_a_chart_is_drawn_inline_and_floating_in_its_frame():
         assert not [w for w in warnings if "chart" in w or "drawing-not-drawn" in w], warnings
 
 
+@pytest.mark.faces
 def test_a_chart_part_that_is_missing_is_a_placeholder_and_a_warning():
     data = _without(_one(make_chart_probe.CASES[0]), drop="word/charts/chart1.xml")
     layout, warnings = _render(data)
@@ -86,6 +88,7 @@ def test_a_chart_part_that_is_missing_is_a_placeholder_and_a_warning():
     assert any("chart-unreadable" in w for w in warnings) and any("drawing-not-drawn" in w for w in warnings)
 
 
+@pytest.mark.faces
 def test_a_chart_type_not_drawn_is_said():
     space = make_chart_probe.chart_space(
         make_chart_probe.NO_TITLE + "<c:plotArea><c:layout/><c:unknownChart/></c:plotArea>")
@@ -98,6 +101,7 @@ R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 RELS = "http://schemas.openxmlformats.org/package/2006/relationships"
 
 
+@pytest.mark.faces
 def test_a_chart_in_a_header_is_related_from_the_header():
     """The chart part a header's drawing names is the header's relationship, not the
     document's -- here the document has no relationship of that id at all."""
@@ -137,6 +141,7 @@ def test_a_chart_in_a_header_is_related_from_the_header():
     assert not [w for w in warnings if "chart" in w], warnings
 
 
+@pytest.mark.faces
 def test_a_chart_in_a_group_s_graphic_frame_is_drawn_in_its_place():
     import make_drawing_probe as drawing_probe
 
@@ -220,6 +225,7 @@ def _places() -> bytes:
     return out.getvalue()
 
 
+@pytest.mark.faces
 def test_a_chart_in_a_footnote_is_related_from_the_notes_part_and_one_in_a_text_box_is_drawn():
     from docx2svg import ConvertOptions, convert_docx_to_layout
 
