@@ -1,0 +1,916 @@
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="612pt" height="792pt" viewBox="0 0 2550 3300" data-docx-page="1">
+<rect width="2550" height="3300" fill="#FFFFFF"/>
+<rect x="354" y="785" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="785" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="785" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="785" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="785" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="785" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="785" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="785" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="785" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="789" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="789" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="789" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="789" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="789" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="845" width="447" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="845" width="446" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="845" width="446" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="845" width="446" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="845" width="4" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="845" width="4" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="845" width="4" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="845" width="4" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="845" width="4" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="854" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="854" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="854" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="854" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="854" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="910" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="910" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="910" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="910" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="910" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="910" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="910" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="910" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="910" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="915" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="915" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="915" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="915" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="915" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="971" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="971" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="971" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="971" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="971" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="971" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="971" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="971" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="971" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="975" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="975" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="975" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="975" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="975" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="1031" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="1031" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="1031" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="1031" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="1031" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="1031" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="1031" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="1031" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="1031" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="1035" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="1035" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="1035" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="1035" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="1035" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="1091" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="1091" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="1091" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="1091" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="1091" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="1091" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="1091" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="1091" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="1091" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="1095" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="1095" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="1095" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="1095" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="1095" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="1151" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="1151" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="1151" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="1151" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="1151" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="1151" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="1151" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="1151" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="1151" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="1335" width="357" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="715" y="1335" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1075" y="1335" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1435" y="1335" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1795" y="1335" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1335" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1335" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1335" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1335" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1335" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1335" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1339" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1339" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1339" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1339" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1339" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1339" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="354" y="1395" width="357" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="715" y="1395" width="356" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1075" y="1395" width="356" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1435" y="1395" width="356" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1795" y="1395" width="356" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1395" width="4" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1395" width="4" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1395" width="4" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1395" width="4" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1395" width="4" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1395" width="4" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1404" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1404" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1404" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1404" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1404" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1404" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="354" y="1460" width="357" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="715" y="1460" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1075" y="1460" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1435" y="1460" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1795" y="1460" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1460" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1460" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1460" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1460" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1460" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1460" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1464" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1464" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1464" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1464" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1464" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1464" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="354" y="1520" width="357" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="715" y="1520" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1075" y="1520" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1435" y="1520" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1795" y="1520" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1520" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1520" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1520" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1520" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1520" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1520" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1524" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1524" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1524" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1524" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1524" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1524" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="354" y="1580" width="357" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="715" y="1580" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1075" y="1580" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1435" y="1580" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1795" y="1580" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1580" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1580" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1580" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1580" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1580" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1580" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1584" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1584" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1584" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1584" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1584" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1584" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="354" y="1640" width="357" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="715" y="1640" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1075" y="1640" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1435" y="1640" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1795" y="1640" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1640" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1640" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1640" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1640" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1640" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1640" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1644" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1644" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1644" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1644" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1644" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1644" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="354" y="1700" width="357" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="715" y="1700" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1075" y="1700" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1435" y="1700" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1795" y="1700" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1700" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1700" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1700" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1700" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1700" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1700" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1705" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1705" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1705" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1705" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1705" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1705" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="354" y="1761" width="357" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="715" y="1761" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1075" y="1761" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1435" y="1761" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1795" y="1761" width="356" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="350" y="1761" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="711" y="1761" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1071" y="1761" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1431" y="1761" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1791" y="1761" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="2151" y="1761" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[5]" data-docx-kind="table-border"/>
+<rect x="354" y="1944" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="1944" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="1944" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="1944" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="1944" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="1944" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="1944" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="1944" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="1944" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="1948" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="1948" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="1948" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="1948" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="1948" width="4" height="56" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="2004" width="447" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="2004" width="446" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="2004" width="446" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="2004" width="446" height="9" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2004" width="4" height="10" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2004" width="4" height="10" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2004" width="4" height="10" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2004" width="4" height="10" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2004" width="4" height="10" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2014" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2014" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2014" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2014" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2014" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="2121" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="2121" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="2121" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="2121" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2121" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2121" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2121" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2121" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2121" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2125" width="4" height="108" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2125" width="4" height="108" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2125" width="4" height="108" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2125" width="4" height="108" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2125" width="4" height="108" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="2233" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="2233" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="2233" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="2233" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2233" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2233" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2233" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2233" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2233" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2237" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2237" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2237" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2237" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2237" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="2344" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="2344" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="2344" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="2344" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2344" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2344" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2344" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2344" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2344" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2349" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2349" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2349" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2349" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2349" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="2456" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="2456" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="2456" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="2456" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2456" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2456" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2456" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2456" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2456" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2460" width="4" height="108" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2460" width="4" height="108" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2460" width="4" height="108" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2460" width="4" height="108" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2460" width="4" height="108" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="2568" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="2568" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="2568" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="2568" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2568" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2568" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2568" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2568" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2568" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2572" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2572" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2572" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2572" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2572" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="2679" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="2679" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="2679" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="2679" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2679" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2679" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2679" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2679" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2679" width="4" height="5" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2684" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2684" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2684" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2684" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2684" width="4" height="107" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="354" y="2791" width="447" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="805" y="2791" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1255" y="2791" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1705" y="2791" width="446" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="350" y="2791" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[1]" data-docx-kind="table-border"/>
+<rect x="801" y="2791" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[2]" data-docx-kind="table-border"/>
+<rect x="1251" y="2791" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[3]" data-docx-kind="table-border"/>
+<rect x="1701" y="2791" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="2151" y="2791" width="4" height="4" fill="#4F81BD" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[4]" data-docx-kind="table-border"/>
+<rect x="1705" y="2684" width="445" height="107" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[4]" data-docx-kind="cell-shading"/>
+<rect x="1255" y="2684" width="445" height="107" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[3]" data-docx-kind="cell-shading"/>
+<rect x="805" y="2684" width="445" height="107" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[2]" data-docx-kind="cell-shading"/>
+<rect x="355" y="2684" width="445" height="107" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[1]" data-docx-kind="cell-shading"/>
+<rect x="1705" y="2460" width="445" height="108" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[4]" data-docx-kind="cell-shading"/>
+<rect x="1255" y="2460" width="445" height="108" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[3]" data-docx-kind="cell-shading"/>
+<rect x="805" y="2460" width="445" height="108" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[2]" data-docx-kind="cell-shading"/>
+<rect x="355" y="2460" width="445" height="108" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[1]" data-docx-kind="cell-shading"/>
+<rect x="1705" y="2237" width="445" height="107" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[4]" data-docx-kind="cell-shading"/>
+<rect x="1255" y="2237" width="445" height="107" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[3]" data-docx-kind="cell-shading"/>
+<rect x="805" y="2237" width="445" height="107" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[2]" data-docx-kind="cell-shading"/>
+<rect x="355" y="2237" width="445" height="107" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[1]" data-docx-kind="cell-shading"/>
+<rect x="1705" y="2014" width="445" height="107" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[4]" data-docx-kind="cell-shading"/>
+<rect x="1255" y="2014" width="445" height="107" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[3]" data-docx-kind="cell-shading"/>
+<rect x="805" y="2014" width="445" height="107" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[2]" data-docx-kind="cell-shading"/>
+<rect x="355" y="2014" width="445" height="107" fill="#D3DFEE" data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[1]" data-docx-kind="cell-shading"/>
+<rect x="1795" y="1644" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[5]" data-docx-kind="cell-shading"/>
+<rect x="1435" y="1644" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[4]" data-docx-kind="cell-shading"/>
+<rect x="1075" y="1644" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[3]" data-docx-kind="cell-shading"/>
+<rect x="715" y="1644" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[2]" data-docx-kind="cell-shading"/>
+<rect x="355" y="1644" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[1]" data-docx-kind="cell-shading"/>
+<rect x="1795" y="1524" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[5]" data-docx-kind="cell-shading"/>
+<rect x="1435" y="1524" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[4]" data-docx-kind="cell-shading"/>
+<rect x="1075" y="1524" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[3]" data-docx-kind="cell-shading"/>
+<rect x="715" y="1524" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[2]" data-docx-kind="cell-shading"/>
+<rect x="355" y="1524" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[1]" data-docx-kind="cell-shading"/>
+<rect x="1795" y="1404" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[5]" data-docx-kind="cell-shading"/>
+<rect x="1435" y="1404" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[4]" data-docx-kind="cell-shading"/>
+<rect x="1075" y="1404" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[3]" data-docx-kind="cell-shading"/>
+<rect x="715" y="1404" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[2]" data-docx-kind="cell-shading"/>
+<rect x="355" y="1404" width="355" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[1]" data-docx-kind="cell-shading"/>
+<rect x="1705" y="1095" width="445" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[4]" data-docx-kind="cell-shading"/>
+<rect x="1255" y="1095" width="445" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[3]" data-docx-kind="cell-shading"/>
+<rect x="805" y="1095" width="445" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[2]" data-docx-kind="cell-shading"/>
+<rect x="355" y="1095" width="445" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[1]" data-docx-kind="cell-shading"/>
+<rect x="1705" y="975" width="445" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[4]" data-docx-kind="cell-shading"/>
+<rect x="1255" y="975" width="445" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[3]" data-docx-kind="cell-shading"/>
+<rect x="805" y="975" width="445" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[2]" data-docx-kind="cell-shading"/>
+<rect x="355" y="975" width="445" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[1]" data-docx-kind="cell-shading"/>
+<rect x="1705" y="854" width="445" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[4]" data-docx-kind="cell-shading"/>
+<rect x="1255" y="854" width="445" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[3]" data-docx-kind="cell-shading"/>
+<rect x="805" y="854" width="445" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[2]" data-docx-kind="cell-shading"/>
+<rect x="355" y="854" width="445" height="56" fill="#D3DFEE" data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[1]" data-docx-kind="cell-shading"/>
+<g data-docx-path="w:body/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="456">
+<text data-docx-path="w:body/w:p[1]/w:r[1]" x="375 411.7716 443.1315 467.5415 498.8444 546.2972 575.6632 606.9661 627.1891 640.3768 667.1509 698.5107 719.2464 766.6992 795.4956 815.7186 828.9063 861.7472 891.1133 909.5703 938.9364 959.672 989.0381 1020.341 1044.751 1074.117 1087.3047 1116.1865 1144.9829 1176.2858 1190.6128 1219.9788" y="456" font-family="Calibri" font-size="58" font-weight="bold" fill="#365F91">Document Format Reference Tables</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:p[2]">
+<g data-docx-line="0" data-docx-baseline="526">
+<text data-docx-path="w:body/w:p[2]/w:r[1]" x="375 402.1688 427.4577 440.1917 459.8857 469.9788 495.402 519.7286 539.9373 565.2486 603.3834 625.7406 651.3204 666.8294 676.9226 697.1313 721.4579 747.0378 762.5468 784.9264 797.6603 823.2402 842.9342 853.0273 872.7214 895.0785 918.1742 940.5314 959.4869 981.8665 994.3095 1004.4027 1023.3582 1045.7153 1059.5907 1081.9478 1100.9033 1123.2605 1148.8403 1169.0491 1191.4063 1201.4994 1217.0085 1239.388 1264.4755 1276.9185 1299.2757 1318.9697 1329.0629 1344.5719 1369.8608 1392.2404 1407.7494 1417.8426 1437.5366 1462.8479 1500.9827 1539.1174 1561.497 1580.4525 1593.1864 1614.0218 1636.379 1646.4722 1666.6809 1691.0075 1729.1423 1767.277 1791.6036 1817.1834 1827.2766 1841.1519 1853.8859 1866.3289 1888.6861 1898.7793 1912.6546 1936.9812 1955.9367 1994.0715 2016.451 2031.96 2051.6541 2061.0535 2071.1466 2086.6557 2111.9446 2134.3018 2147.0357 2165.9912" y="526" font-family="Cambria" font-size="46" fill="#000000" xml:space="preserve">This document contains several reference tables that summarize common file formats, their </text>
+</g>
+<g data-docx-line="1" data-docx-baseline="588">
+<text data-docx-path="w:body/w:p[2]/w:r[1]" x="375 395.2087 420.4976 442.8772 461.8327 484.2122 504.421 519.93 542.2872 561.2427 573.9766 593.6707 609.1797 621.9137 642.1224 661.8164 671.2158 681.309 703.6886 729.2684 754.6916 764.7847 780.2938 803.3895 828.8798 841.6138 861.8225 884.2021 896.6451 906.7383 932.0496 951.7436 974.1007 984.1939 1004.4027 1026.7822 1046.4762 1068.8334 1088.5274 1097.9268 1108.02 1122.88 1138.3891 1148.4823 1161.2162 1180.9102 1191.0034 1216.4266 1238.7838 1258.4778 1271.2118 1293.8599 1319.4397 1341.7969 1367.2201 1377.3132 1392.8223 1417.1488 1427.242 1442.7511 1465.1082 1484.8022 1500.3113 1510.4045 1535.6934 1560.0199 1595.5139 1605.6071 1621.1161 1643.4957 1668.5832 1681.0262 1703.3834 1718.6015 1743.8904 1766.2476 1788.6271 1811.7228 1834.8185 1844.9117 1870.3349 1894.6615 1914.8702 1940.1815 1978.3162 2000.6734 2026.2533 2041.7623 2061.4563 2071.5495 2093.929 2112.8845 2135.2417" y="588" font-family="Cambria" font-size="46" fill="#000000" xml:space="preserve">characteristics, and typical use cases. It is designed to test how table-heavy documents are </text>
+</g>
+<g data-docx-line="2" data-docx-baseline="649">
+<text data-docx-path="w:body/w:p[2]/w:r[1]" x="375 400.2889 422.6685 448.2483 473.6715 486.1145 508.4717 533.8949 543.988 569.4112 594.7225 613.678 626.4119 651.9918 674.6399 684.7331 698.6084 722.935 741.8905 780.0252 802.4048 817.9138 828.007 848.2157 872.5423 898.1222 921.2179 943.575 962.5305 982.2245 994.9585 1019.2851 1044.8649" y="649" font-family="Cambria" font-size="46" fill="#000000">handled during format conversion.</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:p[3]">
+<g data-docx-line="0" data-docx-baseline="761">
+<text data-docx-path="w:body/w:p[3]/w:r[1]" x="375 401.8188 428.5583 457.6253 470.929 498.1974 510.4431 537.8967 552.8402 565.0859 599.231 628.3508 651.0173 680.0842 724.1475 751.416 780.483 799.2615 811.5072 836.3688 865.4887 884.7432 928.8066 955.5461 974.3245" y="761" font-family="Calibri" font-size="54" font-weight="bold" fill="#4F81BD">Table 1: Document Formats</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="833">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[1]/w:p[1]/w:r[1]" x="375 396.0368 420.6767 436.969 474.2533 496.8791" y="833" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Format</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="833">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[2]/w:p[1]/w:r[1]" x="825 847.3572 868.4163 884.3058 907.3792 931.9743 950.2584 961.5153 986.1552" y="833" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Extension</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="833">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1305.9957 1330.5908 1353.6641 1378.2593 1388.621 1410.2844 1426.1739 1448.7996 1473.3948 1497.9899 1520.6156 1536.908" y="833" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Open Standard</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="833">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[1]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1765.0594 1787.6851 1808.7443 1819.106 1840.1428 1851.3997 1862.6567 1885.73 1896.0917 1917.7551 1929.012 1947.229" y="833" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Max File Size</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="898">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[1]/w:p[1]/w:r[1]" x="375 416.5365 441.1764 457.4687 482.0638 492.4255 521.3175 545.9574 565.1367 589.7319 627.0162 650.0895 674.6847" y="898" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Word Document</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="898">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[2]/w:p[1]/w:r[1]" x="825 834.3994 859.8226 884.1492 904.3579" y="898" font-family="Cambria" font-size="46" fill="#000000">.docx</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="898">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1301.1393 1323.4965 1343.1905 1353.2837 1370.7845 1400.7284 1430.6722 1456.8563 1494.2301 1518.8253" y="898" font-family="Cambria" font-size="46" fill="#000000">Yes (OOXML)</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="898">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[2]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1756.1971 1780.5237 1790.6169 1815.9058 1838.2853 1857.2408 1882.664 1892.7572 1905.2002 1917.9342 1956.0689 1968.8029" y="898" font-family="Cambria" font-size="46" fill="#000000">No hard limit</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="959">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[1]/w:p[1]/w:r[1]" x="375 399.3937 428.2857" y="959" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">PDF</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="958">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[2]/w:p[1]/w:r[1]" x="825 834.3994 859.8897 885.3129" y="958" font-family="Cambria" font-size="46" fill="#000000">.pdf</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="958">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1301.1393 1323.4965 1343.1905 1353.2837 1370.7845 1385.6445 1408.3822 1438.326 1448.4192 1473.7976 1499.176 1524.5544 1549.9329 1575.3113" y="958" font-family="Cambria" font-size="46" fill="#000000">Yes (ISO 32000)</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="958">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[3]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1750.3784 1775.7568 1785.85 1813.8468 1841.866 1851.9592 1869.46 1884.9691 1910.258 1932.6152 1956.9417 1975.8972 1998.2544 2013.7634 2026.4974 2046.7061 2069.0857 2081.5287" y="958" font-family="Cambria" font-size="46" fill="#000000">10 GB (theoretical)</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1019">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[1]/w:p[1]/w:r[1]" x="375 405.9957 430.5908 453.6641 478.2593 507.1513 531.7912 550.9705 575.5656 612.8499 635.9233 660.5184 676.4079 686.7696 709.4625 732.5358 753.595" y="1019" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">OpenDocument Text</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1018">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[2]/w:p[1]/w:r[1]" x="825 834.3994 858.726 884.1492" y="1018" font-family="Cambria" font-size="46" fill="#000000">.odt</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1018">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1301.1393 1323.4965 1343.1905 1353.2837 1370.7845 1400.7284 1431.0527 1455.6478" y="1018" font-family="Cambria" font-size="46" fill="#000000">Yes (ODF)</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1018">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[4]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1756.1971 1780.5237 1790.6169 1815.9058 1838.2853 1857.2408 1882.664 1892.7572 1905.2002 1917.9342 1956.0689 1968.8029" y="1018" font-family="Cambria" font-size="46" fill="#000000">No hard limit</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1079">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[1]/w:p[1]/w:r[1]" x="375 400.8036 412.0605 431.2398 455.835 466.1967 488.8896 511.9629 533.0221 548.9115 559.2733 580.3101 604.95 621.2423 658.5266 681.1523" y="1079" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Rich Text Format</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1079">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[2]/w:p[1]/w:r[1]" x="825 834.3994 853.3549 868.8639" y="1079" font-family="Cambria" font-size="46" fill="#000000">.rtf</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1079">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1301.0274 1326.3387 1351.4262 1363.8692 1376.6032 1396.2972 1421.5861 1443.9433 1469.3665 1479.4596 1499.1536 1524.644 1547.0011" y="1079" font-family="Cambria" font-size="46" fill="#000000">Published spec</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1079">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[5]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1756.1971 1780.5237 1790.6169 1815.9058 1838.2853 1857.2408 1882.664 1892.7572 1905.2002 1917.9342 1956.0689 1968.8029" y="1079" font-family="Cambria" font-size="46" fill="#000000">No hard limit</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1139">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[1]/w:p[1]/w:r[1]" x="375 399.3937 410.6506 433.2764 444.5333 469.1284 479.4902 502.183 525.2563 546.3155" y="1139" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Plain Text</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1139">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[2]/w:p[1]/w:r[1]" x="825 834.3994 849.9084 872.0642" y="1139" font-family="Cambria" font-size="46" fill="#000000">.txt</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1139">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1306.1971 1328.6662" y="1139" font-family="Cambria" font-size="46" fill="#000000">N/A</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1139">
+<text data-docx-path="w:body/w:tbl[1]/w:tr[6]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1754.9438 1777.6815 1792.8996 1818.3228 1840.6799 1866.1702 1888.5274 1914.1073 1939.5304 1961.8876 1987.4674" y="1139" font-family="Cambria" font-size="46" fill="#000000">OS-dependent</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:p[4]">
+<g data-docx-line="0" data-docx-baseline="1199">
+</g>
+</g>
+<g data-docx-path="w:body/w:p[5]">
+<g data-docx-line="0" data-docx-baseline="1311">
+<text data-docx-path="w:body/w:p[5]/w:r[1]" x="375 401.8188 428.5583 457.6253 470.929 498.1974 510.4431 537.8967 552.8402 565.0859 579.5268 623.5901 650.3296 676.0111 703.2796 715.5253 740.387 769.5068 788.7614 832.8247 859.5642 878.3427" y="1311" font-family="Calibri" font-size="54" font-weight="bold" fill="#4F81BD">Table 2: Image Formats</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1383">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[1]/w:p[1]/w:r[1]" x="375 396.0368 420.6767 436.969 474.2533 496.8791" y="1383" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Format</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1383">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[2]/w:p[1]/w:r[1]" x="734.9996 757.3568 778.4159 794.3054 817.3787 841.9739 860.258 871.5149 896.1548" y="1383" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Extension</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1383">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[3]/w:p[1]/w:r[1]" x="1095.0002 1119.2596 1143.8995 1181.1839 1205.779 1222.0713 1245.1447 1263.4288 1281.7128 1292.9698 1317.6097" y="1383" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Compression</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1383">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[4]/w:p[1]/w:r[1]" x="1454.9998 1477.6927 1493.985 1516.6107 1541.2059 1559.4899 1584.0851 1606.7108 1623.0031 1646.0765 1670.6716 1689.8509" y="1383" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Transparency</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[5]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1383">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[1]/w:tc[5]/w:p[1]/w:r[1]" x="1815.0004 1842.7734 1867.3686 1878.6255 1915.9098 1938.5356 1954.425 1965.682 1990.3219" y="1383" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Animation</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1448">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[1]/w:p[1]/w:r[1]" x="375 390.1733 414.5671 436.9242" y="1448" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">JPEG</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1448">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[2]/w:p[1]/w:r[1]" x="734.9996 744.399 756.5959 782.0862" y="1448" font-family="Cambria" font-size="46" fill="#000000">.jpg</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1448">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[3]/w:p[1]/w:r[1]" x="1095.0002 1119.5953 1143.9219 1163.6159 1183.3099" y="1448" font-family="Cambria" font-size="46" fill="#000000">Lossy</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1448">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[4]/w:p[1]/w:r[1]" x="1454.9998 1486.1969" y="1448" font-family="Cambria" font-size="46" fill="#000000">No</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[5]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1448">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[2]/w:tc[5]/w:p[1]/w:r[1]" x="1815.0004 1846.1975" y="1448" font-family="Cambria" font-size="46" fill="#000000">No</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1508">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[1]/w:p[1]/w:r[1]" x="375 399.3937 429.5837" y="1508" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">PNG</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1508">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[2]/w:p[1]/w:r[1]" x="734.9996 744.399 769.8893 795.4692" y="1508" font-family="Cambria" font-size="46" fill="#000000">.png</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1508">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[3]/w:p[1]/w:r[1]" x="1095.0002 1119.5953 1143.9219 1163.6159 1183.3099 1195.753 1218.1101 1237.8042" y="1508" font-family="Cambria" font-size="46" fill="#000000">Lossless</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1508">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[4]/w:p[1]/w:r[1]" x="1454.9998 1481.1391 1503.4963" y="1508" font-family="Cambria" font-size="46" fill="#000000">Yes</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[5]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1508">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[3]/w:tc[5]/w:p[1]/w:r[1]" x="1815.0004 1846.1975" y="1508" font-family="Cambria" font-size="46" fill="#000000">No</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1568">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[1]/w:p[1]/w:r[1]" x="375 416.5365 439.6098 464.2049" y="1568" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">WebP</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1568">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[2]/w:p[1]/w:r[1]" x="734.9996 744.399 779.893 802.2502 827.3376" y="1568" font-family="Cambria" font-size="46" fill="#000000">.webp</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1568">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[3]/w:p[1]/w:r[1]" x="1095.0002 1123.0194 1147.346 1162.855" y="1568" font-family="Cambria" font-size="46" fill="#000000">Both</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1568">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[4]/w:p[1]/w:r[1]" x="1454.9998 1481.1391 1503.4963" y="1568" font-family="Cambria" font-size="46" fill="#000000">Yes</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[5]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1568">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[4]/w:tc[5]/w:p[1]/w:r[1]" x="1815.0004 1841.1397 1863.4969" y="1568" font-family="Cambria" font-size="46" fill="#000000">Yes</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1628">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[1]/w:p[1]/w:r[1]" x="375 404.2053 416.4246" y="1628" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">GIF</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1628">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[2]/w:p[1]/w:r[1]" x="734.9996 744.399 767.0471 779.7811" y="1628" font-family="Cambria" font-size="46" fill="#000000">.gif</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1628">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[3]/w:p[1]/w:r[1]" x="1095.0002 1119.5953 1143.9219 1163.6159 1183.3099 1195.753 1218.1101 1237.8042 1257.4982 1267.5913 1285.0922 1309.6873 1334.3272 1376.5574" y="1628" font-family="Cambria" font-size="46" fill="#000000">Lossless (LZW)</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1628">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[4]/w:p[1]/w:r[1]" x="1454.9998 1481.1391 1503.4963" y="1628" font-family="Cambria" font-size="46" fill="#000000">Yes</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[5]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1628">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[5]/w:tc[5]/w:p[1]/w:r[1]" x="1815.0004 1841.1397 1863.4969" y="1628" font-family="Cambria" font-size="46" fill="#000000">Yes</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1688">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[1]/w:p[1]/w:r[1]" x="375 400.6917 440.7511" y="1688" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">BMP</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1688">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[2]/w:p[1]/w:r[1]" x="734.9996 744.399 769.4865 807.6213" y="1688" font-family="Cambria" font-size="46" fill="#000000">.bmp</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1688">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[3]/w:p[1]/w:r[1]" x="1095.0002 1126.1973 1150.5239 1176.1037" y="1688" font-family="Cambria" font-size="46" fill="#000000">None</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1688">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[4]/w:p[1]/w:r[1]" x="1454.9998 1486.1969" y="1688" font-family="Cambria" font-size="46" fill="#000000">No</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[5]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1688">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[6]/w:tc[5]/w:p[1]/w:r[1]" x="1815.0004 1846.1975" y="1688" font-family="Cambria" font-size="46" fill="#000000">No</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1749">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[1]/w:p[1]/w:r[1]" x="375 397.6929 409.9121 430.9489" y="1749" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">TIFF</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1748">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[2]/w:p[1]/w:r[1]" x="734.9996 744.399 759.908 772.642 786.5173" y="1748" font-family="Cambria" font-size="46" fill="#000000">.tiff</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1748">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[3]/w:p[1]/w:r[1]" x="1095.0002 1123.0194 1147.346 1162.855" y="1748" font-family="Cambria" font-size="46" fill="#000000">Both</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1748">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[4]/w:p[1]/w:r[1]" x="1454.9998 1481.1391 1503.4963" y="1748" font-family="Cambria" font-size="46" fill="#000000">Yes</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[5]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1748">
+<text data-docx-path="w:body/w:tbl[2]/w:tr[7]/w:tc[5]/w:p[1]/w:r[1]" x="1815.0004 1846.1975" y="1748" font-family="Cambria" font-size="46" fill="#000000">No</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:p[6]">
+<g data-docx-line="0" data-docx-baseline="1809">
+</g>
+</g>
+<g data-docx-path="w:body/w:p[7]">
+<g data-docx-line="0" data-docx-baseline="1920">
+<text data-docx-path="w:body/w:p[7]/w:r[1]" x="375 401.8188 428.5583 457.6253 470.929 498.1974 510.4431 537.8967 552.8402 565.0859 597.9085 626.9755 656.0425 669.3461 698.466 710.7117 737.4512 766.5181 795.5851 807.8308 839.86 853.1637 882.2306 909.4991 938.619 950.8647 975.7263 1004.8462 1024.1007 1068.1641 1094.9036 1113.682" y="1920" font-family="Calibri" font-size="54" font-weight="bold" fill="#4F81BD">Table 3: Audio and Video Formats</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1992">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[1]/w:p[1]/w:r[1]" x="375 396.0368 420.6767 436.969 474.2533 496.8791" y="1992" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Format</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1992">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[2]/w:p[1]/w:r[1]" x="825 847.6929 869.401 893.9962" y="1992" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Type</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1992">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1299.2594 1323.8993 1361.1837 1398.468 1423.1079 1447.703 1458.0648 1482.3242 1506.9641 1531.5592 1554.6326 1573.8118" y="1992" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Common Codecs</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="1992">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[1]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1747.6929 1769.401 1793.9962 1805.2531 1824.4324 1847.0581 1858.315 1868.6768 1898.5982 1916.8823" y="1992" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">Typical Use</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2058">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[1]/w:p[1]/w:r[1]" x="375 415.0594 439.4531" y="2058" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">MP4</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2057">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[2]/w:p[1]/w:r[1]" x="825 852.6611 865.3951 890.8183 913.1755" y="2057" font-family="Cambria" font-size="46" fill="#000000">Video</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2057">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1306.4657 1315.8651 1341.2435 1366.6219 1392.0003 1401.3997 1411.4929 1442.9586 1452.358 1477.7364 1503.1148 1528.4932 1537.8927 1547.9858 1576.5422 1605.0985" y="2057" font-family="Cambria" font-size="46" fill="#000000">H.264, H.265, AAC</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2057">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1767.2302 1789.5874 1814.6749 1824.7681 1844.4621 1859.9711 1878.9266 1901.2838 1923.6633 1961.7981 1974.5321 2000.1119 2022.76 2032.8532 2055.2327 2080.8126 2106.2358" y="2057" font-family="Cambria" font-size="46" fill="#000000" xml:space="preserve">Web streaming and </text>
+</g>
+<g data-docx-line="1" data-docx-baseline="2111">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[2]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1750.4232 1774.7498 1810.2437 1835.8236 1848.2666 1872.5932 1894.9727 1920.3959" y="2111" font-family="Cambria" font-size="46" fill="#000000">downloads</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2169">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[1]/w:p[1]/w:r[1]" x="375 415.0594 440.1245" y="2169" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">MKV</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2169">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[2]/w:p[1]/w:r[1]" x="825 852.6611 865.3951 890.8183 913.1755" y="2169" font-family="Cambria" font-size="46" fill="#000000">Video</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2169">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1306.4657 1315.8651 1341.2435 1366.6219 1392.0003 1401.3997 1411.4929 1439.1541 1465.1815 1490.5599 1499.9593 1510.0525 1534.6476 1559.2428 1587.7991" y="2169" font-family="Cambria" font-size="46" fill="#000000">H.264, VP9, FLAC</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2169">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1756.4657 1769.1996 1791.8477 1817.1366 1832.3547 1857.4198 1882.7311 1905.1107 1917.5537 1930.2877 1945.7967 1968.8924 1978.9856 2002.0813 2014.8153 2040.2384 2062.5956 2086.9222" y="2169" font-family="Cambria" font-size="46" fill="#000000" xml:space="preserve">High-quality video </text>
+</g>
+<g data-docx-line="1" data-docx-baseline="2223">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[3]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1747.3796 1766.335 1786.5438 1811.8327 1824.5667 1847.6624 1860.3963 1885.9762" y="2223" font-family="Cambria" font-size="46" fill="#000000">archiving</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2281">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[1]/w:p[1]/w:r[1]" x="375 416.5365 439.6098 464.2049" y="2281" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">WebM</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2281">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[2]/w:p[1]/w:r[1]" x="825 852.6611 865.3951 890.8183 913.1755" y="2281" font-family="Cambria" font-size="46" fill="#000000">Video</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2281">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1302.6611 1328.6886 1354.067 1363.4664 1373.5596 1401.2207 1427.2481 1452.6265 1462.026 1472.1191 1502.063 1527.5533 1552.8646" y="2281" font-family="Cambria" font-size="46" fill="#000000">VP8, VP9, Opus</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2281">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1753.0192 1771.9747 1796.3013 1831.7952 1851.4893 1873.8464 1892.8019 1908.02 1933.5999 1955.9794 1971.4884 1984.2224 2007.3181 2029.6753" y="2281" font-family="Cambria" font-size="46" fill="#000000" xml:space="preserve">Browser-native </text>
+</g>
+<g data-docx-line="1" data-docx-baseline="2334">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[4]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1748.0957 1760.8297 1786.2528 1808.61" y="2334" font-family="Cambria" font-size="46" fill="#000000">video</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2393">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[1]/w:p[1]/w:r[1]" x="375 415.0594 446.0551" y="2393" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">MOV</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2392">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[2]/w:p[1]/w:r[1]" x="825 852.6611 865.3951 890.8183 913.1755" y="2392" font-family="Cambria" font-size="46" fill="#000000">Video</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2392">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1301.0274 1319.9829 1344.3095 1372.7763 1395.1335 1414.8275 1424.2269 1434.3201 1465.7857 1475.1851 1500.5636 1525.942 1551.3204 1560.7198 1570.813 1599.3693 1627.9256" y="2392" font-family="Cambria" font-size="46" fill="#000000">ProRes, H.264, AAC</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2392">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1751.0274 1769.9829 1794.3095 1808.1848 1830.542 1850.236 1869.93 1882.664 1906.9906 1932.5704 1954.95 1967.393 1977.4862 2000.5819 2013.3158 2038.739 2061.0962 2085.4228" y="2392" font-family="Cambria" font-size="46" fill="#000000" xml:space="preserve">Professional video </text>
+</g>
+<g data-docx-line="1" data-docx-baseline="2446">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[5]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1747.3572 1772.7804 1785.5143 1801.0234 1813.7573 1839.3372" y="2446" font-family="Cambria" font-size="46" fill="#000000">editing</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2504">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[1]/w:p[1]/w:r[1]" x="375 415.0594 439.4531" y="2504" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">MP3</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2504">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[2]/w:p[1]/w:r[1]" x="825 853.5563 878.8676 904.2908 917.0247" y="2504" font-family="Cambria" font-size="46" fill="#000000">Audio</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2504">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1312.3739 1338.4013 1364.7644 1392.7612 1402.8544 1427.4495 1449.8291 1472.9248 1495.282 1514.2375 1524.3306" y="2504" font-family="Cambria" font-size="46" fill="#000000">MPEG Layer 3</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2504">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1762.3739 1787.6851 1807.3792 1820.1131 1840.3219 1850.415 1872.7946 1898.3744 1923.7976 1933.8908 1959.3811 1983.7077 2009.1309 2029.3396 2051.7192 2071.4132 2086.9222" y="2504" font-family="Cambria" font-size="46" fill="#000000" xml:space="preserve">Music and podcast </text>
+</g>
+<g data-docx-line="1" data-docx-baseline="2558">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[6]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1750.4232 1763.1571 1782.8512 1798.3602 1817.3157 1830.0496 1855.1371 1880.4484 1895.9574 1908.6914 1933.018" y="2558" font-family="Cambria" font-size="46" fill="#000000">distribution</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2616">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[1]/w:p[1]/w:r[1]" x="375 416.5365 444.3095" y="2616" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">WAV</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2616">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[2]/w:p[1]/w:r[1]" x="825 853.5563 878.8676 904.2908 917.0247" y="2616" font-family="Cambria" font-size="46" fill="#000000">Audio</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2616">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1301.0274 1326.8087 1364.1825" y="2616" font-family="Cambria" font-size="46" fill="#000000" xml:space="preserve">PCM </text>
+</g>
+<g data-docx-line="1" data-docx-baseline="2669">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1292.5008 1317.8121 1343.3919 1363.6007 1387.9272 1426.062 1451.5523 1470.5078 1492.865 1512.559 1532.253 1554.6102 1580.0334" y="2669" font-family="Cambria" font-size="46" fill="#000000">(uncompressed)</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2616">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1751.0274 1769.9829 1794.3095 1808.1848 1830.542 1850.236 1869.93 1882.664 1906.9906 1932.5704 1954.95 1967.393 1977.4862 1999.8657 2025.177 2050.6002 2063.3341 2087.6607" y="2616" font-family="Cambria" font-size="46" fill="#000000" xml:space="preserve">Professional audio </text>
+</g>
+<g data-docx-line="1" data-docx-baseline="2669">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[7]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1747.3572 1772.7804 1785.5143 1801.0234 1813.7573 1839.3372" y="2669" font-family="Cambria" font-size="46" fill="#000000">editing</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[1]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2727">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[1]/w:p[1]/w:r[1]" x="375 396.0368 415.4175 443.1905" y="2727" font-family="Calibri" font-size="46" font-weight="bold" fill="#000000">FLAC</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[2]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2727">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[2]/w:p[1]/w:r[1]" x="825 853.5563 878.8676 904.2908 917.0247" y="2727" font-family="Cambria" font-size="46" fill="#000000">Audio</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[3]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2727">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[3]/w:p[1]/w:r[1]" x="1275 1299.5951 1324.1903 1352.7466 1378.5278 1388.621 1406.1218 1418.5649 1442.8914 1462.5854 1482.2795 1494.7225 1517.0797 1536.7737 1556.4677" y="2727" font-family="Cambria" font-size="46" fill="#000000">FLAC (lossless)</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[4]/w:p[1]">
+<g data-docx-line="0" data-docx-baseline="2727">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1749.5951 1773.9217 1793.6157 1813.3097 1825.7528 1848.1099 1867.804 1887.498 1897.5911 1935.7259 1961.0372 1980.7312 1993.4652 2013.6739" y="2727" font-family="Cambria" font-size="46" fill="#000000" xml:space="preserve">Lossless music </text>
+</g>
+<g data-docx-line="1" data-docx-baseline="2781">
+<text data-docx-path="w:body/w:tbl[3]/w:tr[8]/w:tc[4]/w:p[1]/w:r[1]" x="1725 1747.3796 1766.335 1786.5438 1811.8327 1824.5667 1847.6624 1860.3963 1885.9762" y="2781" font-family="Cambria" font-size="46" fill="#000000">archiving</text>
+</g>
+</g>
+<g data-docx-path="w:body/w:p[8]">
+<g data-docx-line="0" data-docx-baseline="2839">
+<text data-docx-path="w:body/w:p[8]/w:r[1]" x="375 402.1688 427.4577 449.8149 469.5089 491.866 501.9592 517.4683 539.8478 564.9353 577.3783 599.7355 619.4295 629.5227 655.013 673.9685 698.2951 721.3908 734.1248 759.5479 781.9051 791.9983 814.3778 824.471 849.7599 862.4939 885.142 910.4309 925.649 938.092 960.4492 983.5449 1005.9021 1018.3451 1028.4383 1052.7649 1075.8606 1098.2178 1117.1733 1140.269 1153.0029 1175.3601 1210.8541 1220.9473 1245.2738 1259.1492 1269.2424 1284.7514 1310.0403 1332.3975 1342.4906 1380.6254 1404.952 1424.646 1440.155 1450.2482 1470.4569 1494.7835 1532.9183 1571.0531 1595.3796 1620.9595 1631.0527 1644.928 1657.6619 1670.105 1692.4622 1702.5553 1716.4307 1740.7572 1759.7127 1797.8475 1820.2271 1835.7361 1855.4301 1865.5233 1887.8805 1913.4603 1933.669 1957.9956 1983.3069 2008.8867 2024.3958 2046.7529 2065.7084 2088.0656 2113.4888 2123.5819 2136.3159 2161.8958" y="2839" font-family="Cambria" font-size="46" fill="#000000" xml:space="preserve">These tables provide a high-level overview of the most common file formats encountered in </text>
+</g>
+<g data-docx-line="1" data-docx-baseline="2901">
+<text data-docx-path="w:body/w:p[8]/w:r[1]" x="375 400.4232 424.7498 444.9585 470.2698 508.4045 530.7617 556.3416 571.8506 581.25 591.3432 604.0771 642.2119 664.5915 687.2396 709.5968 718.9962 729.0894 751.4689 777.0487 802.4719 812.5651 850.6999 873.057 898.4802 911.2142 933.5938 943.6869 963.8957 988.2222 1013.8021 1036.8978 1059.255 1078.2104 1097.9045 1110.6384 1134.965 1160.5448 1170.638 1206.132 1230.4586 1249.4141 1273.4497 1287.325 1299.7681 1324.0946 1359.5886 1379.2826" y="2901" font-family="Cambria" font-size="46" fill="#000000">document, image, and media conversion workflows.</text>
+</g>
+</g>
+</svg>

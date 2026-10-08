@@ -1,0 +1,9 @@
+# Committed fixtures are compared part by part rather than byte by byte (see
+# tests/test_parse.py), but the generator and the tools that read them are text and must
+# not be rewritten on checkout: a CRLF in a Python file that writes XML changes the XML.
+*.py text eol=lf
+*.applescript text eol=lf
+*.docx binary
+# Committed render snapshots are compared byte for byte (tests/test_vrt.py): the bytes in
+# the working tree must be the bytes that were captured, on every platform.
+tests/vrt/**/*.svg text eol=lf

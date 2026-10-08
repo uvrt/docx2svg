@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="612pt" height="792pt" viewBox="0 0 2550 3300" data-docx-page="20">
+<rect width="2550" height="3300" fill="#FFFFFF"/>
+<g data-docx-path="w:body/w:p[20]">
+<g data-docx-line="0" data-docx-baseline="344">
+<text data-docx-path="w:body/w:p[20]/w:r[1]" x="300 324.4385 346.3928 364.3188 387.1236 397.4854 420.7153 443.9453 454.307 478.3875 502.5574 526.6378 547.3836 557.7454 573.0977 595.9025 615.7532 631.1056 642.5415 652.9032 685.6669 709.7473 720.2657 739.6464 763.7268 774.0885 784.6069 802.533 812.8947 828.2471 852.3275 875.1322 885.494 909.5744 933.7443 957.8247 978.5706 988.9323 1013.1022 1027.0894 1037.4512 1052.8035 1076.884 1099.6887 1110.0505 1129.4312 1151.3855 1169.3115 1192.1163 1202.478 1217.8304 1239.7847 1263.8652 1281.7912" y="344" font-family="Calibri" font-size="46" fill="#000000">Case 19 body text, which is the body of the case tabs.</text>
+</g>
+</g>
+<g data-docx-path="w:hdr/w:p[1]" data-docx-story="header" data-docx-part="word/header20.xml">
+<g data-docx-line="0" data-docx-baseline="194">
+<text data-docx-path="w:hdr/w:p[1]/w:r[1]" x="300 328.5563 351.7863 375.0163 385.378 404.6468 427.4516 441.4388" y="194" font-family="Calibri" font-size="46" fill="#000000">H19 Left</text>
+<text data-docx-path="w:hdr/w:p[1]/w:r[3]" x="1212.2701 1236.7086 1259.5133 1283.5938 1298.9461 1314.9251" y="194" font-family="Calibri" font-size="46" fill="#000000">Centre</text>
+<text data-docx-path="w:hdr/w:p[1]/w:r[5]" x="2153.5889 2178.4749 2188.9933 2210.5672 2234.6476" y="194" font-family="Calibri" font-size="46" fill="#000000">Right</text>
+</g>
+</g>
+<g data-docx-path="w:ftr/w:p[1]" data-docx-story="footer" data-docx-part="word/footer20.xml">
+<g data-docx-line="0" data-docx-baseline="3138">
+<text data-docx-path="w:ftr/w:p[1]/w:r[1]" x="300 321.0592 344.2891 367.5191 377.8809 397.1497 419.9544 433.9417" y="3138" font-family="Calibri" font-size="46" fill="#000000">F19 Left</text>
+<text data-docx-path="w:ftr/w:p[1]/w:r[3]" x="1212.2701 1236.7086 1259.5133 1283.5938 1298.9461 1314.9251" y="3138" font-family="Calibri" font-size="46" fill="#000000">Centre</text>
+<text data-docx-path="w:ftr/w:p[1]/w:r[5]" x="2153.5889 2178.4749 2188.9933 2210.5672 2234.6476" y="3138" font-family="Calibri" font-size="46" fill="#000000">Right</text>
+</g>
+</g>
+</svg>

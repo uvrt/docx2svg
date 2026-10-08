@@ -1,0 +1,233 @@
+Hyphenation patterns and word lists used by docx2svg.hyphenate
+==============================================================
+
+Every file here but hyph-en-us-knuth.*, en-moby.txt.gz and en-observed-exceptions.txt is
+an unmodified copy of a file of the hyph-utf8
+package, as published in the tex-hyphen repository:
+
+    https://github.com/hyphenation/tex-hyphen
+    commit 5684c0f51c0b81133db2efbe60a408b4155a3ff5
+    directory hyph-utf8/tex/generic/hyph-utf8/patterns/txt/
+
+The .pat.txt files hold the patterns, one per line; the .hyp.txt files hold the
+exceptions, one word per line with its hyphens.  Each language's licence, as its
+hyph-utf8 source (patterns/tex/hyph-<tag>.tex) states it, is below.  Every one permits
+copying, modification and redistribution in an MIT-licensed project; the copyright
+notices and licence texts are kept here as they require.
+
+hyph-en-us-knuth.* are converted, in the same format, from two files on CTAN (below).
+en-moby.txt.gz is converted from the Moby Hyphenator list (below).
+
+None of this data comes from Microsoft Word or its proofing tools.  Word's own break
+points are observed by tools/make_hyphen_probe.py and kept in the probe's recording
+(tests/fixtures/hyphen-observations.json), where they score these patterns; the one file
+made from them is en-observed-exceptions.txt (below).
+
+Languages whose patterns are not here are not hyphenated by the library.
+
+
+en-observed-exceptions.txt -- English, the probe's own words (consulted before en-moby)
+--------------------------------------------------------------------------------------
+
+  Behavioural observations of Word's output, not Microsoft data: no file of Word or its
+  proofing tools was read.  The words are those of the repository's own probe documents
+  (tools/make_hyphen_probe.py, the points and words sweeps, made to score the patterns);
+  each is spelt with the points at which Word 16.106 was seen breaking it, read off
+  Word's PDF of the sweep, as recorded in tests/fixtures/hyphen-observations.json
+  (recorded 2026-10-01 and 2026-10-02; this file made 2026-10-03 by tools/read_hyphen_probe.py
+  --exceptions, from the recording alone, with no Word run).
+
+  It holds the 42 of the 359 English probe words whose points without compatibility mode
+  or in mode 15 differ from those en-moby.txt.gz and the patterns give, one a line, "="
+  at each point; after a space, the word as Word breaks it in mode 15 where that is not
+  the same points less those within three letters of the end (8 words).  No word holds a
+  string this repository keeps out of its files (none was left out).  The 359 words score
+  every English set (ROADMAP.md, 3.9.1); with this file they all agree, which says
+  nothing of other words -- the score without it does.
+
+
+en-moby.txt.gz -- English word list (every en-* tag; consulted before the patterns)
+---------------------------------------------------------------------------------
+
+  The Moby Hyphenator II list, by Grady Ward, as Project Gutenberg distributes it (etext
+  3204):
+
+    https://www.gutenberg.org/files/3204/files/mhyph.txt
+    fetched 2026-10-03, 2,602,250 bytes,
+    SHA-256 eeb30474c86b8af3469035ec1a0913e35905325ca885290db9dfed9881e230ac
+
+  licence: public domain.  The distribution's notes (https://www.gutenberg.org/files/3204/
+  3204-0.txt) read: "This documentation, the software and/or database are: Public Domain
+  material by grant from the author, January, 2001."  Project Gutenberg's catalogue entry
+  (https://www.gutenberg.org/ebooks/3204) gives its copyright status as "Public domain in
+  the USA."  No notice needs keeping; this one is kept for the record.
+
+  The file as fetched: 187,175 entries, one a line, CRLF; Mac Roman (0x8E is e-acute...);
+  each break point marked by byte 0xA5 (U+2022 BULLET in Mac Roman), which the notes call
+  "ASCII 165"; a word with no mark is one that should not be broken.  Converted thus:
+
+  1. decoded as Mac Roman, split at CRLF;
+  2. left out: 4 entries that hold a string this repository keeps out of its files (as for
+     ushyphex.tex below);
+  3. 166,299 entries are a single word (letters and marks only) and are kept: a mark at
+     either end is dropped (one entry), and of a spelling listed more than once (1,988
+     spellings) the later entry is kept;
+  4. the other 20,872 entries -- phrases, compounds with a hyphen, words with an
+     apostrophe, abbreviations with a slash or a digit -- are not kept as entries, since
+     the library hyphenates the parts of a compound and the letters between apostrophes as
+     words of their own; a part (letters and marks only) whose case-folded spelling no
+     single-word entry has is kept as a word (3,515 words, the later of its listings);
+  5. the mark written as "=" (not a hyphen, which a spelling may hold), the 167,826 words
+     sorted by their case-folded spelling, one a line, UTF-8, and gzip-compressed (level 9,
+     no name, mtime 0): 593,404 bytes, SHA-256 7451adf4b6ccb91a...  The decompressed text
+     is never kept in the repository.
+
+  Lookup (hyphenate.WordList): by the word's case-folded spelling; the spelling as typed
+  if listed (Polish, polish), else the lower-case one, else the first.  Of the open English
+  sources measured it agrees with Word's breaks most often (ROADMAP.md, 3.9.1); the
+  patterns below break only the words it does not hold.
+
+
+hyph-en-us-knuth.pat.txt, hyph-en-us-knuth.hyp.txt -- English (used for every en-* tag)
+-------------------------------------------------------------------------------------
+
+  The patterns are those of the Plain TeX hyphenation table, hyphen.tex (Donald E. Knuth
+  and Frank M. Liang; CTAN macros/plain/base/hyphen.tex, SHA-256 2c18acdc04c1a066...),
+  one per line.  The exceptions are hyphen.tex's own fourteen words and then those of
+  "Hyphenation exceptions for US English, based on hyphenation exception log articles in
+  TUGboat" (CTAN info/digests/tugboat/hyphenex/ushyphex.tex, 2021, SHA-256
+  9392bd6e14b2f34e...), lower-cased, duplicates left out, and thirteen entries left out
+  that hold a string this repository keeps out of its files (see
+  tools/read_hyphen_probe.py, FORBIDDEN).  Of the open English pattern sets measured, this
+  one agrees with Word's breaks most often (ROADMAP.md, 3.9.1); it breaks the words
+  en-moby.txt.gz does not hold.
+
+  hyphen.tex's notice: "The Plain TeX hyphenation tables [NOT TO BE CHANGED IN ANY WAY!]
+  Unlimited copying and redistribution of this file are permitted as long as this file
+  is not modified. Modifications are permitted, but only if the resulting file is not
+  named hyphen.tex."  No file here is named hyphen.tex.
+
+  ushyphex.tex's notice: "Copyright 2021 TeX Users Group.  You may freely use, modify
+  and/or distribute this file."
+
+
+hyph-en-us.pat.txt, hyph-en-us.hyp.txt -- American English (hyph-utf8; kept for the probe)
+-----------------------------------------------------------------------------------------
+
+  The library's English patterns until the measurement of 3.9.1; tools/make_hyphen_probe.py
+  still hyphenates its paragraphs "hyphenated by hand" with them, so that they stay the
+  documents Word was shown.
+
+
+  title: Hyphenation patterns for American English
+  copyright: Copyright (C) 1990, 2004, 2005 Gerard D.C. Kuiken
+  version: 2005-05-30 (ushyphmax.tex: Kuiken's patterns with Knuth's hyphen.tex)
+  licence:
+      Copying and distribution of this file, with or without modification,
+      are permitted in any medium without royalty provided the copyright
+      notice and this notice are preserved.
+
+  The patterns include those of the Plain TeX hyphenation table (Donald E. Knuth,
+  hyphen.tex), whose notice reads: "Unlimited copying and redistribution of this file
+  are permitted as long as this file is not modified. Modifications are permitted, but
+  only if the resulting file is not named hyphen.tex."  No file here is named hyphen.tex.
+
+
+hyph-nl.pat.txt, hyph-nl.hyp.txt -- Dutch (nl-NL; nl-BE is not hyphenated, see hyphenate.py)
+--------------------------------------------------------------------------------------------
+
+  title: Hyphenation patterns for Dutch
+  copyright: Copyright (C) 1996 Piet Tutelaers
+  version: 1.1 (November 1996)
+  licence: MIT (https://opensource.org/licenses/MIT)
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+hyph-de-1996.pat.txt -- German, reformed spelling (every de-* tag)
+-----------------------------------------------------------------
+
+  title: German Hyphenation Patterns (Reformed Orthography, 2006)
+  version: 2024-02-28
+  authors: Deutschsprachige Trennmustermannschaft (trennmuster@dante.de)
+  copyright: Copyright (c) 2013-2024 Stephan Hennig, Werner Lemberg, Günter Milde,
+             Sander van Geloven, Georg Pfeiffer, Gisbert W. Selke, Tobias Wendorf,
+             Keno Wehr
+  source: https://repo.or.cz/w/wortliste.git?a=commit;h=304aaa2188a75e57afe36bad0443d90a9c715b8e
+  licence: MIT (https://opensource.org/licenses/mit-license.php)
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+hyph-fr.pat.txt -- French (fr-FR, fr-CH, fr-CA...; fr-BE is not hyphenated, see hyphenate.py)
+--------------------------------------------------------------------------------------------
+
+  title: Hyphenation patterns for French
+  copyright: Copyright (C) 1994-2002 Daniel Flipo, Bernard Gaulle, 2016 Arthur Reutenauer
+  version: V2.13 2016/05/12
+  licence: MIT (https://opensource.org/licenses/MIT; LPPL before 2016-03-20)
+  (hyph-utf8 has no exceptions file for French.)
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+Considered and not used
+-----------------------
+
+* LibreOffice's hyph_de_DE.dic: LGPL 2 or later -- not compatible; not used.
+* LibreOffice's hyph_nl_NL.dic (OpenTaal, BSD-3-Clause or CC BY 3.0): compatible, but on
+  the probe's words it agrees with Word exactly as often as hyph-nl does, and it has no
+  rules for spelling changes at a break; not used.
+* hyph-en-gb (MIT): Word's en-GB breaks the probe's words as its en-US does, and of
+  every English set measured it agrees with Word least; not used.
+* LibreOffice's hyph_en_US.dic (hyphen.tex and the 2007 TUGboat log as patterns,
+  BSD-style) and hyph_en_GB.dic: agree with Word a little less than hyph-en-us-knuth
+  and no better than hyph-en-gb; not used.
+* Patterns trained with pypatgen on the Moby Hyphenator list: 3 MB, and they agree with
+  Word less often than the list itself or Knuth's patterns; not used (the list is used).
+* LibreOffice's hyph_fr.dic (based on hyph-fr, LGPL 2.1 or later): not compatible; not used.

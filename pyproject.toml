@@ -1,0 +1,107 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docx2svg"
+version = "0.1.0"
+description = "Render Word (.docx) documents to SVG in pure Python"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Evert Koks" }]
+keywords = ["docx", "word", "svg", "ooxml", "render", "pagination"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Multimedia :: Graphics :: Graphics Conversion",
+  "Topic :: Office/Business :: Office Suites",
+  "Typing :: Typed",
+]
+# Standard-library only at runtime, and this list is the statement of that: its one entry,
+# ooxml-common, is itself standard-library only.  It is load-bearing rather than
+# aesthetic: a renderer that is a dependency of something else should not drag a
+# rasteriser, a font library and a C toolchain in with it.  Capability arrives through the
+# extras below and degrades with a named warning when an extra is absent -- never silently.
+#
+# ooxml-common is the format-neutral half of pptx2svg -- OPC, units, DrawingML data, the
+# font modules and every measured text metric -- extracted with its history (ROADMAP.md,
+# "Phase 1").  The first import is Phase 3's: docx2svg.measure.TableAdvances answers
+# advance widths from its tables for the faces checked against Word (ROADMAP.md, "Phase 3
+# -- measured").  A version, never a URL: PyPI refuses to publish a distribution with a
+# direct-URL dependency.  It is not on PyPI yet, so CI installs it from its git URL first,
+# as pptx2svg's CI does; locally, `pip install -e ../ooxml-common`.
+#
+# 0.3 is the first that carries DrawingML's reader and the renderers' Word rules, which
+# docx2svg.drawing draws every shape with (ROADMAP.md, F.12); 0.3.1 the presets' text
+# rectangles, which a text box's text is laid out in (F.13); 0.4.1 the chart layout and
+# scene renderers with Word's chart and text rules, which charts and SmartArt are drawn
+# with (F.20, F.21); 0.4.4 Word's chart titles, axis titles and short plots (F.23).
+dependencies = ["ooxml-common>=0.5.0"]
+
+[project.optional-dependencies]
+# SVG -> PNG.  resvg-py ships prebuilt wheels, so this needs no compiler and no system
+# library; docx2svg.png falls back to cairosvg where that is what the host has.
+png = ["resvg-py>=0.5"]
+# Reading the ground-truth PDF that Microsoft Word exports.  Development only:
+# nothing under src/ imports it, and the harness additionally needs Word itself,
+# which pip cannot supply.
+oracle = ["pypdfium2>=4"]
+# Measure with real font files instead of generated metric tables, and regenerate
+# those tables.  Never used to *ship* a metric -- a measurement is a fact this
+# project may record; the font file it came from is not ours to redistribute.
+measure = ["fonttools>=4.40"]
+dev = [
+  "pytest>=7",
+  # `pytest -n auto` (docs/development.md).  Opt-in: a bare `pytest` stays serial,
+  # and so does CI.
+  "pytest-xdist>=3",
+  "pypdfium2>=4",
+  "fonttools>=4.40",
+  "resvg-py>=0.5",
+]
+# The fidelity instrument's converter (tools/pdf_svg.py): Word's PDF page to SVG, so that
+# resvg rasterises both sides of the score.  Development only, and deliberately not in
+# `dev`, so CI does not install it and the tests that need it skip there.  PyMuPDF is
+# AGPL-3.0: fine for a local development tool that is not distributed with the library,
+# and nothing under src/ imports it.  Install into the project's virtual environment:
+#   python3 -m venv --system-site-packages .venv && .venv/bin/pip install pymupdf
+# (or `.venv/bin/pip install -e .[dev,fidelity]` where ooxml-common is installed).
+fidelity = [
+  "pymupdf>=1.24",
+  "numpy",
+  "pillow",
+  "pypdfium2>=4",
+  "resvg-py>=0.5",
+  "fonttools>=4.40",
+]
+
+[project.scripts]
+docx2svg = "docx2svg.cli:main"
+
+[project.urls]
+Repository = "https://github.com/uvrt/docx2svg"
+Changelog = "https://github.com/uvrt/docx2svg/blob/main/CHANGELOG.md"
+Roadmap = "https://github.com/uvrt/docx2svg/blob/main/ROADMAP.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# The hyphenation patterns (docx2svg.hyphenate) and their sources and licences.
+[tool.setuptools.package-data]
+docx2svg = ["patterns/*.txt", "patterns/*.txt.gz"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "slow: minutes long, and needs Word's exports and faces (tools/fidelity.py); run with --run-slow",
+  "pdfium: scores against the fidelity harness's old instrument (tools/fidelity.py --truth pdfium); skipped unless `pytest --pdfium`, since the default truth is svg",
+  "word: drives Microsoft Word (tools/oracle.py's export), which is one instance per machine; such a test runs only serially or in the one xdist group `--dist loadgroup` keeps on a single worker (tests/conftest.py)",
+]

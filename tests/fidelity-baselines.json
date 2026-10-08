@@ -1,0 +1,419 @@
+{
+ "_about": "Raster fidelity of the committed documents against Word 16.106's PDF at 300 dpi: SSIM and colour-histogram correlation over foreground pixels, the unnormalised structural loss, per glyph size; pages the layout draws in full. Both sides draw with Word's installed faces, read in place. 'documents' and 'page_median' are the default truth, 'svg': Word's page converted by tools/pdf_svg.py (PyMuPDF) and rasterised by resvg, like ours. 'pdfium' holds the same for Word's PDF rasterised by pdfium, the instrument before it. Regenerate with tools/fidelity.py --record.",
+ "converter": "pymupdf-1.28.2-f2",
+ "documents": {
+  "layout-sweep.docx": {
+   "device": {
+    "histogram": 1.0,
+    "loss": 1652.2333,
+    "pages_made": 3,
+    "pages_scored": 3,
+    "ssim": 0.9881,
+    "ssim_all": 0.9881,
+    "word_pages": 3
+   },
+   "exact": {
+    "histogram": 1.0,
+    "loss": 2097.2,
+    "pages_made": 3,
+    "pages_scored": 3,
+    "ssim": 0.9849,
+    "ssim_all": 0.9849,
+    "word_pages": 3
+   }
+  },
+  "samplelib/sample-long.docx": {
+   "device": {
+    "histogram": 1.0,
+    "loss": 2596.7889,
+    "pages_made": 36,
+    "pages_scored": 36,
+    "ssim": 0.9931,
+    "ssim_all": 0.9931,
+    "word_pages": 36
+   },
+   "exact": {
+    "histogram": 0.9999,
+    "loss": 2839.1806,
+    "pages_made": 36,
+    "pages_scored": 36,
+    "ssim": 0.9924,
+    "ssim_all": 0.9924,
+    "word_pages": 36
+   }
+  },
+  "samplelib/sample-resume.docx": {
+   "device": {
+    "histogram": 1.0,
+    "loss": 1761.7,
+    "pages_made": 1,
+    "pages_scored": 1,
+    "ssim": 0.9914,
+    "ssim_all": 0.9914,
+    "word_pages": 1
+   },
+   "exact": {
+    "histogram": 0.9999,
+    "loss": 2830.8,
+    "pages_made": 1,
+    "pages_scored": 1,
+    "ssim": 0.9862,
+    "ssim_all": 0.9862,
+    "word_pages": 1
+   }
+  },
+  "samplelib/sample-simple.docx": {
+   "device": {
+    "histogram": 1.0,
+    "loss": 746.15,
+    "pages_made": 2,
+    "pages_scored": 2,
+    "ssim": 0.9986,
+    "ssim_all": 0.9986,
+    "word_pages": 2
+   },
+   "exact": {
+    "histogram": 1.0,
+    "loss": 1450.8,
+    "pages_made": 2,
+    "pages_scored": 2,
+    "ssim": 0.9971,
+    "ssim_all": 0.9971,
+    "word_pages": 2
+   }
+  },
+  "style-document.docx": {
+   "device": {
+    "histogram": 1.0,
+    "loss": 2647.4,
+    "pages_made": 2,
+    "pages_scored": 2,
+    "ssim": 0.9878,
+    "ssim_all": 0.9878,
+    "word_pages": 2
+   },
+   "exact": {
+    "histogram": 0.9999,
+    "loss": 3043.6,
+    "pages_made": 2,
+    "pages_scored": 2,
+    "ssim": 0.986,
+    "ssim_all": 0.986,
+    "word_pages": 2
+   }
+  },
+  "wordto/sample-10pages.docx": {
+   "device": {
+    "histogram": 1.0,
+    "loss": 5409.6333,
+    "pages_made": 3,
+    "pages_scored": 3,
+    "ssim": 0.9882,
+    "ssim_all": 0.9882,
+    "word_pages": 3
+   },
+   "exact": {
+    "histogram": 0.9999,
+    "loss": 7038.1,
+    "pages_made": 3,
+    "pages_scored": 3,
+    "ssim": 0.9847,
+    "ssim_all": 0.9847,
+    "word_pages": 3
+   }
+  },
+  "wordto/sample-1page.docx": {
+   "device": {
+    "histogram": 1.0,
+    "loss": 0.0,
+    "pages_made": 1,
+    "pages_scored": 1,
+    "ssim": 1.0,
+    "ssim_all": 1.0,
+    "word_pages": 1
+   },
+   "exact": {
+    "histogram": 1.0,
+    "loss": 0.0,
+    "pages_made": 1,
+    "pages_scored": 1,
+    "ssim": 1.0,
+    "ssim_all": 1.0,
+    "word_pages": 1
+   }
+  },
+  "wordto/sample-5pages.docx": {
+   "device": {
+    "histogram": 1.0,
+    "loss": 4160.2,
+    "pages_made": 2,
+    "pages_scored": 2,
+    "ssim": 0.9904,
+    "ssim_all": 0.9904,
+    "word_pages": 2
+   },
+   "exact": {
+    "histogram": 1.0,
+    "loss": 5463.9,
+    "pages_made": 2,
+    "pages_scored": 2,
+    "ssim": 0.9874,
+    "ssim_all": 0.9874,
+    "word_pages": 2
+   }
+  },
+  "wordto/sample-with-images.docx": {
+   "device": {
+    "histogram": 1.0,
+    "loss": 1769.2,
+    "pages_made": 1,
+    "pages_scored": 1,
+    "ssim": 0.9983,
+    "ssim_all": 0.9983,
+    "word_pages": 1
+   },
+   "exact": {
+    "histogram": 0.9998,
+    "loss": 2792.3,
+    "pages_made": 1,
+    "pages_scored": 1,
+    "ssim": 0.9973,
+    "ssim_all": 0.9973,
+    "word_pages": 1
+   }
+  },
+  "wordto/sample-with-table.docx": {
+   "device": {
+    "histogram": 1.0,
+    "loss": 1678.9,
+    "pages_made": 1,
+    "pages_scored": 1,
+    "ssim": 0.9991,
+    "ssim_all": 0.9991,
+    "word_pages": 1
+   },
+   "exact": {
+    "histogram": 1.0,
+    "loss": 4529.9,
+    "pages_made": 1,
+    "pages_scored": 1,
+    "ssim": 0.9975,
+    "ssim_all": 0.9975,
+    "word_pages": 1
+   }
+  }
+ },
+ "page_median": {
+  "device": 0.9917,
+  "exact": 0.9879
+ },
+ "pdfium": {
+  "documents": {
+   "layout-sweep.docx": {
+    "device": {
+     "histogram": 0.9914,
+     "loss": 5519.2,
+     "pages_made": 3,
+     "pages_scored": 3,
+     "ssim": 0.9639,
+     "ssim_all": 0.9639,
+     "word_pages": 3
+    },
+    "exact": {
+     "histogram": 0.9912,
+     "loss": 5886.5667,
+     "pages_made": 3,
+     "pages_scored": 3,
+     "ssim": 0.9615,
+     "ssim_all": 0.9615,
+     "word_pages": 3
+    }
+   },
+   "samplelib/sample-long.docx": {
+    "device": {
+     "histogram": 0.9814,
+     "loss": 21509.4611,
+     "pages_made": 36,
+     "pages_scored": 36,
+     "ssim": 0.9482,
+     "ssim_all": 0.9482,
+     "word_pages": 36
+    },
+    "exact": {
+     "histogram": 0.9809,
+     "loss": 20033.225,
+     "pages_made": 36,
+     "pages_scored": 36,
+     "ssim": 0.9518,
+     "ssim_all": 0.9518,
+     "word_pages": 36
+    }
+   },
+   "samplelib/sample-resume.docx": {
+    "device": {
+     "histogram": 0.9675,
+     "loss": 18181.0,
+     "pages_made": 1,
+     "pages_scored": 1,
+     "ssim": 0.9192,
+     "ssim_all": 0.9192,
+     "word_pages": 1
+    },
+    "exact": {
+     "histogram": 0.9671,
+     "loss": 17723.7,
+     "pages_made": 1,
+     "pages_scored": 1,
+     "ssim": 0.9213,
+     "ssim_all": 0.9213,
+     "word_pages": 1
+    }
+   },
+   "samplelib/sample-simple.docx": {
+    "device": {
+     "histogram": 0.9907,
+     "loss": 30099.25,
+     "pages_made": 2,
+     "pages_scored": 2,
+     "ssim": 0.9423,
+     "ssim_all": 0.9423,
+     "word_pages": 2
+    },
+    "exact": {
+     "histogram": 0.9908,
+     "loss": 29578.5,
+     "pages_made": 2,
+     "pages_scored": 2,
+     "ssim": 0.9433,
+     "ssim_all": 0.9433,
+     "word_pages": 2
+    }
+   },
+   "style-document.docx": {
+    "device": {
+     "histogram": 0.9818,
+     "loss": 8816.6,
+     "pages_made": 2,
+     "pages_scored": 2,
+     "ssim": 0.9631,
+     "ssim_all": 0.9631,
+     "word_pages": 2
+    },
+    "exact": {
+     "histogram": 0.9804,
+     "loss": 10444.35,
+     "pages_made": 2,
+     "pages_scored": 2,
+     "ssim": 0.9564,
+     "ssim_all": 0.9564,
+     "word_pages": 2
+    }
+   },
+   "wordto/sample-10pages.docx": {
+    "device": {
+     "histogram": 0.9769,
+     "loss": 67595.2333,
+     "pages_made": 3,
+     "pages_scored": 3,
+     "ssim": 0.8769,
+     "ssim_all": 0.8769,
+     "word_pages": 3
+    },
+    "exact": {
+     "histogram": 0.9765,
+     "loss": 65359.6333,
+     "pages_made": 3,
+     "pages_scored": 3,
+     "ssim": 0.8811,
+     "ssim_all": 0.8811,
+     "word_pages": 3
+    }
+   },
+   "wordto/sample-1page.docx": {
+    "device": {
+     "histogram": 1.0,
+     "loss": 0.0,
+     "pages_made": 1,
+     "pages_scored": 1,
+     "ssim": 1.0,
+     "ssim_all": 1.0,
+     "word_pages": 1
+    },
+    "exact": {
+     "histogram": 1.0,
+     "loss": 0.0,
+     "pages_made": 1,
+     "pages_scored": 1,
+     "ssim": 1.0,
+     "ssim_all": 1.0,
+     "word_pages": 1
+    }
+   },
+   "wordto/sample-5pages.docx": {
+    "device": {
+     "histogram": 0.966,
+     "loss": 70818.8,
+     "pages_made": 2,
+     "pages_scored": 2,
+     "ssim": 0.8652,
+     "ssim_all": 0.8652,
+     "word_pages": 2
+    },
+    "exact": {
+     "histogram": 0.9654,
+     "loss": 68205.95,
+     "pages_made": 2,
+     "pages_scored": 2,
+     "ssim": 0.8703,
+     "ssim_all": 0.8703,
+     "word_pages": 2
+    }
+   },
+   "wordto/sample-with-images.docx": {
+    "device": {
+     "histogram": 0.9594,
+     "loss": 42515.3,
+     "pages_made": 1,
+     "pages_scored": 1,
+     "ssim": 0.9604,
+     "ssim_all": 0.9604,
+     "word_pages": 1
+    },
+    "exact": {
+     "histogram": 0.9585,
+     "loss": 40714.0,
+     "pages_made": 1,
+     "pages_scored": 1,
+     "ssim": 0.962,
+     "ssim_all": 0.962,
+     "word_pages": 1
+    }
+   },
+   "wordto/sample-with-table.docx": {
+    "device": {
+     "histogram": 0.9979,
+     "loss": 204906.3,
+     "pages_made": 1,
+     "pages_scored": 1,
+     "ssim": 0.8908,
+     "ssim_all": 0.8908,
+     "word_pages": 1
+    },
+    "exact": {
+     "histogram": 0.998,
+     "loss": 200079.3,
+     "pages_made": 1,
+     "pages_scored": 1,
+     "ssim": 0.8934,
+     "ssim_all": 0.8934,
+     "word_pages": 1
+    }
+   }
+  },
+  "page_median": {
+   "device": 0.9,
+   "exact": 0.9072
+  }
+ },
+ "truth": "svg"
+}

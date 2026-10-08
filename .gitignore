@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+
+# Tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+
+# Environments
+.venv/
+venv/
+
+# macOS
+.DS_Store
+.claude/
+
+# Word's ground-truth exports.  They live in the Office group container
+# (~/Library/Group Containers/UBF8T346G9.Office/docx2svg-oracle/, which sandboxed Word
+# may write without a grant), never in the tree; a copy that lands here by accident should not be
+# committed, because a PDF Word made of our fixture is a derived artefact and the
+# fixture plus tools/word_export_pdf.applescript reproduce it.
+/oracle-runtime/
+*.pdf
+
+# Word's lock files.  A `~$` left by a failed export wedges the next one; see the
+# AppleScript header.  One must never be committed.
+~$*
+
+# Licensed fonts, and anything that points at them.
+#
+# No Microsoft font file enters this repository, in any form, ever.  Measurements taken
+# from one are facts and may be recorded; the file is not ours to redistribute.  The
+# measurement tooling reads faces in place through a per-machine profile that names
+# paths on the machine that wrote it, and that profile is per-machine by construction.
+/tests/font-profile.local.json
+/tests/local-fonts/
+*.ttf
+*.ttc
+*.otf
+
+# Local scratch.
+/scratch/
+
+# A failing VRT render is dumped here for eyeballing (tests/test_vrt.py).
+/tests/vrt/diffs/
