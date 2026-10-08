@@ -5,8 +5,10 @@
     docx2svg report.docx -p 1,3-4            # some pages
 
 Warnings -- what the output does not show faithfully, each with a stable code -- go to
-standard error unless ``-q``; ``--strict`` makes any warning an exit status of 2, so a
-build can refuse a document the renderer cannot draw faithfully.
+standard error unless ``-q``, after a one-line coverage summary (how much was laid out,
+where it stopped, which faces were substituted: :mod:`docx2svg.coverage`); ``--strict``
+makes any warning an exit status of 2, so a build can refuse a document the renderer
+cannot draw faithfully -- a substituted face included.
 """
 
 from __future__ import annotations
@@ -33,6 +35,9 @@ def build_parser() -> argparse.ArgumentParser:
                              "its ink (device, the default), or to the exact size")
     parser.add_argument("--font-dir", action="append", dest="font_dirs", metavar="DIR",
                         help="another directory to find faces in (repeatable)")
+    parser.add_argument("--no-substitute-fonts", action="store_false", dest="substitute_fonts",
+                        help="do not lay out an absent Office face with its open metric compatible substitute "
+                             "(Carlito, Liberation) or a symbol face from its recorded metrics")
     parser.add_argument("--backend", choices=("auto", "resvg", "cairosvg"), default="auto",
                         help="PNG rasterizer backend (default: auto)")
     parser.add_argument("-q", "--quiet", action="store_true", help="do not print warnings")
@@ -64,7 +69,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"docx2svg: no such file: {args.input}", file=sys.stderr)
         return 1
     options = ConvertOptions(pages=parse_page_selection(args.pages), width=args.width, height=args.height,
-                             glyph_size=args.glyph_size, font_dirs=args.font_dirs)
+                             glyph_size=args.glyph_size, font_dirs=args.font_dirs,
+                             substitute_fonts=args.substitute_fonts)
     wants_svg = args.format in ("svg", "both")
     wants_png = args.format in ("png", "both")
     if wants_png and not available_backends():
@@ -92,6 +98,8 @@ def main(argv: list[str] | None = None) -> int:
             path = args.output / f"{stem}-{number}.png"
             path.write_bytes(pngs[index])
             print(path)
+    if not args.quiet and options.coverage is not None and (options.warnings or not options.coverage.complete):
+        print(f"\ncoverage: {options.coverage.summary()}", file=sys.stderr)
     if options.warnings and not args.quiet:
         print(f"\n{len(options.warnings)} warning(s):", file=sys.stderr)
         for warning in options.warnings:

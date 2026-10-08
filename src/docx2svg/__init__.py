@@ -125,8 +125,22 @@ class ConvertOptions:
     #: document name does not reach in a rasteriser.  By default
     #: :meth:`docx2svg.fonts.InstalledFonts.drawing_name`.
     names: object = None
+    #: Lay out and draw an absent face with its open metric compatible substitute
+    #: (:data:`docx2svg.fonts.SUBSTITUTES`: Carlito for Calibri, Liberation Sans, Serif
+    #: and Mono for Arial, Times New Roman and Courier New) where that is installed.
+    #: Never in place of a face that is present; every use is a ``font-substituted``
+    #: warning and is listed in :attr:`coverage`.  ``False``: an absent face stops the
+    #: layout at its first paragraph, as before.
+    substitute_fonts: bool = True
+    #: More substitutions, or other ones: Word's face -> the face to use when it is absent
+    #: (``{"Cambria": "Caladea"}``).  One that is not in :data:`docx2svg.fonts.SUBSTITUTES`
+    #: was not measured compatible, and is reported as approximate.
+    font_substitutes: dict | None = None
     #: Collects :class:`Warning` for everything not drawn faithfully.
     warnings: list[Warning] = field(default_factory=list)
+    #: Set by every conversion: how much of the document was laid out
+    #: (:class:`docx2svg.coverage.Coverage`), also the layout's ``coverage``.
+    coverage: object = None
 
 
 def _read(source) -> bytes:
@@ -141,10 +155,12 @@ def _read(source) -> bytes:
 def _fonts(data: bytes, options: ConvertOptions):
     from pathlib import Path
 
-    from .fonts import InstalledFonts, default_font_dirs
+    from .fonts import SUBSTITUTES, InstalledFonts, default_font_dirs
 
     dirs = tuple(default_font_dirs()) + tuple(Path(d) for d in (options.font_dirs or ()))
-    return InstalledFonts(data, dirs=dirs)
+    substitutes = dict(SUBSTITUTES) if options.substitute_fonts else {}
+    substitutes.update({name.lower(): value for name, value in (options.font_substitutes or {}).items()})
+    return InstalledFonts(data, dirs=dirs, substitutes=substitutes, recorded_faces=options.substitute_fonts)
 
 
 _PARSER_WARNINGS = {
@@ -170,11 +186,16 @@ def _lay_out(source, options: ConvertOptions):
     advances = options.advances or fonts
     metrics = options.metrics or fonts.metrics
     decorations = options.decorations or fonts.decorations
+    from .coverage import coverage_of
+
     layout = lay_out(document, advances, metrics, package=data, decorations=decorations)
     for code in document.warnings:
         options.warnings.append(Warning(code, _PARSER_WARNINGS.get(code, "a body element is not read")))
+    for substitution in getattr(fonts, "substitutions", {}).values():
+        options.warnings.append(Warning("font-substituted", substitution.message()))
     for code, message, page in layout.warnings:
         options.warnings.append(Warning(code, message, page))
+    layout.coverage = options.coverage = coverage_of(layout, document, data, fonts)
     return layout, data, fonts
 
 
@@ -320,7 +341,7 @@ def _rasterise(layout, data: bytes, fonts, options: ConvertOptions, *, backend: 
                     "stretch and style, so the rasteriser may draw that one"))
             # The placeholders' labels are drawn in the generic sans-serif face.
             for family in ("Arial", "Helvetica", "Calibri"):
-                found = fonts.drawing_face(family)
+                found = fonts.drawing_face(family, record=False)
                 if found is not None and not found.source.startswith("embedded:"):
                     sans = family
                     if found.source not in files:

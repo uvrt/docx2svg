@@ -135,6 +135,11 @@ def _paint(span: Span, size_px, defs) -> str:
 
 def _text(span: Span, glyph_size: str, names=None, defs=None) -> str:
     chars = "".join(span.chars)
+    name = names(span.face, span.bold, span.italic) if names is not None else None
+    if name is not None and getattr(name, "chars", None):
+        # A symbol face laid out from recorded metrics: its symbols' Unicode equivalents,
+        # each at the position Word's face gives the symbol.
+        chars = "".join(name.chars.get(char, char) for char in span.chars)
     font = _font(span, names)
     attributes = [
         f"data-docx-path={quoteattr(span.path)}",

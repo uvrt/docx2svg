@@ -30,6 +30,16 @@ style, the macOS copy first -- and what the layout and the rasteriser need on to
 
 **Nothing is copied.**  Files are read where they are installed, and only numbers leave
 this module.  No font file enters the repository or any artefact it makes.
+
+**Open substitutes, where Word's face is absent** (:data:`SUBSTITUTES`): a face neither
+installed nor embedded is laid out and drawn with an installed open face whose advances
+and line metrics were measured equal to it -- Carlito for Calibri, Liberation Sans, Serif
+and Mono for Arial, Times New Roman and Courier New -- and every such use is recorded
+(:attr:`InstalledFonts.substitutions`) and reported (``font-substituted``).  Never in
+place of a face that is present: fidelity is measured against Word's own faces.  A face
+with no measured clone (Aptos, Cambria, Calibri Light, Symbol, Wingdings...) is not
+substituted unless the caller names one (``ConvertOptions.font_substitutes``), which is
+then reported as approximate.
 """
 
 from __future__ import annotations
@@ -228,6 +238,98 @@ def _lookup(table: dict, family: str, bold: bool, italic: bool):
     return table.get((key, bold, italic)) or table.get((key, bold, False)) or table.get((key, False, False))
 
 
+#: Word's face (lowercased) -> the open face laid out and drawn in its place when Word's is
+#: neither installed nor embedded.  Only metric compatible pairs, each measured against
+#: the copy Word lays out with (``installed_index`` over Word's folders), regular, bold,
+#: italic and bold italic, by this module's own reader:
+#:
+#: * **Calibri -> Carlito** (1.1): the same advance for every character both map but
+#:   three (U+0192, U+026A, U+0299: 2094 compared), and the same vertical metrics --
+#:   2048 units, ascent 1950, descent 550, no line gap, the same script sizes and offsets.
+#: * **Arial -> Liberation Sans, Times New Roman -> Liberation Serif, Courier New ->
+#:   Liberation Mono** (2.1.5): every Latin, Greek and Cyrillic advance equal (2209 and
+#:   2118 compared; the differences are in Hebrew, historic Cyrillic and, in Mono, the
+#:   combining marks), the same vertical metrics, and the same legacy ``kern`` pairs
+#:   wherever sampled.
+#:
+#: What differs is drawn only: outlines, and the underline and strikeout geometry.  And
+#: Carlito has no legacy ``kern`` table where Calibri has one, so a run Word kerns
+#: (``w:kern``) is laid out unkerned in it.  Not here, because measured *not* to be
+#: compatible: Caladea for Cambria (advances 1.8 to 5.7% narrow, line 1.150 em against
+#: 1.172), Carlito for Calibri Light (1.2 to 3.4% wide).  Aptos, Symbol and Wingdings have
+#: no open clone.  A caller may name any of them (``ConvertOptions.font_substitutes``):
+#: the substitution is then reported as approximate.
+SUBSTITUTES: dict[str, str] = {
+    "calibri": "Carlito",
+    "arial": "Liberation Sans",
+    "times new roman": "Liberation Serif",
+    "courier new": "Liberation Mono",
+}
+
+
+#: What :attr:`Substitution.substitute` says for a face laid out from :mod:`docx2svg.recorded`.
+RECORDED = "recorded metrics"
+
+
+class RecordedFace:
+    """A symbol face this machine lacks, answered from the integers recorded from Word's
+    copy (:mod:`docx2svg.recorded`): what the layout asks of a :class:`Face`, and nothing
+    a rasteriser could draw with."""
+
+    def __init__(self, family: str) -> None:
+        from . import recorded
+
+        key = family.lower()
+        self.family = family
+        self.source = f"recorded:{family}"
+        self.offset = 0
+        self.style = (False, False)
+        self.metrics = FaceMetrics(*recorded.METRICS[key])
+        self.units_per_em = self.metrics.units_per_em
+        self.decorations = Decorations(*recorded.DECORATIONS[key])
+        self._advances = recorded.ADVANCES[key]
+        #: What each character is drawn as (:data:`docx2svg.recorded.UNICODE`).
+        self.unicode = {chr(code): text for code, text in recorded.UNICODE.get(key, {}).items()}
+
+    def advance(self, char: str) -> int | None:
+        return self._advances.get(ord(char)) if len(char) == 1 else None
+
+    def kern(self, left: str, right: str) -> int:
+        return 0  # neither recorded face has a ``kern`` table
+
+
+def _recorded(family: str) -> RecordedFace | None:
+    from . import recorded
+
+    return RecordedFace(family) if family.lower() in recorded.METRICS else None
+
+
+@dataclass(frozen=True)
+class Substitution:
+    """A face laid out with another because it is absent: what was asked for, what was
+    used, and whether the two were measured metric compatible (:data:`SUBSTITUTES`)."""
+
+    family: str
+    substitute: str
+    metric_compatible: bool
+
+    def message(self) -> str:
+        if self.substitute == RECORDED:
+            return (f"{self.family!r} is not installed: laid out with the metrics recorded from Word's copy "
+                    "(docx2svg.recorded: the same advances and line metrics), and its symbols drawn as their "
+                    "Unicode equivalents in a generic face")
+        if self.metric_compatible:
+            return (f"{self.family!r} is not installed: laid out and drawn with {self.substitute!r}, its open "
+                    "metric compatible substitute (the same advances and line metrics; outlines, underline "
+                    "geometry and kerning may differ)")
+        return (f"{self.family!r} is not installed: laid out and drawn with {self.substitute!r}, an approximate "
+                "substitute the caller named (its advances and line metrics are not Word's: line breaks and "
+                "page breaks may differ)")
+
+    def as_dict(self) -> dict:
+        return {"family": self.family, "substitute": self.substitute, "metric_compatible": self.metric_compatible}
+
+
 def embedded_faces(package_bytes: bytes) -> dict[tuple[str, bool, bool], Face]:
     """Every face the document embeds (``w:embedRegular`` and its siblings in
     ``word/fontTable.xml``), keyed like :func:`installed_index`.
@@ -275,34 +377,71 @@ class InstalledFonts:
     installed faces by name (:func:`installed_index`), then the document's embedded ones.
 
     It answers the :class:`docx2svg.measure.Advances` protocol, and ``metrics(face, bold,
-    italic)`` as the vertical model asks.  ``None`` for a face it cannot find: the layout
-    then reports the paragraph unmeasurable rather than guess.
+    italic)`` as the vertical model asks.  Where a face is neither installed nor embedded,
+    its open substitute (``substitutes``: :data:`SUBSTITUTES` by default, ``{}`` for none)
+    when that is installed, recorded in :attr:`substitutions`; else ``None``, recorded in
+    :attr:`missing`, and the layout then reports the paragraph unmeasurable rather than
+    guess.
     """
 
     package: bytes | None = None
     dirs: tuple[Path, ...] = FONT_DIRS
+    #: Word's face (any case) -> the face used in its place when it is absent.
+    substitutes: dict = field(default_factory=lambda: dict(SUBSTITUTES))
+    #: Lay an absent symbol face out from :mod:`docx2svg.recorded` (Symbol, Wingdings).
+    recorded_faces: bool = True
     _embedded: dict = field(default_factory=dict, repr=False)
+    #: Every face laid out with a substitute, by the name the document gives it.
+    substitutions: dict = field(default_factory=dict, repr=False)
+    #: Every face asked for that was found nowhere and had no installed substitute.
+    missing: set = field(default_factory=set, repr=False)
 
     def __post_init__(self) -> None:
         self._embedded = embedded_faces(self.package) if self.package else {}
+        self.substitutes = {name.lower(): value for name, value in self.substitutes.items()}
 
     def face(self, family: str, bold: bool = False, italic: bool = False) -> Face | None:
-        if not family:
-            return None
-        found = _lookup(installed_index(self.dirs), family, bold, italic)
-        if found is not None:
-            return _face_at(*found)
-        return _lookup(self._embedded, family, bold, italic)
+        return self._find(installed_index(self.dirs), family, bold, italic, recorded=True)
 
-    def drawing_face(self, family: str, bold: bool = False, italic: bool = False) -> Face | None:
+    def drawing_face(self, family: str, bold: bool = False, italic: bool = False, *,
+                     record: bool = True) -> Face | None:
         """The copy of ``family`` Word draws with (:func:`drawing_dirs`): its bundle's where
-        it has one, then the installed ones, then the document's embedded face."""
+        it has one, then the installed ones, then the document's embedded face, then its
+        substitute.  ``record=False`` leaves :attr:`substitutions` and :attr:`missing` as
+        they are (a face asked for by the caller, not by the document)."""
+        return self._find(installed_index(drawing_dirs(self.dirs), bundle_first=True), family, bold, italic,
+                          record=record)
+
+    def _find(self, index: dict, family: str, bold: bool, italic: bool, *, record: bool = True,
+              recorded: bool = False) -> Face | None:
         if not family:
             return None
-        found = _lookup(installed_index(drawing_dirs(self.dirs), bundle_first=True), family, bold, italic)
+        found = _lookup(index, family, bold, italic)
         if found is not None:
             return _face_at(*found)
-        return _lookup(self._embedded, family, bold, italic)
+        embedded = _lookup(self._embedded, family, bold, italic)
+        if embedded is not None:
+            return embedded
+        # Word's face is absent, in every style: its substitute, if one is installed.
+        name = self.substitutes.get(family.lower())
+        found = _lookup(index, name, bold, italic) if name else None
+        if found is None:
+            # A symbol face: laid out from the integers recorded from Word's copy, and drawn
+            # by :meth:`drawing_name`'s Unicode equivalents (no file to draw it with).
+            face = _recorded(family) if self.recorded_faces else None
+            if face is not None:
+                if not recorded:
+                    return None  # drawing: no file (:meth:`drawing_name` names a generic face)
+                if record and family not in self.substitutions:
+                    self.substitutions[family] = Substitution(family, RECORDED, True)
+                return face
+            if record:
+                self.missing.add(family)
+            return None
+        if record and family not in self.substitutions:
+            compatible = SUBSTITUTES.get(family.lower(), "").lower() == name.lower()
+            self.substitutions[family] = Substitution(family, name, compatible)
+        return _face_at(*found)
 
     def drawing_name(self, family: str, bold: bool = False, italic: bool = False) -> DrawingName | None:
         """How the SVG names ``family`` so that a rasteriser finds the file Word draws it
@@ -311,6 +450,9 @@ class InstalledFonts:
         and for a face this machine lacks."""
         face = self.drawing_face(family, bold, italic)
         if face is None:
+            if family in self.substitutions and self.substitutions[family].substitute == RECORDED:
+                return DrawingName("sans-serif", 700 if bold else 400, "normal", "italic" if italic else "normal",
+                                   chars=RecordedFace(family).unicode)
             return None
         families = face.rasteriser_families
         if face.style == (bold, italic) and family.lower() in (f.lower() for f in families):
@@ -366,6 +508,9 @@ class DrawingName:
     weight: int
     stretch: str
     style: str
+    #: Characters drawn as others: a symbol face laid out from recorded metrics
+    #: (:class:`RecordedFace`) is drawn as its symbols' Unicode equivalents.
+    chars: dict | None = field(default=None, compare=False)
 
 
 def _query(face_name: str, name: "DrawingName | None", bold: bool, italic: bool):

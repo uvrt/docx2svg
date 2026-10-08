@@ -151,6 +151,9 @@ def pytest_runtest_setup(item) -> None:
 #: table cell's) cannot be measured, or a line number has no advances.  On a machine without Office's
 #: faces (every CI runner but Windows) a test marked ``faces`` that meets one skips: it was
 #: written against a layout in those faces and says nothing about the code without them.
+#: A face laid out with its metric compatible open substitute (CI installs Carlito and
+#: Liberation: README.md, "Fonts") is not absent -- the substitute gives Word's advances
+#: and line metrics -- so such a test runs there (``tests/test_substitutes.py``).
 _FACE_ABSENT = ("layout-stopped:unmeasurable", "layout-stopped:no face metrics", "line-numbers-not-drawn")
 
 
