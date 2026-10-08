@@ -31,7 +31,6 @@ Usage::
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import hashlib
 import io
 import os
@@ -42,6 +41,11 @@ import time
 import zipfile
 from pathlib import Path
 from typing import Iterator
+
+try:
+    import fcntl
+except ImportError:  # Windows: there is no Word oracle there (it drives Word on macOS)
+    fcntl = None
 
 REPO = Path(__file__).resolve().parent.parent
 #: The Office group container: Word is sandboxed, and every Office app may read and write
@@ -93,6 +97,8 @@ def word(timeout: float | None = None, *, refuse_running: bool = True) -> Iterat
         finally:
             _depth -= 1
         return
+    if fcntl is None:
+        raise WordBusy("the Word oracle runs on macOS only")
     GROUP_CONTAINER.mkdir(parents=True, exist_ok=True)
     handle = open(WORD_LOCK, "a+")
     try:

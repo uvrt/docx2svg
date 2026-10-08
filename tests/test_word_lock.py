@@ -6,11 +6,12 @@ stood in for: nothing here launches, quits or looks at the real Word.
 
 from __future__ import annotations
 
-import fcntl
 import sys
 from pathlib import Path
 
 import pytest
+
+fcntl = pytest.importorskip("fcntl")  # flock is POSIX's; the Word oracle runs on macOS
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
