@@ -30,5 +30,5 @@ More in [docs/development.md](docs/development.md).
 ## Pull requests
 
 Open pull requests against `main`. CI runs the suite on Linux, macOS and Windows,
-Python 3.10 to 3.13, and checks that the generated fixture is current
+Python 3.10 to 3.15, and checks that the generated fixture is current
 (`python tools/make_layout_sweep.py` leaves `tests/fixtures/` unchanged).
