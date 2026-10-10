@@ -6,6 +6,14 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **An absent Symbol or Wingdings draws every glyph, from shared tables.** The recorded
+  metrics moved to ooxml-common (`text.recorded_symbol_faces`, unchanged;
+  `tools/record_symbol_faces.py` writes them there), and what an absent face's symbols are
+  drawn as is now ooxml-common's `text.symbol_fonts`, built from the Unicode Consortium's
+  tables, which pptx2svg uses too: every code whose glyph Unicode encodes -- Symbol's
+  Greek and mathematical signs, all of Wingdings -- instead of the eleven bullet-library
+  characters before. Wingdings' check (U+F0FC) stays U+2713, as Word and PowerPoint draw it.
+  Requires ooxml-common with `text.symbol_fonts`.
 - **Python 3.14 and 3.15.** CI runs the suite on both, on Linux, macOS and Windows, and
   the classifiers declare them. `requires-python` stays `>=3.10`; no library change, and
   the `png` extra's resvg-py has wheels for both. CPython 3.14's Windows builds deflate
