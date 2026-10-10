@@ -34,7 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="scale glyph outlines to the size rounded to whole 1/300-inch pixels, as Word draws "
                              "its ink (device, the default), or to the exact size")
     parser.add_argument("--font-dir", action="append", dest="font_dirs", metavar="DIR",
-                        help="another directory to find faces in (repeatable)")
+                        help="the application's own font folder, searched after Word's (repeatable; "
+                             "default: $OOXML_FONT_DIRS)")
     parser.add_argument("--no-substitute-fonts", action="store_false", dest="substitute_fonts",
                         help="do not lay out an absent Office face with its open metric compatible substitute "
                              "(Carlito, Liberation) or a symbol face from its recorded metrics")

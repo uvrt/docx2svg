@@ -103,8 +103,13 @@ brew install --cask font-carlito font-caladea font-liberation
 # Other Linux distributions package them as Carlito, Caladea and Liberation.
 ```
 
-Faces in another folder can be added with `ConvertOptions(font_dirs=[...])` or
-`--font-dir`.
+Faces in another folder -- an application's licensed fonts, say -- can be added with
+`ConvertOptions(font_dirs=[...])` or `--font-dir`, or with the environment variable
+**`OOXML_FONT_DIRS`** (folders separated by `os.pathsep`: `:` on macOS and Linux, `;` on
+Windows), which pptx2svg reads too. The explicit argument wins over the variable; an
+empty list means none. Either is added to the folders Word uses (searched after them),
+never in their place, for layout and drawing alike, and the folders under it are read
+too.
 
 **Fidelity to expect.** With Word's faces, positions are held to Word's PDF glyph by glyph
 ([docs/supported.md](docs/supported.md)). With the metric compatible substitutes, line

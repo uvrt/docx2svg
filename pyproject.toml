@@ -46,7 +46,9 @@ classifiers = [
 # with (F.20, F.21); 0.4.4 Word's chart titles, axis titles and short plots (F.23); 0.7
 # chart text in its `c:txPr` colour, number formats' text and a radar's category labels
 # where Word puts them (F.20, "Chart labels, measured later").
-dependencies = ["ooxml-common>=0.7.0"]
+# 0.8 an application's own font folders, `font_dirs` or `OOXML_FONT_DIRS`
+# (`office.user_font_dirs`; tests/test_font_dirs.py).
+dependencies = ["ooxml-common>=0.8.0"]
 
 [project.optional-dependencies]
 # SVG -> PNG.  resvg-py ships prebuilt wheels, so this needs no compiler and no system

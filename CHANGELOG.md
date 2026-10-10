@@ -6,6 +6,12 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **An application's own font folder, from the environment too.** Without
+  `ConvertOptions.font_dirs`, the `OOXML_FONT_DIRS` environment variable (folders
+  separated by `os.pathsep`, shared with pptx2svg) is read, for layout and drawing alike,
+  and by `svg_to_png`; an explicit empty list means none. Either is added to the folders
+  Word uses and searched after them, as `font_dirs` always was, and the folders under it
+  are now read too. Requires ooxml-common 0.8.
 - **Fonts without Office.** An Office face that is neither installed nor embedded is laid
   out and drawn with its open metric compatible substitute, if that is installed: Carlito
   for Calibri, and Liberation Sans, Serif and Mono for Arial, Times New Roman and Courier
