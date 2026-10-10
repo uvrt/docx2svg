@@ -155,6 +155,23 @@ def test_an_absent_symbol_face_is_laid_out_from_its_recorded_metrics():
     assert fonts.InstalledFonts(dirs=(), substitutes={}, recorded_faces=False).face("Symbol") is None
 
 
+def test_an_absent_symbol_face_draws_every_glyph_from_the_shared_tables():
+    """Not only the bullet library: every code of the face whose glyph Unicode encodes
+    (ooxml-common's ``symbol_fonts``, shared with pptx2svg)."""
+    from docx2svg import recorded
+    from ooxml_common.text.symbol_fonts import to_unicode
+
+    wingdings, symbol = fonts.RecordedFace("Wingdings"), fonts.RecordedFace("Symbol")
+    assert wingdings.unicode["\uf071"] == "\u2751"  # LOWER RIGHT SHADOWED WHITE SQUARE
+    assert wingdings.unicode["\uf0fc"] == "\u2713"  # CHECK MARK, as Word and PowerPoint draw it
+    assert wingdings.unicode["\uf038"] == "\U0001f5b0"  # TWO BUTTON MOUSE
+    assert symbol.unicode["\uf061"] == symbol.unicode["a"] == "\u03b1"  # GREEK SMALL LETTER ALPHA
+    for family, advances in recorded.ADVANCES.items():
+        mapped = {code for code in advances if to_unicode(family, chr(code))}
+        assert len(mapped) > 0.75 * len(advances), family
+        assert {ord(char) for char in fonts.RecordedFace(family).unicode} == mapped
+
+
 def test_symbol_bullets_lay_out_and_draw_without_the_faces(substitutes_only):
     data = _document(_bullets(), numbering=_numbering())
     options = docx2svg.ConvertOptions()
