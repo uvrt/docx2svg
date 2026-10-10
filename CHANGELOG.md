@@ -7,8 +7,12 @@ snapshot commit; the development history before it is summarised here.
 ## Unreleased
 
 - **Python 3.14 and 3.15.** CI runs the suite on both, on Linux, macOS and Windows, and
-  the classifiers declare them. `requires-python` stays `>=3.10`. No code change was
-  needed; the `png` extra's resvg-py has wheels for both.
+  the classifiers declare them. `requires-python` stays `>=3.10`; no library change, and
+  the `png` extra's resvg-py has wheels for both. CPython 3.14's Windows builds deflate
+  with zlib-ng, whose bytes differ from zlib's for the same entries (both valid; what a
+  package holds is unchanged), so CI's check that `tests/fixtures/` is current leaves the
+  `.docx` out of its diff there, where `tests/test_parse.py` compares it part by part as
+  it does everywhere.
 - **An application's own font folder, from the environment too.** Without
   `ConvertOptions.font_dirs`, the `OOXML_FONT_DIRS` environment variable (folders
   separated by `os.pathsep`, shared with pptx2svg) is read, for layout and drawing alike,

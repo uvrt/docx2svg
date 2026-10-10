@@ -57,10 +57,17 @@ jobs:
 
       - name: The fixture is regenerable and the committed one is current
         shell: bash  # the default on Windows is PowerShell, which this script is not
+        # The archive's bytes are deflate's.  CPython 3.14+ on Windows deflates with zlib-ng,
+        # whose bytes differ from zlib's for the same parts; there the diff leaves the .docx
+        # out, and tests/test_parse.py's part-by-part comparison is the check.
         run: |
           python tools/make_layout_sweep.py
-          git diff --exit-code tests/fixtures/ || \
-            (echo "tests/fixtures/ is stale: rerun tools/make_layout_sweep.py" && exit 1)
+          if python -c "import sys, zlib; sys.exit(hasattr(zlib, 'ZLIBNG_VERSION'))"; then
+            git diff --exit-code tests/fixtures/
+          else
+            echo "deflate is zlib-ng: tests/fixtures/*.docx compared part by part (tests/test_parse.py)"
+            git diff --exit-code tests/fixtures/ ':(exclude)tests/fixtures/*.docx'
+          fi || (echo "tests/fixtures/ is stale: rerun tools/make_layout_sweep.py" && exit 1)
 
   build:
     runs-on: ubuntu-latest
