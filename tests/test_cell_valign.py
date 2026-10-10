@@ -77,7 +77,8 @@ def document(valign: str | None, wrap: str, merged: bool, *, setting: str = "15"
     row2 = _cell(_p("cell 10")) + _cell(_p("cell 11"))
     props = (f'<w:tblW w:w="8000" w:type="dxa"/><w:tblBorders>{valign_probe.BORDERS}</w:tblBorders>'
              '<w:tblLayout w:type="fixed"/><w:tblLook w:val="0000"/>')
-    table = (f"<w:tbl><w:tblPr>{props}</w:tblPr><w:tblGrid>{'<w:gridCol w:w=\"4000\"/>' * 2}</w:tblGrid>"
+    grid = '<w:gridCol w:w="4000"/>' * 2
+    table = (f"<w:tbl><w:tblPr>{props}</w:tblPr><w:tblGrid>{grid}</w:tblGrid>"
              f"<w:tr>{row1}</w:tr><w:tr>{row2}</w:tr></w:tbl>")
     body = _p("Before the table.") + table + "".join(_p(f"After the table, paragraph {k}.") for k in range(6))
     return anchor_probe.package(body, setting)
