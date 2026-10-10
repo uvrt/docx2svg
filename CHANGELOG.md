@@ -6,6 +6,9 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **Python 3.14 and 3.15.** CI runs the suite on both, on Linux, macOS and Windows, and
+  the classifiers declare them. `requires-python` stays `>=3.10`. No code change was
+  needed; the `png` extra's resvg-py has wheels for both.
 - **An application's own font folder, from the environment too.** Without
   `ConvertOptions.font_dirs`, the `OOXML_FONT_DIRS` environment variable (folders
   separated by `os.pathsep`, shared with pptx2svg) is read, for layout and drawing alike,
