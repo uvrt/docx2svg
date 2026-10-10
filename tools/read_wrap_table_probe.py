@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Score a table beside a floating drawing against Word: ``make_wrap_table_probe.py``;
-and a drawing anchored in a table cell: ``make_cell_anchor_probe.py``.
+a drawing anchored in a table cell: ``make_cell_anchor_probe.py``; and one text wraps
+around in a cell aligned vertically or merged: ``make_cell_valign_probe.py``.
 
 Word's PDF gives every text object and every picture (``read_render.word_objects``,
 ``read_anchor_probe.word_images``); the model lays each document out and draws it.  Three
@@ -33,6 +34,7 @@ sys.path.insert(0, str(HERE.parent / "src"))
 
 import glyphs  # noqa: E402
 import make_cell_anchor_probe as cell_probe  # noqa: E402
+import make_cell_valign_probe as valign_probe  # noqa: E402
 import make_wrap_table_probe as table_probe  # noqa: E402
 import read_anchor_probe  # noqa: E402
 import read_render  # noqa: E402
@@ -43,12 +45,15 @@ OBSERVATIONS = read_render.FIXTURES / "wrap-table-observations.json"
 
 
 def probe_of(name: str):
+    if name.startswith("cell-valign"):
+        return valign_probe
     return cell_probe if name.startswith("cell-anchor") else table_probe
 
 
 def documents() -> list[tuple[str, bytes]]:
     out = [(name, table_probe.build(name.rsplit("-", 1)[1])) for name in table_probe.DOCUMENTS]
     out += [(name, cell_probe.build(name.rsplit("-", 1)[1])) for name in cell_probe.DOCUMENTS]
+    out += [(name, valign_probe.build(name.rsplit("-", 1)[1])) for name in valign_probe.DOCUMENTS]
     return out
 
 
@@ -121,7 +126,8 @@ def main(argv: list[str]) -> int:
         oracle.recover()
     if args.record:
         render_record.dump(OBSERVATIONS, {
-            "_about": ("What Word 16.106 drew for tools/make_wrap_table_probe.py and tools/make_cell_anchor_probe.py: "
+            "_about": ("What Word 16.106 drew for tools/make_wrap_table_probe.py, tools/make_cell_anchor_probe.py and "
+                       "tools/make_cell_valign_probe.py: "
                        "every text object (as render-observations.json records them) and every picture ([page, x0, "
                        "y0, x1, y1, layer], device px, in paint order), the renderer's scores against them -- lines "
                        "within half a pixel, per family; the glyph row; pictures -- and every face number the "

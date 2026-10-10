@@ -126,8 +126,12 @@ summary of how much was laid out:
 - the first stop, with its reason and element path
 - any header, footer or text-box stops
 - the faces substituted or missing
+- any approximations: places laid out by a rule not yet measured against Word (for
+  example a floating drawing in a table cell at a position no probe covered), with the
+  reason, page and element path, where the layout used to stop
 
-`coverage.complete` is true only when nothing was skipped. The CLI prints
+`coverage.complete` is true only when nothing was skipped. `coverage.status` is `complete`,
+`approximate` (nothing skipped, something approximated) or `partial`. The CLI prints
 `coverage.summary()` with the warnings.
 
 ## Status

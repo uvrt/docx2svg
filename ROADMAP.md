@@ -6527,7 +6527,7 @@ wider than their cell, above it; and, last, `wrapSquare`, `wrapTight` and
 Pictures 74 / 102 in each, 0 before: every `wrapNone` case; the rest are past the stop.
 **Recorded, not modelled**: text that wraps around a drawing in a cell stops the table (*since
 F.17 only below mode 15 against the page*), as does a
-`character` alignment or a frame the probe did not measure. In mode 15 a centred table's
+`character` alignment or a frame the probe did not measure (*approximated since F.25*). In mode 15 a centred table's
 second cell draws its text a pixel right of Word's (8 lines: the table's own centring, not
 the drawing). The anchor probe's five pages with a picture in a cell (F.1) are now drawn,
 every picture where Word drew it (`anchor-none` / `-15` pictures 143 -> 148 / 155, every
@@ -7009,6 +7009,89 @@ committed documents hold none of these cases: their fidelity is as recorded.
 before), a band pushing its anchor's own line to the next page where the drawing is
 positioned against the page or the margin, a note's space before over the continuation
 separator, and two tables touching with borders of different widths (the narrower taken).
+
+### F.25 A drawing text wraps around in a cell aligned vertically or merged — measured
+
+A production report: a cover page's logo -- a picture anchored in a table cell with
+`layoutInCell`, `wrapThrough` (or `wrapSquare`), in a cell merged across two columns and
+centred vertically, `positionH column` -6,536,055 EMU, `positionV paragraph` -5,715 --
+stopped the layout at that table ("a floating drawing text wraps around in a merged or
+vertically aligned cell"): everything after it unknown, `coverage.complete` false. Not with
+`wrapNone`, not without `w:vAlign`. `tools/make_cell_valign_probe.py` measures it: 87
+cases in mode 14 and mode 15, a two-by-two table whose first cell carries the case's
+`w:vAlign` and anchors the picture, its neighbour eight lines tall. **align** -- `top`,
+`center`, `bottom` against `wrapSquare`, `wrapTight`, `wrapThrough`, `wrapTopAndBottom` and
+`wrapNone`; **tall** -- a drawing taller than the row; **offset** -- 200,000 EMU down and up,
+left of the cell, past the page's margin, in the second paragraph; **long** -- text running
+on beside the drawing; **merge** -- merged down (`w:vMerge`) and across (`w:gridSpan`, with
+and without `w:trHeight`); **template** -- the report's geometry and two like it; **clamp**
+-- drawings above, left and right of the cell, top-aligned and centred, with a cell top
+margin; **room** -- one wider than the cell or leaving no room beside it; **frame** --
+`line`, `margin`, `page` and `topMargin` vertically, `margin`, `page` and `character`
+horizontally. Read by `read_wrap_table_probe.py`. Modes 14 and 15 agree, the table 5 twips
+apart.
+
+**The rules** (`table.wrap_cell`, `table.align_offset`, `layout._Placer._cell_anchors`):
+
+* **The cell is laid out from its top** -- the drawing positioned and the text around it
+  as F.17 lays out a top-aligned cell -- **then its lines and its drawings move down
+  together** by `w:vAlign`: centre by half, bottom by all of the room left between the
+  cell's margins (in a merged-down cell, of all its rows), as F.16's vAlign family moves
+  text alone. A drawing positioned against the row (`margin`, `page`, `topMargin`) moves
+  with them too.
+* **The height aligned includes the drawing's foot.** One text wraps around holds the row
+  down to it already (F.17); one text does not wrap around (`wrapNone`) counts where it
+  starts above the cell's bottom margin but does not hold the row (a drawing taller than
+  the row puts the text at the top and leaves the row as it was; one positioned 2,000,000
+  EMU down the page, below the row, moves nothing). A drawing's top does not count: one
+  reaching above the cell leaves the lines where the text alone puts them.
+* **A drawing text wraps around stays in its cell**: its top not above the cell's top
+  margin (200,000 EMU up, at either alignment, puts it on the cell's top; with a top margin
+  of 200 twips, 200 twips lower), its right edge not past the inside of the cell's right
+  border, then its left edge not before the inside of its left border -- which wins where
+  the drawing is wider than the cell. The report's logo is drawn so: on the cell's left
+  edge, past its right, the cell's text below it. One text does not wrap around is not held
+  (300,000 EMU left and 200,000 up: where its anchor puts it, as F.16 measured).
+* **A line with no room beside a drawing** goes down to its foot under `wrapSquare`, as on
+  the page (F.7); under `wrapTight` and `wrapThrough` -- wrapped by its polygon -- **a
+  line's pitch at a time** until clear of it (eight lines below one 7.6 lines tall; the
+  report's logo, 16 lines). Not measured on the page.
+* The rest is F.16 and F.17's: `line` is the line's, `margin` has no height, `page` starts
+  inside the cell's left border and below the row's top border, `character` the
+  character's.
+
+| `cell-valign` (1,032 lines in each) | lines within half a pixel | pictures |
+| --- | --- | --- |
+| mode 14, before (the table stopped on page 6) | 58 | 5 / 87 |
+| mode 14, after | **1,032** | **87 / 87** |
+| mode 15, before | 58 | 5 / 87 |
+| mode 15, after | **1,032** | **85 / 87** |
+
+The two pictures left in mode 15 are a drawing at the top of a centred cell's second
+paragraph, 0.05 px lower in Word than the model puts it -- F.17's sub-pixel residue of a
+second paragraph's top, the other way. `cell-anchor-*` and `wrap-table-*` are unchanged
+(`tests/test_wrap_table.py`). The report's six cases and its cover page are laid out to the
+end (`tests/test_cell_valign.py`). **A cell top margin on one cell of a row** moves every
+cell's text in Word -- the row takes the largest -- which the layout does not model (it
+moves that cell's alone); the probe gives every cell of the row the margin. Not a drawing
+rule: recorded, not modelled.
+
+**Approximations, not stops.** A drawing in a cell positioned as no probe measured there
+(`simplePos`, an alignment against `character`, a frame such as `insideMargin`:
+`floating.cell_position_modelled`) stopped the table. It is now **approximated**: the cell's
+text is laid out as if text did not wrap around it, the drawing is placed by its anchor
+where the frames place it, and the layout goes on. Each is reported -- a
+`layout-approximate:cell-drawing` warning, and in `Coverage.approximations` (reason,
+message, page, element path) -- and `Coverage.status` says `complete`, `approximate`
+(every block laid out, something approximated) or `partial` (a stop, a story stop or a
+missing face). Below mode 15 a drawing text wraps around positioned against the page still
+stops the table (F.17: Word moves the rows clear of it, which an approximation would not
+show).
+
+**Not measured**: a vertically aligned cell's row split across pages with such a drawing
+(its lines are drawn from the top on each page, as before), the effect extents and `distT`
+/ `distB` in the clamps, a drawing's foot with `distB` in the height aligned, and the
+polygon step on the page.
 
 ---
 

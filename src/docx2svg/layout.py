@@ -287,11 +287,21 @@ class Layout:
     #: How much of the document this covers (:class:`docx2svg.coverage.Coverage`): set by
     #: :func:`docx2svg.convert_docx_to_layout` and its siblings, ``None`` from :func:`lay_out`.
     coverage: object = None
+    #: ``(code, message, 1-based page, element path)`` of every place laid out by a rule
+    #: no probe measured, without stopping (``layout-approximate:<reason>``), in order.
+    approximations: list[tuple[str, str, int | None, str | None]] = field(default_factory=list)
 
     def warn(self, code: str, message: str, page: int | None = None) -> None:
         entry = (code, message, page)
         if entry not in self.warnings:
             self.warnings.append(entry)
+
+    def approximate(self, reason: str, message: str, page: int | None, path: str | None) -> None:
+        """Record an approximation (:attr:`approximations`), and warn of it."""
+        entry = (f"layout-approximate:{reason}", message, page, path)
+        if entry not in self.approximations:
+            self.approximations.append(entry)
+        self.warn(entry[0], message, page)
 
 
 # -- horizontal ------------------------------------------------------------------------
@@ -1860,11 +1870,7 @@ class _Placer:
                     lines = range(piece.start[c], piece.end[c])
                 if piece.whole and carried_start is None:
                     space = (cell.span_height if cell.span_height is not None else row.height) - margin_top - margin_bottom
-                    align = cell.cell.properties.get("vAlign") or "top"
-                    if align == "center":
-                        offset = max(Fraction(0), (space - cell.content) / 2)
-                    elif align == "bottom":
-                        offset = max(Fraction(0), space - cell.content)
+                    offset = table_model.align_offset(cell, space)
                 line_y = content_top + margin_top + offset
                 paragraph_top = line_y
                 for k in lines:
@@ -1899,7 +1905,7 @@ class _Placer:
                                    left=cell.box.text_left)
                     if paragraph.anchors:
                         self._cell_anchors(page, item, flow, piece, cell, paragraph, placed.number, top, height,
-                                           paragraph_top, content_top)
+                                           paragraph_top, content_top, offset)
                     line_y = top + placed.pitch + placed.below
             last_here = index == len(laid.pieces) - 1
             # Where the rows below go on beside a drawing, or below it, the rows above end
@@ -1912,7 +1918,7 @@ class _Placer:
                               last=last_here or parted or piece.row == len(flow.rows) - 1)
 
     def _cell_anchors(self, page: Page, item, flow, piece, cell, paragraph, number: int, top: Fraction, height,
-                      paragraph_top: Fraction, cell_top: Fraction) -> None:
+                      paragraph_top: Fraction, cell_top: Fraction, offset: Fraction = Fraction(0)) -> None:
         """Place the floating drawings anchored on line ``number`` of a cell paragraph
         (``make_cell_anchor_probe.py``; ROADMAP.md, "Floating drawings -- measured", F.16).
 
@@ -1921,7 +1927,9 @@ class _Placer:
         ``page`` and ``leftMargin`` start inside its left border, ``paragraph`` is the cell
         paragraph's (the body's rule: the first starts below the cell's top margin, the
         others where the one before ends after its space after), ``line`` the line's, and
-        ``margin``, ``page`` and ``topMargin`` start below the row's top border.  **Below
+        ``margin``, ``page`` and ``topMargin`` start below the row's top border -- in a cell
+        aligned vertically ``offset`` lower, as every drawing in it moves with its lines
+        (``make_cell_valign_probe.py``, F.25).  **Below
         mode 15 without ``layoutInCell``** every frame is the page's, but ``paragraph`` is
         the row's top (above its top border, whichever of the cell's paragraphs anchors it)
         and ``line`` the line's."""
@@ -1950,20 +1958,27 @@ class _Placer:
             character = twips_to_px(text_left) + units_px(anchor_character_units(
                 paragraph.pieces, broken, positions, source, paragraph.geometry, first_line=number == 0, run=run_index))
             if in_cell(anchor, mode15):
-                frames = Frames(width, height_twips, text_left, width - text_right, cell_top / TWIP_PX,
-                                height_twips - cell_top / TWIP_PX, m.header, m.footer, page.number + 1, mode15,
-                                paragraph_top / TWIP_PX, line_top / TWIP_PX, (top + height.pitch) / TWIP_PX,
-                                character / TWIP_PX, box_left, cell_top / TWIP_PX, cell=True)
+                moved = (cell_top + offset) / TWIP_PX
+                frames = Frames(width, height_twips, text_left, width - text_right, moved, height_twips - moved,
+                                m.header, m.footer, page.number + 1, mode15, paragraph_top / TWIP_PX,
+                                line_top / TWIP_PX, (top + height.pitch) / TWIP_PX, character / TWIP_PX, box_left,
+                                moved, cell=True)
             else:
                 frames = self._frames(page, item.section, piece.top, line_top, top + height.pitch, character)
             run = info.paragraph.runs[run_index]
             path = f"{info.paragraph.path}/{run.path}/wp:anchor[{k + 1}]" if run.path else info.paragraph.path
+            why = paragraph.approximate.get((run_index, k))
+            if why:
+                self.layout.approximate(
+                    "cell-drawing", f"a floating drawing in a table cell ({path}) {why}: the cell's text is laid out "
+                    "as if text did not wrap around it, and the drawing is placed by its anchor where it can be",
+                    page.number + 1, path)
             positioned = paragraph.positioned.get((source, run_index, k))
             if positioned is not None:
                 # One text wraps around: where the cell's layout without it put it
                 # (``table.wrap_cell``).
                 self._place_float(page, anchor, frames, path, info.paragraph.path, x=positioned[0],
-                                  y=cell_top + positioned[1])
+                                  y=cell_top + offset + positioned[1])
                 continue
             self._place_float(page, anchor, frames, path, info.paragraph.path)
 

@@ -20,6 +20,15 @@ snapshot commit; the development history before it is summarised here.
   how much was laid out: the pages, the blocks laid out and skipped, the first stop with
   its reason and path, header, footer and text-box stops, and the faces substituted or
   missing. The CLI prints its summary.
+- **A drawing text wraps around in a cell aligned vertically or merged** (ROADMAP F.25) is
+  laid out as Word lays it out, where the table stopped: the cell laid out from its top,
+  then its lines and drawings moved down together by `w:vAlign`, the drawing's foot
+  counting in the height aligned; such a drawing kept inside its cell; and a line with no
+  room beside a `wrapTight` / `wrapThrough` drawing stepping down a line at a time. A
+  drawing positioned as no probe measured in a cell is **approximated** instead of
+  stopping the table: `Coverage.approximations` lists each (reason, page, path),
+  `Coverage.status` is `complete`, `approximate` or `partial`, and the warning is
+  `layout-approximate:cell-drawing`.
 - CI installs Carlito, Caladea and Liberation on Linux and macOS, so the layout code runs
   there past the first paragraph. `tests/test_substitutes.py` checks Carlito's layout of
   `layout-sweep.docx` glyph for glyph against Word's recorded Calibri numbers.

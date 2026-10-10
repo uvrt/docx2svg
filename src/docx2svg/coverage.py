@@ -14,12 +14,20 @@ all out" without reading every warning:
   ``blocks_skipped`` -- a table the layout stopped in counts as skipped;
 * ``stop`` -- the first body stop, with its reason, message, page and element path;
   ``story_stops`` -- every header, footer, note or text box drawn only up to a point;
-* ``substituted_fonts`` and ``missing_fonts``.
+* ``substituted_fonts`` and ``missing_fonts``;
+* ``approximations`` -- every place laid out *without stopping* but by a rule no probe
+  measured (``layout-approximate:<reason>``): its reason, message, page and element path.
+  A floating drawing anchored in a table cell at a position not measured there, say: the
+  cell's text is laid out as if text did not wrap around it and the drawing is placed by
+  its anchor, and the rest of the page and the document goes on.
 
 ``complete`` is true only when every block was laid out, no story stopped and no face was
 missing.  A complete layout with substituted faces is complete: what it says about
 pagination holds as far as the substitutes are metric compatible
-(``substituted_fonts[...]["metric_compatible"]``).
+(``substituted_fonts[...]["metric_compatible"]``).  ``status`` says the three apart:
+``complete`` (and nothing approximated), ``approximate`` (complete, with
+``approximations``: what they touch, and what follows them on their page, may be off) and
+``partial`` (not complete: a stop, a story stop or a missing face).
 
 Standard library only.
 """
@@ -62,14 +70,27 @@ class Coverage:
     substituted_fonts: list[dict] = field(default_factory=list)
     #: Faces asked for that are not installed, not embedded and have no substitute here.
     missing_fonts: list[str] = field(default_factory=list)
+    #: Every place laid out by a rule no probe measured, without stopping.
+    approximations: list[StopInfo] = field(default_factory=list)
+
+    @property
+    def status(self) -> str:
+        """``complete``, ``approximate`` (complete, with :attr:`approximations`) or ``partial``."""
+        if not self.complete:
+            return "partial"
+        return "approximate" if self.approximations else "complete"
 
     def as_dict(self) -> dict:
-        return asdict(self)
+        return {**asdict(self), "status": self.status}
 
     def summary(self) -> str:
         """One line: what was laid out, and why not everything."""
         if self.complete:
             text = f"complete: {self.pages} page(s), {self.blocks} block(s)"
+            if self.approximations:
+                text = (f"complete with approximations: {self.pages} page(s), {self.blocks} block(s); "
+                        f"{len(self.approximations)} approximated (first on page {self.approximations[0].page}: "
+                        f"{self.approximations[0].reason})")
         else:
             estimate = f" of ~{self.estimated_pages}" if self.estimate_source == "app.xml" else ""
             text = (f"partial: {self.pages}{estimate} page(s), {self.blocks_laid_out} of {self.blocks} block(s) "
@@ -80,6 +101,8 @@ class Coverage:
                 text += f"; {len(self.story_stops)} header/footer/box stop(s)"
             if self.missing_fonts:
                 text += f"; missing faces: {', '.join(self.missing_fonts)}"
+            if self.approximations:
+                text += f"; {len(self.approximations)} approximated"
         if self.substituted_fonts:
             text += "; substituted: " + ", ".join(f"{s['family']} -> {s['substitute']}"
                                                   + ("" if s["metric_compatible"] else " (approximate)")
@@ -124,6 +147,8 @@ def coverage_of(layout, document, package: bytes | None = None, fonts=None) -> C
         if found is not None:
             stop = StopInfo(found[0], _reason(found[0]), found[1], found[2])
     story_stops = [StopInfo(c, _reason(c), m, p) for c, m, p in layout.warnings if c.startswith("story-stopped:")]
+    approximations = [StopInfo(c, _reason(c), m, p, path)
+                      for c, m, p, path in getattr(layout, "approximations", ())]
 
     laid_out = len(body)
     if stop is not None:
@@ -149,4 +174,4 @@ def coverage_of(layout, document, package: bytes | None = None, fonts=None) -> C
     else:
         estimate, source = None, None
     return Coverage(complete, pages, estimate, source, len(body), laid_out, len(body) - laid_out, stop, story_stops,
-                    substituted, missing)
+                    substituted, missing, approximations)
