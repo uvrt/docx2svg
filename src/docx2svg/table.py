@@ -966,6 +966,11 @@ class CellParagraph:
     #: around in the cell, px: from the page's left edge, and from below the row's top
     #: border (:func:`wrap_cell`).
     positioned: dict = field(default_factory=dict)
+    #: ``(run, index in the run)`` -> why, for each floating drawing in it whose place the
+    #: model has not measured: laid out as if text did not wrap around it, placed by its
+    #: anchor where it can be, and reported (:func:`cell_anchors_approximate`,
+    #: ``Layout.approximations``).
+    approximate: dict = field(default_factory=dict)
     #: A table nested in the cell, stacked as a paragraph of one line as tall as the
     #: table (:func:`nested_entry`); ``None`` for a paragraph.
     table: "TableFlow | None" = None
@@ -994,6 +999,10 @@ class CellFlow:
     #: Its lines as the cell stacks them (:func:`cell_stack`), and the space after the last.
     stack: list = field(default_factory=list)
     after: Fraction = Fraction(0)
+    #: ``(top, foot)`` of each floating drawing text does not wrap around positioned in a
+    #: vertically aligned cell, px from below the row's top border, laid out from the
+    #: cell's top (:func:`wrap_cell`): its foot counts in the height aligned.
+    loose: list = field(default_factory=list)
 
 
 @dataclass
@@ -1317,6 +1326,7 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
                 why = cell_anchors_unmodelled(document, paragraph)
                 if why:
                     raise Unsupported(why)
+                approximate = cell_anchors_approximate(document, paragraph)
                 pp = resolved_items[k]
                 label = (labels or {}).get(number)
                 pieces, broken = line_model.broken(document, paragraph, cell_section, advances, metrics, label)
@@ -1356,7 +1366,7 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
                     effective_style=paragraph_style_id(document.styles, paragraph),
                     undrawn=frozenset(n for n, chars in enumerate(shares)
                                       if n < len(shares) - 1 and all(char.isspace() for _, char in chars)),
-                    anchors=anchors))
+                    anchors=anchors, approximate=approximate))
             if placed and placed[-1].table is None and hides_mark(cell, placed[-1].paragraph):
                 placed[-1].hidden = True
             if (len(placed) > 1 and placed[-2].table is not None and placed[-1].table is None
@@ -1365,9 +1375,11 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
                 # at the table's bottom border (make_nested_table_probe.py, whatever its
                 # space before).
                 placed[-1].hidden = True
+            loose: list = []
+            aligned = (cell.properties.get("vAlign") or "top") != "top"
             reach = wrap_cell(document, cell, box, placed, previous_style, default_style, page_left, lines, section,
-                              advances, metrics, cache)
-            flow = CellFlow(cell, box, placed, merged=cell.merge == "continue")
+                              advances, metrics, cache, loose=loose if aligned else None)
+            flow = CellFlow(cell, box, placed, merged=cell.merge == "continue", loose=loose)
             flow.stack, flow.after = cell_stack(placed, previous_style, default_style)
             flow.content = content_height(placed, previous_style, default_style)
             if reach is not None:
@@ -1432,26 +1444,69 @@ def cell_anchors_unmodelled(document: Document, paragraph) -> str | None:
     measured", F.16): a drawing text does not wrap around (``wrapNone``) is drawn where
     ``layout._Placer._cell_anchors`` puts it and moves nothing -- not the cell's text,
     not its row, however far past the cell it reaches.  One text wraps around is laid out
-    by :func:`wrap_cell` where it is positioned in the cell (F.17).  Below mode 15 one
-    positioned against the page that text wraps around -- Word moves the table's rows clear
-    of it -- and a position that probe did not measure are not modelled."""
+    by :func:`wrap_cell` where it is positioned in the cell (F.17), in a cell aligned
+    vertically or merged too (F.25).  Below mode 15 one positioned against the page that
+    text wraps around -- Word moves the table's rows clear of it -- is not modelled: the
+    table stops.  A position no probe measured is approximated
+    (:func:`cell_anchors_approximate`)."""
     from .floating import cell_position_modelled, in_cell
 
     mode15 = (document.compatibility_mode or 0) >= 15
     for run in paragraph.runs:
         for anchor in run.anchors:
+            if cell_position_modelled(anchor, mode15):
+                continue
             if anchor.moves_text and not in_cell(anchor, mode15):
                 return "a floating drawing text wraps around in a cell, positioned against the page"
             if anchor.moves_text and anchor.wrap not in CELL_WRAPS:
                 return f"a floating drawing in a cell with {anchor.wrap}"
+    return None
+
+
+def cell_anchors_approximate(document: Document, paragraph) -> dict:
+    """``(run, index in the run)`` -> why, for each floating drawing of a cell paragraph
+    positioned as no probe measured in a cell (:func:`docx2svg.floating.cell_position_modelled`:
+    ``simplePos``, an alignment against ``character``, a frame such as ``insideMargin``).
+    It does not stop the table: the cell's text is laid out as if text did not wrap around
+    it, the drawing is placed by its anchor where the frames can place it, and the layout
+    reports it (``layout-approximate:cell-drawing``, ``Coverage.approximations``)."""
+    from .floating import cell_position_modelled
+
+    mode15 = (document.compatibility_mode or 0) >= 15
+    out = {}
+    for r, run in enumerate(paragraph.runs):
+        for k, anchor in enumerate(run.anchors):
             why = cell_position_modelled(anchor, mode15)
             if why:
-                return f"a floating drawing in a cell positioned by {why}"
-    return None
+                out[(r, k)] = f"is positioned by {why}, which no probe measured in a cell"
+    return out
 
 
 #: The wraps text goes around a drawing in a cell by: beside it, and above and below it.
 CELL_WRAPS = ("wrapSquare", "wrapTight", "wrapThrough", "wrapTopAndBottom")
+
+
+def align_offset(flow: "CellFlow", space: Fraction) -> Fraction:
+    """How far down a cell's lines -- and the drawings anchored in it -- go under its
+    ``w:vAlign``, px, ``space`` the room between its top and bottom margins.
+
+    Measured by ``make_cell_valign_probe.py`` (F.25): the height aligned is the cell laid
+    out from its top (:func:`wrap_cell`) down to the lower of its text's end and the foot
+    of any drawing in it -- one text wraps around holds its row down to it already
+    (:attr:`CellFlow.content`); one it does not counts where it starts above the cell's
+    bottom margin (one starting below the row's foot moves nothing), and its top does not
+    (one reaching above the cell's top leaves the lines where the text alone puts them)."""
+    align = flow.cell.properties.get("vAlign") or "top"
+    if align not in ("center", "bottom"):
+        return Fraction(0)
+    height = flow.content
+    margin_top = twips_to_px(flow.cell.margins["top"])
+    for top, foot in flow.loose:
+        if top - margin_top < space:
+            height = max(height, foot - margin_top)
+    if align == "center":
+        return max(Fraction(0), (space - height) / 2)
+    return max(Fraction(0), space - height)
 
 
 def _stack_tops(paragraphs: list, margin_top: Fraction, previous_style, default_style) -> dict:
@@ -1497,7 +1552,8 @@ def _derive(document: Document, paragraph: CellParagraph, source) -> None:
 
 
 def wrap_cell(document: Document, cell: Cell, box: CellBox, placed: list, previous_style, default_style,
-              page_left: int, lines: list, section, advances, metrics, cache) -> Fraction | None:
+              page_left: int, lines: list, section, advances, metrics, cache,
+              loose: list | None = None) -> Fraction | None:
     """Lay a cell's text out around the drawings anchored in it that text wraps around,
     and return how far down the lowest of them reaches (px from below the row's top
     border; ``None`` where there are none).
@@ -1509,7 +1565,17 @@ def wrap_cell(document: Document, cell: Cell, box: CellBox, placed: list, previo
     (``wrapSquare``, ``wrapTight``, ``wrapThrough``) or below it (``wrapTopAndBottom``)
     as the body's go beside and below a drawing on the page (:mod:`docx2svg.wrap`,
     :func:`docx2svg.paginate.clear_of_bands`), in the cell's text area as their column;
-    the row reaches down to the drawing's foot, in mode 15 to its ``distB`` below it."""
+    the row reaches down to the drawing's foot, in mode 15 to its ``distB`` below it.
+
+    Measured by ``make_cell_valign_probe.py`` (F.25): such a drawing **stays in the cell**
+    -- its top not above the cell's top margin, its right edge not past the inside of the
+    cell's right border, its left edge not before the inside of its left border (which
+    wins where it is wider than the cell) -- and the cell is laid out so, *from its top*,
+    whatever its ``w:vAlign`` and merge: :func:`docx2svg.layout._Placer._table` then moves
+    its lines and its drawings down together, the drawing's foot counting in the height
+    aligned.  ``loose``, where given, gets ``(top, foot)`` (px, as the reach) of every
+    drawing text does *not* wrap around positioned in the cell, which counts in that
+    height too."""
     from . import floating
     from . import wrap as wrap_model
     from .layout import anchor_character_units, units_px, wrapped_positions
@@ -1518,23 +1584,25 @@ def wrap_cell(document: Document, cell: Cell, box: CellBox, placed: list, previo
 
     mode15 = (document.compatibility_mode or 0) >= 15
     paragraphs = [paragraph for paragraph in placed if not paragraph.hidden]
-    wrapping = [(k, entry) for k, paragraph in enumerate(paragraphs) for entry in paragraph.anchors
-                if entry[3].wrap in CELL_WRAPS]
-    if not wrapping:
+    anchored = [(k, entry) for k, paragraph in enumerate(paragraphs) for entry in paragraph.anchors
+                if (entry[1], entry[2]) not in paragraph.approximate]
+    wrapping = [(k, entry) for k, entry in anchored if entry[3].wrap in CELL_WRAPS]
+    loose_anchors = [(k, entry) for k, entry in anchored
+                     if loose is not None and entry[3].wrap not in CELL_WRAPS and floating.in_cell(entry[3], mode15)]
+    if not wrapping and not loose_anchors:
         return None
-    if (cell.properties.get("vAlign") or "top") != "top" or cell.merge:
-        raise Unsupported("a floating drawing text wraps around in a merged or vertically aligned cell")
     px = floating.TWIP_PX
     margin_top = twips_to_px(cell.margins["top"])
     width, height_twips = section.page_size.width_twips, section.page_size.height_twips
     m = section.margins
     text_left = page_left + lines[cell.column] + left_offset(cell)
-    text_right = page_left + lines[min(cell.column + cell.span, len(lines) - 1)] - right_offset(cell)
+    right_line = min(cell.column + cell.span, len(lines) - 1)
+    text_right = page_left + lines[right_line] - right_offset(cell)
     box_left = page_left + lines[cell.column] + inner_part(cell.left_edge[0])
+    box_right = page_left + lines[right_line] - inner_part(cell.right_edge[0])
     tops = _stack_tops(paragraphs, margin_top, previous_style, default_style)
-    wraps, bands = [], []
-    foot = Fraction(0)
-    for k, (source, run, index, anchor, here) in wrapping:
+
+    def frames_of(k, here, source, run):
         paragraph = paragraphs[k]
         top, pitch, paragraph_top = tops[(k, here)]
         line = paragraph.lines[here]
@@ -1543,16 +1611,32 @@ def wrap_cell(document: Document, cell: Cell, box: CellBox, placed: list, previo
                                       last_line=here == len(paragraph.lines) - 1)
         character = twips_to_px(text_left) + units_px(anchor_character_units(
             paragraph.pieces, line, positions, source, paragraph.geometry, first_line=here == 0, run=run))
-        frames = floating.Frames(width, height_twips, text_left, width - text_right, 0, height_twips, m.header,
-                                 m.footer, 1, mode15, paragraph_top / px, (paragraph_top if here == 0 else top) / px,
-                                 (top + pitch) / px, character / px, box_left, 0, cell=True)
+        return floating.Frames(width, height_twips, text_left, width - text_right, 0, height_twips, m.header,
+                               m.footer, 1, mode15, paragraph_top / px, (paragraph_top if here == 0 else top) / px,
+                               (top + pitch) / px, character / px, box_left, 0, cell=True)
+
+    for k, (source, run, index, anchor, here) in loose_anchors:
+        y = floating.vertical(anchor, frames_of(k, here, source, run))
+        if y is not None:
+            cy = floating.emu_twips(anchor.extent[1])
+            loose.append((y * px, (y + cy) * px))
+    wraps, bands = [], []
+    foot = Fraction(0)
+    for k, (source, run, index, anchor, here) in wrapping:
+        paragraph = paragraphs[k]
+        frames = frames_of(k, here, source, run)
         x, y = floating.horizontal(anchor, frames), floating.vertical(anchor, frames)
         if x is None or y is None:
-            raise Unsupported("a floating drawing in a cell that cannot be positioned")
+            paragraph.approximate[(run, index)] = "cannot be positioned"
+            continue
         if not mode15:
             # On a whole twip, the nearest, as on the page (``paginate.page_wraps``).
             x = Fraction(math.floor(x + Fraction(1, 2)))
         cx, cy = (floating.emu_twips(v) for v in anchor.extent)
+        # In the cell (``make_cell_valign_probe.py``, ``clamp``): not past its right
+        # border's inside, then not before its left border's, nor above its top margin.
+        x = max(min(x, box_right - cx), box_left)
+        y = max(y, Fraction(cell.margins["top"]))
         el, et, er, eb = (floating.emu_twips(v) for v in anchor.effect)
         dt, db, dl, dr = (floating.emu_twips(v) * px for v in anchor.distance)
         paragraph.positioned[(source, run, index)] = (x * px, y * px)
@@ -1575,6 +1659,8 @@ def wrap_cell(document: Document, cell: Cell, box: CellBox, placed: list, previo
             top_px, bottom_px = (y - et) * px - dt, (y + cy + eb) * px + db
         wraps.append(wrap_model.Wrap(top_px, bottom_px, (x - el) * px, (x + cx + er) * px, dl, dr,
                                      anchor.wrap_text or "bothSides", y * px, key, polygon, dt, db, x * px))
+    if not wrapping:
+        return None
     exact = twips_to_px(text_left)
     column = wrap_model.Column(exact, box.text_left, Fraction(twips_to_units(box.budget)), mode15,
                                twips_to_px(box.budget))
@@ -1607,7 +1693,7 @@ def wrap_cell(document: Document, cell: Cell, box: CellBox, placed: list, previo
                 # after; in mode 15 to the end of its pitch (as ``paginate._scan``).
                 y = clear_of_bands(y, height.pitch + (after if last and not mode15 else 0), bands)
             line = plain
-            for _attempt in range(64):
+            for _attempt in range(4096):
                 if not wraps:
                     break
                 segs, beside = wrap_model.segments(wraps, y, y + reach(height), column,
@@ -1619,7 +1705,11 @@ def wrap_cell(document: Document, cell: Cell, box: CellBox, placed: list, previo
                 if found is not None:
                     line = found
                     break
-                below = min(w.bottom for w in beside)
+                # Below a drawing with no room beside it: to its foot, or -- one wrapped by
+                # its polygon (``wrapTight``, ``wrapThrough``) -- a line's pitch at a time
+                # until clear of it (``make_cell_valign_probe.py``, ``room``: 8 lines below
+                # one 7.6 lines tall, where ``wrapSquare`` puts the line at its foot).
+                below = min(y + height.pitch if w.polygon is not None else w.bottom for w in beside)
                 if below <= y:
                     break
                 y = below

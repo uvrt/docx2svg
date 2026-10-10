@@ -1,9 +1,10 @@
 """A table beside a floating drawing, and a drawing anchored in a table cell, against what
-Word drew, offline (ROADMAP.md, "Floating drawings -- measured", F.15 to F.17).
+Word drew, offline (ROADMAP.md, "Floating drawings -- measured", F.15 to F.17, F.25).
 
-``tests/fixtures/wrap-table-observations.json`` holds, for ``tools/make_wrap_table_probe.py``
-and ``tools/make_cell_anchor_probe.py``, Word's text objects and pictures and every face
-number the renderer asked for (``tools/read_wrap_table_probe.py``).  Each document is laid
+``tests/fixtures/wrap-table-observations.json`` holds, for ``tools/make_wrap_table_probe.py``,
+``tools/make_cell_anchor_probe.py`` and ``tools/make_cell_valign_probe.py``, Word's text
+objects and pictures and every face number the renderer asked for
+(``tools/read_wrap_table_probe.py``).  Each document is laid
 out here from those numbers alone, and every score is held to the recording.
 """
 
@@ -42,6 +43,11 @@ KNOWN = {
     "cell-anchor-none": {"wrap": 147},
     "cell-anchor-14": {"wrap": 147},
     "cell-anchor-15": {"cell": 8},
+    # A drawing text wraps around in a cell aligned vertically or merged (F.25): every line.
+    # (In mode 15 two pictures, at the top of a centred cell's second paragraph, are 0.05 px
+    # lower in Word: 85 / 87, held by the recording.)
+    "cell-valign-14": {},
+    "cell-valign-15": {},
 }
 
 

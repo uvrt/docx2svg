@@ -20,9 +20,12 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   `None`; `estimate_source` says which); `blocks`, `blocks_laid_out` and
   `blocks_skipped`; `stop` (the body's first stop: `code`, `reason`, `message`, `page`
   and the element `path`); `story_stops`; `substituted_fonts` (`family`, `substitute`,
-  `metric_compatible`) and `missing_fonts`. `as_dict()` gives it as JSON-ready data and
-  `summary()` as one line. Faces absent from the machine are laid out with their open
-  metric compatible substitutes, and each substitution is reported (`font-substituted`).
+  `metric_compatible`) and `missing_fonts`; `approximations` (each like `stop`: a place
+  laid out by an unmeasured rule rather than stopped, `layout-approximate:<reason>`); and
+  `status`: `complete`, `approximate` (complete, with approximations) or `partial`.
+  `as_dict()` gives it as JSON-ready data and `summary()` as one line. Faces absent from
+  the machine are laid out with their open metric compatible substitutes, and each
+  substitution is reported (`font-substituted`).
   `ConvertOptions(substitute_fonts=False)` turns this off, and `font_substitutes={...}`
   names more substitutes, which are reported as approximate. See the README, "Fonts".
 
