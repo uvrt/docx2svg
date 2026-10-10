@@ -113,7 +113,10 @@ class ConvertOptions:
     #: pixels, as Word draws its ink) or ``exact``.  Pen positions are the model's either
     #: way.  See :data:`docx2svg.svg.GLYPH_SIZES` and ROADMAP.md, "Phase 5 -- measured".
     glyph_size: str = "device"
-    #: Extra directories to find faces in, searched after the ones Word uses.
+    #: The application's own font folders (and the folders under them), searched after
+    #: the ones Word uses, for layout and drawing alike.  ``None`` (the default) reads the
+    #: ``OOXML_FONT_DIRS`` environment variable (``os.pathsep``-separated, shared with
+    #: pptx2svg); an empty list means none, the variable not read.
     font_dirs: Sequence[str] | None = None
     #: Override measurement: an :class:`~docx2svg.measure.Advances`, ``metrics(face,
     #: bold, italic)`` and ``decorations(face, bold, italic)``.  By default all three come
@@ -152,12 +155,20 @@ def _read(source) -> bytes:
     return source.read()
 
 
-def _fonts(data: bytes, options: ConvertOptions):
-    from pathlib import Path
+def _user_dirs(options: ConvertOptions, *, subfolders: bool = False) -> tuple:
+    """The application's font folders: ``options.font_dirs``, else ``OOXML_FONT_DIRS``
+    (:func:`ooxml_common.fonts.office.user_font_dirs`); with ``subfolders``, the folders
+    under them too, for the one-level index layout reads."""
+    from ooxml_common.fonts.office import user_font_dirs, with_subfolders
 
+    dirs = user_font_dirs(options.font_dirs)
+    return with_subfolders(dirs) if subfolders else dirs
+
+
+def _fonts(data: bytes, options: ConvertOptions):
     from .fonts import SUBSTITUTES, InstalledFonts, default_font_dirs
 
-    dirs = tuple(default_font_dirs()) + tuple(Path(d) for d in (options.font_dirs or ()))
+    dirs = tuple(default_font_dirs()) + _user_dirs(options, subfolders=True)
     substitutes = dict(SUBSTITUTES) if options.substitute_fonts else {}
     substitutes.update({name.lower(): value for name, value in (options.font_substitutes or {}).items()})
     return InstalledFonts(data, dirs=dirs, substitutes=substitutes, recorded_faces=options.substitute_fonts)
@@ -350,7 +361,7 @@ def _rasterise(layout, data: bytes, fonts, options: ConvertOptions, *, backend: 
         if skip_system_fonts is None:
             skip_system_fonts = not missing
         files += [str(path) for path in font_files or ()]
-        dirs = list(font_dirs or ()) + list(options.font_dirs or ())
+        dirs = list(font_dirs or ()) + [str(path) for path in _user_dirs(options)]
         return [svg_to_png(document, backend=backend, font_dirs=dirs, font_files=files,  # type: ignore[arg-type]
                            skip_system_fonts=skip_system_fonts, sans_serif_family=sans)
                 for document in documents]

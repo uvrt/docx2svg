@@ -66,7 +66,12 @@ def svg_to_png(
     ``font_files`` are searched before the host's fonts, which ``skip_system_fonts``
     leaves out; ``sans_serif_family`` names the face the generic ``sans-serif`` means
     (the placeholders' labels use it).  Only resvg takes the font arguments.
+    ``font_dirs`` left out reads ``OOXML_FONT_DIRS`` (``os.pathsep``-separated); an empty
+    list means none.
     """
+    from ooxml_common.fonts.office import user_font_dirs
+
+    font_dirs = [str(path) for path in user_font_dirs(font_dirs)]
     chosen = backend
     if chosen == "auto":
         found = available_backends()
