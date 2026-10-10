@@ -50,7 +50,9 @@ classifiers = [
 # where Word puts them (F.20, "Chart labels, measured later").
 # 0.8 an application's own font folders, `font_dirs` or `OOXML_FONT_DIRS`
 # (`office.user_font_dirs`; tests/test_font_dirs.py).
-dependencies = ["ooxml-common>=0.8.0"]
+# 0.9 the symbol faces' recorded metrics and Unicode tables (`text.recorded_symbol_faces`,
+# `text.symbol_fonts`), which docx2svg.recorded now re-exports, and a data label's own text.
+dependencies = ["ooxml-common>=0.9.0"]
 
 [project.optional-dependencies]
 # SVG -> PNG.  resvg-py ships prebuilt wheels, so this needs no compiler and no system
