@@ -156,6 +156,13 @@ class Geometry:
     #: ``w:consecutiveHyphenLimit``: at most this many lines in a row end in an automatic
     #: hyphen (0: no limit).
     hyphen_limit: int = 0
+    #: The character a decimal tab stop aligns on: the *system's* decimal separator, not
+    #: the document's language -- here the conversion's locale's (:attr:`Document.locale
+    #: <docx2svg.model.Document.locale>`).  Measured by ``make_render_probe.py``
+    #: (``tabs``): on a machine whose separator is a comma (a Dutch, metric macOS),
+    #: ``12.345`` and ``1234.5`` after a decimal stop in an ``en-GB`` document are both
+    #: drawn ending at the stop, as after a right stop -- Word found no separator in them.
+    decimal_separator: str = "."
 
 
 @dataclass
@@ -236,6 +243,7 @@ def geometry(document: Document, paragraph: Paragraph, section: Section, pp=None
         hanging_stop=twips_to_units(left) if hanging else None,
         squeeze=(document.compatibility_mode or 0) >= 15 and pp.get("jc") == "both",
         **hyphen_rules(document, pp),
+        decimal_separator=document.locale.decimal_separator,
     )
 
 

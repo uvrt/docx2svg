@@ -143,7 +143,8 @@ def score(name: str, data: bytes, fonts, objects: list, fills: list) -> tuple[gl
     warning codes."""
     from docx2svg import _render
 
-    options = render_record.options(fonts)
+    # Word's decimal stops aligned on the measuring machine's separator.
+    options = render_record.options(fonts, locale=render_record.MEASURING_LOCALE)
     documents_, layout, _data, _fonts = _render(data, options)
     ours = glyphs.svg_glyphs(documents_)
     exact = glyphs.layout_glyphs(layout, options.glyph_size)

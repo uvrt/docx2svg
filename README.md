@@ -37,6 +37,11 @@ Every drawn element carries `data-docx-path` back to the XML it came from, and
 `convert_docx_to_layout` returns the pages, lines and spans themselves:
 [docs/api.md](docs/api.md).
 
+What Word takes from its machine rather than the file -- the character a decimal tab stop
+aligns on, a chart's decimal and thousands separators -- comes from
+`ConvertOptions(locale=...)` (an `ooxml_common.locales.Locale`), en-US unless given and
+never read from the server ([docs/api.md](docs/api.md#locale)).
+
 ## What it draws
 
 - **Drawn:** text in its resolved face, size, weight, slant and colour at Word's pen

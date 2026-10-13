@@ -55,6 +55,7 @@ from .paginate import PageInfo
 from .parse import parse_document, parse_package
 from .paths import resolve_path
 from .png import RasterizerNotAvailable, available_backends, svg_to_png
+from ooxml_common.locales import EN_US, Locale
 
 __version__ = "0.1.0"
 
@@ -139,6 +140,14 @@ class ConvertOptions:
     #: (``{"Cambria": "Caladea"}``).  One that is not in :data:`docx2svg.fonts.SUBSTITUTES`
     #: was not measured compatible, and is reported as approximate.
     font_substitutes: dict | None = None
+    #: The regional settings Word would take from its machine, which a document does not
+    #: state (:class:`ooxml_common.locales.Locale`): the character a decimal tab stop
+    #: aligns on (Word's is the system's decimal separator, measured, not the document's
+    #: language) and the decimal and thousands separators of a chart's numbers.  Always
+    #: :data:`~ooxml_common.locales.EN_US` unless given -- never read from the operating
+    #: system, so a document draws the same on every server.  Frozen and picklable: it
+    #: travels with the options into a worker process.
+    locale: Locale = EN_US
     #: Collects :class:`Warning` for everything not drawn faithfully.
     warnings: list[Warning] = field(default_factory=list)
     #: Set by every conversion: how much of the document was laid out
@@ -199,7 +208,7 @@ def _lay_out(source, options: ConvertOptions):
     decorations = options.decorations or fonts.decorations
     from .coverage import coverage_of
 
-    layout = lay_out(document, advances, metrics, package=data, decorations=decorations)
+    layout = lay_out(document, advances, metrics, package=data, decorations=decorations, locale=options.locale)
     for code in document.warnings:
         options.warnings.append(Warning(code, _PARSER_WARNINGS.get(code, "a body element is not read")))
     for substitution in getattr(fonts, "substitutions", {}).values():

@@ -52,7 +52,9 @@ classifiers = [
 # (`office.user_font_dirs`; tests/test_font_dirs.py).
 # 0.9 the symbol faces' recorded metrics and Unicode tables (`text.recorded_symbol_faces`,
 # `text.symbol_fonts`), which docx2svg.recorded now re-exports, and a data label's own text.
-dependencies = ["ooxml-common>=0.9.0"]
+# 0.15 the shared regional settings (`ooxml_common.locales.Locale`), `ConvertOptions.locale`:
+# a decimal tab stop's separator and `ChartBuilder(locale=...)` (tests/test_locale.py).
+dependencies = ["ooxml-common>=0.15.0"]
 
 [project.optional-dependencies]
 # SVG -> PNG.  resvg-py ships prebuilt wheels, so this needs no compiler and no system

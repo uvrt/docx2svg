@@ -200,7 +200,8 @@ def chart_element(package: OpcPackage, owner: str, relationship: str | None, wid
         source, plots[0], width_pt=width_emu / chart_layout.EMU_PER_POINT,
         height_pt=height_emu / chart_layout.EMU_PER_POINT, style=style, resolve_fill=colours.fill,
         resolve_outline=lambda outline: _outline(colours, outline), resolve_text=resolve_text,
-        resolve_typeface=lambda typeface: theme_typeface(document, typeface), plots=plots, rules=chart_rules.WORD)
+        resolve_typeface=lambda typeface: theme_typeface(document, typeface), plots=plots, rules=chart_rules.WORD,
+        locale=document.locale)
     children, data = builder.build()
     if builder.flattened_three_d:
         warnings.append("chart-3d-flattened:" + ",".join(builder.flattened_three_d))

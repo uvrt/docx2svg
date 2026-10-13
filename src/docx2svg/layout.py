@@ -31,6 +31,8 @@ from dataclasses import dataclass, field
 from fractions import Fraction
 from types import SimpleNamespace
 
+from ooxml_common.locales import Locale
+
 from . import linebreak, paginate, vertical
 from .lines import label_format
 from .model import Document, Paragraph, Table
@@ -306,15 +308,6 @@ class Layout:
 
 # -- horizontal ------------------------------------------------------------------------
 
-#: The character a decimal tab stop aligns on: the *system's* decimal separator, not the
-#: document's language.  Measured by ``make_render_probe.py`` (``tabs``): on this machine
-#: (a metric macOS, whose ``Normal.dotm`` also gives the 708-twip default tab stop)
-#: ``12.345`` and ``1234.5`` after a decimal stop in an ``en-GB`` document are both drawn
-#: ending at the stop, as after a right stop -- Word found no separator in them.  Like
-#: :data:`linebreak.APPLICATION_DEFAULT_TAB`, a fact about the application.
-APPLICATION_DECIMAL_SEPARATOR = ","
-
-
 #: Dotted and dashed underlines: device px on, and the period (ROADMAP.md, 5.15).
 UNDERLINE_DASHES = {"dotted": (6, 12), "dash": (16, 24)}
 
@@ -375,7 +368,8 @@ def line_positions(items, line: linebreak.Line, geometry: linebreak.Geometry, ad
     the next piece -- the breaker's own arithmetic (:func:`linebreak.break_pieces`), so a
     line is drawn exactly as wide as it was measured.  A left tab jumps to its stop; the
     text after a right, centre or decimal stop is moved so it ends at, centres on or
-    puts its decimal point at the stop, but never left of the tab.  Then the line moves
+    puts its decimal separator (:attr:`linebreak.Geometry.decimal_separator`) at the
+    stop, but never left of the tab.  Then the line moves
     by its paragraph's alignment: centred or right-aligned between the line's start and
     the right edge, its trailing spaces left out; justified (``both``, ``distribute``)
     lines but the last and those a break ends get the slack spread over the spaces after
@@ -402,7 +396,7 @@ def line_positions(items, line: linebreak.Line, geometry: linebreak.Geometry, ad
                     content_end -= 1
                 if kind == "decimal":
                     point = next((k for k in range(j + 1, content_end)
-                                  if items[k].char == APPLICATION_DECIMAL_SEPARATOR), content_end)
+                                  if items[k].char == geometry.decimal_separator), content_end)
                     width = _segment_width(items, j + 1, point, advances)
                     begin = stop - width
                 else:
@@ -2875,6 +2869,11 @@ def substitute_document(document: Document, values: dict) -> Document:
     return dataclasses.replace(document, body=body, paragraphs=[b for b in body if isinstance(b, Paragraph)])
 
 
-def lay_out(document: Document, advances, metrics, *, package: bytes | None = None, decorations=None) -> Layout:
-    """Every page of ``document``, placed: see the module docstring."""
+def lay_out(document: Document, advances, metrics, *, package: bytes | None = None, decorations=None,
+            locale: Locale | None = None) -> Layout:
+    """Every page of ``document``, placed: see the module docstring.  ``locale``, when
+    given, is the conversion's (:attr:`Document.locale <docx2svg.model.Document.locale>`):
+    what a decimal tab stop aligns on and a chart's numbers are printed with."""
+    if locale is not None:
+        document.locale = locale
     return _Placer(document, package, advances, metrics, decorations).run()

@@ -16,6 +16,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ooxml_common.locales import EN_US, Locale
+
 
 @dataclass(frozen=True)
 class PageSize:
@@ -630,3 +632,9 @@ class Document:
     #: can fail a build on the ones it cares about.  The sibling project's
     #: ``ConvertOptions.warnings`` channel, brought over on day one rather than retrofitted.
     warnings: list[str] = field(default_factory=list)
+    #: Not the file's: the regional settings Word takes from its machine, which the
+    #: conversion is in (``ConvertOptions.locale``, set by :func:`docx2svg.layout.lay_out`;
+    #: :data:`~ooxml_common.locales.EN_US` unless given, never the operating system's).
+    #: What a decimal tab stop aligns on (:attr:`docx2svg.linebreak.Geometry.
+    #: decimal_separator`) and a chart's numbers are printed with.
+    locale: Locale = field(default=EN_US, compare=False)
