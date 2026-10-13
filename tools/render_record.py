@@ -24,6 +24,15 @@ sys.path.insert(0, str(HERE.parent / "src"))
 
 from docx2svg.fonts import Decorations, DrawingName, InstalledFonts  # noqa: E402
 from docx2svg.vertical import FaceMetrics  # noqa: E402
+from ooxml_common.locales import Locale  # noqa: E402
+
+#: The locale of the machine Word was measured on (a Dutch, metric macOS), for a probe whose
+#: reading depends on it: a decimal tab stop aligns on the system's decimal separator, a
+#: comma there (``make_render_probe.py`` and ``make_tab_leader_probe.py``, ``tabs``).  Only
+#: the decimal separator is read from a reading; the other fields are what a caller with a
+#: decimal comma would build, and nothing these probes draw depends on them.
+MEASURING_LOCALE = Locale(decimal_separator=",", thousands_separator=".", date_order="dmy", language="nl-BE",
+                          list_separator=";")
 
 
 def _key(face: str, bold: bool, italic: bool) -> str:

@@ -38,6 +38,28 @@ result.page_numbers    # [2, 3]: the page each SVG is of
 - **`convert_docx(source, options)`** lays the document out once and returns a
   `Conversion`: the layout and the selected pages' SVGs. `convert_docx_to_layout` and
   `convert_docx_to_svg` each lay it out on their own, as they always have.
+- <a id="locale"></a>**Locale.** Word takes a few things from the machine it runs on
+  rather than from the document: a decimal tab stop aligns on the *system's* decimal
+  separator, not the document language's (measured: on a machine with a decimal comma,
+  `1234.5` after a decimal stop in an `en-GB` document is drawn as after a right stop), and
+  a chart's numbers are printed in its decimal and thousands separators. A renderer that
+  read them from *its* machine would draw the same document differently on every server,
+  so docx2svg never does: the caller says which locale a conversion is in
+  (`ConvertOptions.locale`, an `ooxml_common.locales.Locale`), and without one it is
+  `EN_US` -- a decimal stop aligns on `.`, a chart prints `1,240.0`.
+
+  ```python
+  from ooxml_common.locales import Locale
+
+  nl = Locale(decimal_separator=",", thousands_separator=".", date_order="dmy",
+              language="nl-NL", list_separator=";")
+  svgs = convert_docx_to_svg("report.docx", ConvertOptions(locale=nl))
+  ```
+
+  `Locale` is frozen and picklable, so the options travel into worker processes
+  unchanged. Only the separators are read so far: `DATE` and `TIME` fields and ordinal or
+  cardinal number text are drawn as Word cached them, and a chart's own "Chart Title" is
+  not drawn, each with a warning, whatever the locale.
 - **Element paths.** Every element the SVG draws from the document carries
   `data-docx-path`, and its layout object carries the same string as `path`: a `Line`'s
   is its paragraph's (`w:body/w:tbl[1]/w:tr[2]/w:tc[1]/w:p[1]`), a `Span`'s its run's, a

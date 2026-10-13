@@ -6,6 +6,18 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **The caller's locale: `ConvertOptions(locale=...)`.** It takes ooxml-common's shared
+  `Locale` (0.15.0, now the floor): what Word takes from its machine rather than from the
+  document. A decimal tab stop aligns on its decimal separator -- Word aligns on the
+  system's (measured) -- and a chart's numbers are printed in its decimal and thousands
+  separators (`ChartBuilder(locale=...)`). The default is `EN_US`, never the operating
+  system's locale. **This changes the default output** of a decimal tab stop: it used to
+  align on a hard-coded `,`, the measuring machine's separator, and now aligns on en-US's
+  `.`, so `1234.5` after a decimal stop puts its `.` at the stop where it was drawn as
+  after a right stop. No VRT snapshot holds a decimal stop, so none changed; a caller-built
+  `Locale` with a `,` decimal draws byte for byte what was drawn before, and the probes
+  measured in Word (`tools/read_render.py`, `tools/read_tab_leader_probe.py`) are scored
+  in that locale (`render_record.MEASURING_LOCALE`). Charts' default output is unchanged.
 - **An absent Symbol or Wingdings draws every glyph, from shared tables.** The recorded
   metrics moved to ooxml-common (`text.recorded_symbol_faces`, unchanged;
   `tools/record_symbol_faces.py` writes them there), and what an absent face's symbols are

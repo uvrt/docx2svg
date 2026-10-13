@@ -75,7 +75,8 @@ def score(name: str, data: bytes, fonts, recorded: dict) -> dict:
     """Every score of one document against Word's recorded side."""
     from docx2svg import _render
 
-    options = render_record.options(fonts)
+    # Word's decimal stops aligned on the measuring machine's separator.
+    options = render_record.options(fonts, locale=render_record.MEASURING_LOCALE)
     _documents, layout, _data, _fonts = _render(data, options)
     model = glyphs.exact_floats(glyphs.layout_glyphs(layout, options.glyph_size))
     word = read_render.glyphs_of(recorded["objects"])
