@@ -290,3 +290,25 @@ def test_a_chart_in_a_footnote_is_related_from_the_notes_part_and_one_in_a_text_
     assert set(drawn) == {"w:footnote[@w:id=1]", "w:body"}, drawn
     assert "/wps:txbx/w:txbxContent/w:p[1]/w:r[1]" in drawn["w:body"].path
     assert not [w for w in options.warnings if "chart" in str(w) or "drawing-not-drawn" in str(w)], options.warnings
+
+
+@pytest.mark.faces
+def test_date_categories_are_drawn_as_dates():
+    """Serials under a date code are drawn as dates (ooxml-common 0.17.0): measured, Word for
+    Mac, 2026-10-16, drew 46027, 46063 and 46096 under ``[$-413]d\\ mmmm\\ yyyy`` as
+    ``5 januari 2026``, ``10 februari 2026``, ``15 maart 2026``."""
+    import re
+
+    serials = (46027, 46063, 46096, 46113)
+    points = "".join(f"<c:pt idx='{i}'><c:v>{v}</c:v></c:pt>" for i, v in enumerate(serials))
+    space = re.sub(r"<c:cat>.*?</c:cat>",
+                   "<c:cat><c:numRef><c:f>Sheet1!$A$2:$A$5</c:f><c:numCache>"
+                   r"<c:formatCode>[$-413]d\ mmmm\ yyyy</c:formatCode><c:ptCount val='4'/>"
+                   f"{points}</c:numCache></c:numRef></c:cat>", make_chart_probe.column_chart(), flags=re.S)
+    layout, warnings = _render(_one(make_chart_probe.Case("dates", "one", space)))
+    drawn = [p for placed in layout.pages[0].floats for p in placed.primitives
+             if p.kind == "markup" and p.what == "chart"]
+    assert len(drawn) == 1
+    for text in ("5 januari 2026", "10 februari 2026", "15 maart 2026", "1 april 2026"):
+        assert text in drawn[0].markup, text
+    assert "46027" not in drawn[0].markup
