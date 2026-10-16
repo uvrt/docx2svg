@@ -6,6 +6,14 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **A chart's date categories are drawn as dates** (ooxml-common 0.17.0, now the floor): a
+  category kept as a serial under a date code -- `[$-413]d\ mmmm\ yyyy`, as ooxml-edit's
+  `date_format` writes it -- reads `5 januari 2026` where it read `46027`, as Word for Mac
+  drew it (measured 16 October 2026). A code without a language prefix takes its names
+  from `ConvertOptions.locale`'s language; a `/` is drawn as `/` (Word shows the viewer's
+  region separator, which the locale does not hold). Word's automatic chart title is
+  unchanged (already measured here, `chart_title_size`). Goldens unchanged.
+
 - **The caller's locale: `ConvertOptions(locale=...)`.** It takes ooxml-common's shared
   `Locale` (0.15.0, now the floor): what Word takes from its machine rather than from the
   document. A decimal tab stop aligns on its decimal separator -- Word aligns on the
