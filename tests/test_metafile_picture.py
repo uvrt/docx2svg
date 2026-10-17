@@ -55,3 +55,15 @@ def test_a_metafile_that_draws_nothing_keeps_the_placeholder():
     markup, warnings = _draw(_emf([]))
     assert "data-docx-unsupported" in markup
     assert warnings[0][0] == "picture-not-drawn"
+
+
+def test_an_emf_plus_picture_is_drawn_from_its_emf_plus_records():
+    """As Windows draws it: the EMF+ green square, not the GDI fallback's red one."""
+    header = struct.pack("<HHII", 0x4001, 1, 28, 16) + struct.pack("<IIII", 0xDBC01002, 1, 96, 96)
+    fill = struct.pack("<HHII", 0x400A, 0x8000, 36, 24) + struct.pack("<II", 0xFF00C000, 1) + struct.pack("<4f", 10, 10, 80, 80)
+    plus = header + fill + struct.pack("<HHII", 0x4002, 0, 12, 0)
+    comment = _record(70, struct.pack("<II", len(plus) + 4, 0x2B464D45) + plus)
+    markup, warnings = _draw(_emf([comment] + RED_SQUARE))
+    svg = base64.b64decode(markup.split("base64,", 1)[1].split('"', 1)[0])
+    assert b'fill="#00C000"' in svg and b'fill="#FF0000"' not in svg
+    assert warnings == []
