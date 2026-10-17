@@ -6,6 +6,15 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **EMF and WMF pictures are drawn** (round 7, L9; ooxml-common 0.21.0, now the floor):
+  an inline or floating picture whose part is a metafile was a placeholder of its extent
+  (`picture-not-drawn`); it is now drawn from its GDI records as SVG by ooxml-common's
+  player, measured against Windows PowerPoint's drawing of the same records (Word's own
+  drawing not measured). What the player leaves out -- EMF+ records among them, a dual
+  file being drawn from its GDI records -- is a `metafile-records` warning; a metafile
+  that draws nothing keeps the placeholder. `svg_to_png` writes these pictures inline
+  (resvg draws no text in an SVG `<image>`). A picture bullet in EMF or WMF still stops
+  the layout. VRT snapshots unchanged.
 - **A chart's date categories are drawn as dates** (ooxml-common 0.17.0, now the floor): a
   category kept as a serial under a date code -- `[$-413]d\ mmmm\ yyyy`, as ooxml-edit's
   `date_format` writes it -- reads `5 januari 2026` where it read `46027`, as Word for Mac
