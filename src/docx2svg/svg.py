@@ -183,7 +183,7 @@ def render_page(page: Page, *, glyph_size: str = "device", images=None, width: i
     does not reach (:meth:`docx2svg.fonts.InstalledFonts.drawing_name`); without it,
     every face is named as the document names it.
     ``images(relationship id) -> (content type, bytes) | None`` supplies inline
-    pictures; an EMF or WMF is drawn from its GDI records (:mod:`ooxml_common.metafile`);
+    pictures; an EMF or WMF is drawn from its records (:mod:`ooxml_common.metafile`);
     a picture it cannot supply, or in a format an SVG cannot carry, is drawn as a
     placeholder of its extent and reported through ``warn(code, message)``.
     """
@@ -270,9 +270,9 @@ _METAFILE_TYPES = ("image/x-emf", "image/emf", "image/x-wmf", "image/wmf")
 
 
 def _metafile(data: bytes, path: str, warn):
-    """An EMF or WMF drawn from its GDI records as SVG (:mod:`ooxml_common.metafile`, as
-    Windows plays them), or ``None`` when it draws nothing; what it leaves out is reported
-    as ``metafile-records``."""
+    """An EMF or WMF drawn from its records as SVG -- an EMF+ file from its EMF+ ones
+    (:mod:`ooxml_common.metafile`, as Windows plays them) -- or ``None`` when it draws
+    nothing; what it leaves out is reported as ``metafile-records``."""
     from ooxml_common.metafile import metafile_to_svg
 
     drawing = metafile_to_svg(data)
