@@ -6,6 +6,11 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **EMF+ pictures are drawn from their EMF+ records** (round 7, L9 step 2; ooxml-common
+  0.22.0, now the floor), as Windows PowerPoint draws them, no longer from a dual file's GDI
+  fallback; an EMF+-only file is no longer a placeholder. A file whose EMF+ records draw
+  nothing is drawn from its GDI records with a `metafile-records` warning. VRT snapshots
+  unchanged.
 - **EMF and WMF pictures are drawn** (round 7, L9; ooxml-common 0.21.0, now the floor):
   an inline or floating picture whose part is a metafile was a placeholder of its extent
   (`picture-not-drawn`); it is now drawn from its GDI records as SVG by ooxml-common's

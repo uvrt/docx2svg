@@ -54,7 +54,7 @@ classifiers = [
 # `text.symbol_fonts`), which docx2svg.recorded now re-exports, and a data label's own text.
 # 0.15 the shared regional settings (`ooxml_common.locales.Locale`), `ConvertOptions.locale`:
 # a decimal tab stop's separator and `ChartBuilder(locale=...)` (tests/test_locale.py).
-dependencies = ["ooxml-common>=0.21.0"]
+dependencies = ["ooxml-common>=0.22.0"]
 
 [project.optional-dependencies]
 # SVG -> PNG.  resvg-py ships prebuilt wheels, so this needs no compiler and no system
