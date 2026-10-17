@@ -183,9 +183,9 @@ def render_page(page: Page, *, glyph_size: str = "device", images=None, width: i
     does not reach (:meth:`docx2svg.fonts.InstalledFonts.drawing_name`); without it,
     every face is named as the document names it.
     ``images(relationship id) -> (content type, bytes) | None`` supplies inline
-    pictures; a picture it cannot supply, or in a format an SVG cannot carry (EMF,
-    WMF), is drawn as a placeholder of its extent and reported through
-    ``warn(code, message)``.
+    pictures; an EMF or WMF is drawn from its GDI records (:mod:`ooxml_common.metafile`);
+    a picture it cannot supply, or in a format an SVG cannot carry, is drawn as a
+    placeholder of its extent and reported through ``warn(code, message)``.
     """
     if glyph_size not in GLYPH_SIZES:
         raise ValueError(f"glyph_size must be one of {GLYPH_SIZES}")
@@ -266,6 +266,21 @@ def _lines(lines, glyph_size: str, names, defs=None) -> list[str]:
 
 
 _IMAGE_TYPES = ("image/png", "image/jpeg", "image/gif", "image/svg+xml")
+_METAFILE_TYPES = ("image/x-emf", "image/emf", "image/x-wmf", "image/wmf")
+
+
+def _metafile(data: bytes, path: str, warn):
+    """An EMF or WMF drawn from its GDI records as SVG (:mod:`ooxml_common.metafile`, as
+    Windows plays them), or ``None`` when it draws nothing; what it leaves out is reported
+    as ``metafile-records``."""
+    from ooxml_common.metafile import metafile_to_svg
+
+    drawing = metafile_to_svg(data)
+    if drawing is None or not drawing.drawn:
+        return None
+    if not drawing.complete and warn is not None:
+        warn("metafile-records", f"a metafile picture is drawn from its records, but {drawing.warning()} ({path})")
+    return "image/svg+xml", drawing.svg
 
 
 def _picture(path: str, relationship, x, y, width, height, source, images, warn, transform: str | None = None) -> str:
@@ -274,6 +289,8 @@ def _picture(path: str, relationship, x, y, width, height, source, images, warn,
     if images and relationship:
         found = images(relationship, source) if source else images(relationship)
     extra = f' transform="{transform}"' if transform else ""
+    if found is not None and found[0] in _METAFILE_TYPES:
+        found = _metafile(found[1], path, warn) or found
     if found is not None and found[0] in _IMAGE_TYPES:
         content_type, data = found
         href = f"data:{content_type};base64,{base64.b64encode(data).decode('ascii')}"

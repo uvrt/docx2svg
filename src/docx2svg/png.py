@@ -70,7 +70,11 @@ def svg_to_png(
     list means none.
     """
     from ooxml_common.fonts.office import user_font_dirs
+    from ooxml_common.metafile import inline_metafile_images
 
+    # A metafile drawn as SVG goes inline: resvg draws no text in an SVG it reads through
+    # <image>.
+    svg = inline_metafile_images(svg)
     font_dirs = [str(path) for path in user_font_dirs(font_dirs)]
     chosen = backend
     if chosen == "auto":

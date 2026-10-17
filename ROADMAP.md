@@ -3834,8 +3834,8 @@ guessing. The page the obstacle is on is drawn up to it, then:
 
 Where the extent *is* known it is drawn as a placeholder of that extent: an inline drawing
 that is not a picture (a chart, a shape; *shapes drawn since F.12, charts since F.20 and
-SmartArt since F.21*), a picture in a format an SVG cannot carry (EMF,
-WMF), and -- outlined inside the stop band -- a floating drawing whose anchor states its
+SmartArt since F.21*), a picture in a format an SVG cannot carry (*an EMF or WMF is
+drawn from its GDI records since round 7, ooxml-common's metafile player*), and -- outlined inside the stop band -- a floating drawing whose anchor states its
 offset against the page, margin or column and the page, margin or its paragraph
 (`filesamples/sample3`'s picture: within 0.07 px of where Word drew it). A table's
 width is known and its height is not, so it gets the band alone. The warning codes:
