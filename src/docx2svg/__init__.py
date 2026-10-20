@@ -77,10 +77,13 @@ __all__ = [
     "convert_docx_to_layout",
     "convert_docx_to_png",
     "convert_docx_to_svg",
+    "lay_out_docx",
+    "page_svgs",
     "parse_document",
     "parse_package",
     "resolve_path",
     "svg_to_png",
+    "user_font_dirs",
     "__version__",
 ]
 
@@ -164,6 +167,15 @@ def _read(source) -> bytes:
     return source.read()
 
 
+def user_font_dirs(options: ConvertOptions | None = None) -> list[str]:
+    """The application's font folders a conversion with ``options`` uses, as strings:
+    ``options.font_dirs``, else ``OOXML_FONT_DIRS``
+    (:func:`ooxml_common.fonts.office.user_font_dirs`) -- what :func:`convert_docx_to_png`
+    hands the rasteriser after the faces it names, and what a caller rasterising
+    :func:`page_svgs` itself hands it."""
+    return [str(path) for path in _user_dirs(options or ConvertOptions())]
+
+
 def _user_dirs(options: ConvertOptions, *, subfolders: bool = False) -> tuple:
     """The application's font folders: ``options.font_dirs``, else ``OOXML_FONT_DIRS``
     (:func:`ooxml_common.fonts.office.user_font_dirs`); with ``subfolders``, the folders
@@ -192,11 +204,23 @@ _PARSER_WARNINGS = {
 def convert_docx_to_layout(source, options: ConvertOptions | None = None):
     """Parse and lay out a document without writing SVG: a :class:`docx2svg.layout.Layout`
     with every glyph, rule and picture of every page placed."""
-    return _lay_out(source, options or ConvertOptions())[0]
+    return lay_out_docx(source, options)[0]
 
 
-def _lay_out(source, options: ConvertOptions):
+def lay_out_docx(source, options: ConvertOptions | None = None) -> tuple:
+    """``(layout, data, fonts)``: the document laid out -- every page, whatever
+    ``options.pages`` selects -- its bytes, and the faces it was measured with
+    (:class:`docx2svg.fonts.InstalledFonts`, ``None`` where ``options`` measures with
+    its own ``advances``, ``metrics`` and ``decorations``).  Warnings and coverage go to
+    ``options`` as by every conversion.
+
+    The first half of :func:`convert_docx_to_svg`, for a caller that keeps the layout
+    and writes pages from it later (:func:`page_svgs`): a render tool laying a document
+    out once and drawing a few pages per call.  All three are picklable, so the layout
+    can be handed to another process."""
     from .layout import lay_out
+
+    options = options if options is not None else ConvertOptions()
 
     data = _read(source)
     document = parse_package(data)
@@ -217,6 +241,10 @@ def _lay_out(source, options: ConvertOptions):
         options.warnings.append(Warning(code, message, page))
     layout.coverage = options.coverage = coverage_of(layout, document, data, fonts)
     return layout, data, fonts
+
+
+#: The name the agents called :func:`lay_out_docx` by; kept.
+_lay_out = lay_out_docx
 
 
 def _selected(options: ConvertOptions, count: int) -> list[int]:
@@ -247,10 +275,17 @@ def _names(options: ConvertOptions, fonts):
     return fonts.drawing_name if fonts is not None else None
 
 
-def _svgs(layout, data: bytes, options: ConvertOptions, *, device_size: bool = False, fonts=None) -> list[str]:
-    """The selected pages as SVG.  ``device_size`` sizes each in device pixels (300 dpi)
-    when no size is asked for: what the PNG path rasterises at."""
+def page_svgs(layout, data: bytes, options: ConvertOptions | None = None, *, device_size: bool = False,
+              fonts=None) -> list[str]:
+    """The pages ``options.pages`` selects (every page by default) of a layout of
+    :func:`lay_out_docx`, as SVG -- byte for byte what :func:`convert_docx_to_svg` writes
+    for them.  ``data`` and ``fonts`` are the layout's own (the document's bytes, for its
+    pictures; the faces, for how the SVG names them).  ``device_size`` sizes each page in
+    device pixels (300 dpi) when ``options`` asks for no size: what
+    :func:`convert_docx_to_png` rasterises."""
     from . import svg
+
+    options = options if options is not None else ConvertOptions()
 
     images = _images(data)
     names = _names(options, fonts)
@@ -270,10 +305,14 @@ def _svgs(layout, data: bytes, options: ConvertOptions, *, device_size: bool = F
     return documents
 
 
+#: The name the agents called :func:`page_svgs` by; kept.
+_svgs = page_svgs
+
+
 def _render(source, options: ConvertOptions):
     """The SVG pass, keeping the layout, the bytes and the faces it was measured with."""
-    layout, data, fonts = _lay_out(source, options)
-    return _svgs(layout, data, options, fonts=fonts), layout, data, fonts
+    layout, data, fonts = lay_out_docx(source, options)
+    return page_svgs(layout, data, options, fonts=fonts), layout, data, fonts
 
 
 def convert_docx_to_svg(source, options: ConvertOptions | None = None) -> list[str]:
@@ -330,7 +369,7 @@ def convert_docx_to_png(source, options: ConvertOptions | None = None, *, backen
     page is drawn at 300 dpi, Word's export grid.
     """
     options = options or ConvertOptions()
-    layout, data, fonts = _lay_out(source, options)
+    layout, data, fonts = lay_out_docx(source, options)
     return _rasterise(layout, data, fonts, options, backend=backend, font_dirs=font_dirs, font_files=font_files,
                       skip_system_fonts=skip_system_fonts)
 
@@ -340,7 +379,7 @@ def _rasterise(layout, data: bytes, fonts, options: ConvertOptions, *, backend: 
                skip_system_fonts: bool | None = None) -> list[bytes]:
     from .fonts import rasteriser_files
 
-    documents = _svgs(layout, data, options, device_size=True, fonts=fonts)
+    documents = page_svgs(layout, data, options, device_size=True, fonts=fonts)
     # The files Word draws every face with, each read where it is installed; only a face
     # the document embeds is written (de-obfuscated, as embedded), and only while the
     # rasteriser needs it.

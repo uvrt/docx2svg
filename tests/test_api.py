@@ -185,3 +185,24 @@ def test_every_page_carries_its_public_page_info():
     assert all(info.story in ("first", "even", "default") for info in infos)
     assert infos[0].section == 0 and infos[0].section_first
     assert len({info.section for info in infos}) > 1
+
+
+def test_the_public_layout_and_pages_write_what_convert_docx_to_svg_writes(monkeypatch, tmp_path):
+    """:func:`docx2svg.lay_out_docx` then :func:`docx2svg.page_svgs` -- a render tool
+    laying a document out once and drawing pages from it, in another process too (the
+    three are picklable) -- write :func:`convert_docx_to_svg`'s pages byte for byte;
+    :func:`docx2svg.user_font_dirs` is the folders the rasteriser is handed; the agents'
+    old private names still work."""
+    import pickle
+
+    import docx2svg
+
+    assert (docx2svg._lay_out, docx2svg._svgs) == (docx2svg.lay_out_docx, docx2svg.page_svgs)
+    source = FIXTURES / "samplelib" / "sample-long.docx"
+    laid = docx2svg.lay_out_docx(source, options())
+    layout, data, fonts = pickle.loads(pickle.dumps(laid))
+    assert docx2svg.page_svgs(layout, data, options(pages=[3, 1]), fonts=fonts) == \
+        convert_docx_to_svg(source, options(pages=[3, 1]))
+    monkeypatch.setenv("OOXML_FONT_DIRS", str(tmp_path))
+    assert docx2svg.user_font_dirs() == [str(tmp_path)]
+    assert docx2svg.user_font_dirs(ConvertOptions(font_dirs=[])) == []

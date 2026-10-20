@@ -38,6 +38,14 @@ result.page_numbers    # [2, 3]: the page each SVG is of
 - **`convert_docx(source, options)`** lays the document out once and returns a
   `Conversion`: the layout and the selected pages' SVGs. `convert_docx_to_layout` and
   `convert_docx_to_svg` each lay it out on their own, as they always have.
+- **Laying out once, writing pages later**: `lay_out_docx(source, options)` returns
+  `(layout, data, fonts)` -- every page laid out, the document's bytes and the faces it was
+  measured with, all three picklable, so the layout can be kept or handed to another
+  process -- and `page_svgs(layout, data, options, fonts=fonts)` writes the pages
+  `options.pages` selects, byte for byte `convert_docx_to_svg`'s (`device_size=True`: at
+  300 dpi when no size is asked, as `convert_docx_to_png` rasterises). `user_font_dirs(options)`
+  is the application's font folders the rasteriser is handed after the faces the SVG
+  names. A render tool drawing a few pages per call lays a version out once this way.
 - <a id="locale"></a>**Locale.** Word takes a few things from the machine it runs on
   rather than from the document: a decimal tab stop aligns on the *system's* decimal
   separator, not the document language's (measured: on a machine with a decimal comma,
