@@ -6,6 +6,13 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **A public API for laying out once and writing pages later** (round 10):
+  `lay_out_docx(source, options)` returns `(layout, data, fonts)` -- every page laid out, the
+  bytes, the faces it was measured with; picklable, so a layout can be kept or handed to
+  another process -- `page_svgs(layout, data, options, fonts=..., device_size=...)` writes
+  the selected pages byte for byte as `convert_docx_to_svg` does, and `user_font_dirs(options)`
+  is the folders the rasteriser is handed after the faces the SVG names (docs/api.md).
+  The private names docx-agent used (`_lay_out`, `_svgs`, `_user_dirs`) still work.
 - **Rasterising loads only the fonts a page can use** (round 10, O2; ooxml-common 0.23.0,
   now the floor): `svg_to_png` hands resvg the files of its folders and list that the page
   can use, in resvg's load order (`ooxml_common.fonts.rasterdb`), instead of every file of
