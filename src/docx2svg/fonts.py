@@ -590,9 +590,207 @@ def rasteriser_files(fonts: "InstalledFonts", faces, directory: str | None = Non
     unaddressable = []
     for path, offset, family, bold, italic in drawn:
         own = next((other for other in pool if other.source == path and other.offset == offset), None)
-        if own is None or not resolves_to(own, pool, family, fonts.drawing_name(family, bold, italic), bold, italic):
+        name = fonts.drawing_name(family, bold, italic)
+        if own is None or not (resolves_to(own, pool, family, name, bold, italic)
+                               or _drawn_apart(own, pool, family, name, bold, italic)):
             unaddressable.append(family)
     return files, missing, unaddressable
+
+
+def _drawn_apart(face: Face, pool: list, face_name: str, name: "DrawingName | None", bold: bool,
+                 italic: bool) -> bool:
+    """Whether :func:`drawing_plan` draws ``face`` for what the SVG asks although another
+    face of ``pool`` ties with it: ``face`` is the first of the tie whose family (name ID 1)
+    is the one the document names, and the faces of other families are other files --
+    Aptos Display and Aptos, both filed as "Aptos" at 400 -- so a pass without those draws
+    it."""
+    families, stretch, style, weight = _query(face_name, name, bold, italic)
+    for family in families:
+        members = [other for other in pool if family.lower() in (f.lower() for f in other.rasteriser_families)]
+        if members:
+            found = css_match(members, stretch, style, weight)
+            named = [other for other in found if face_name.lower() in _legacy_families(other)]
+            return bool(named) and named[0] is face and all(
+                other.source != face.source for other in found if other not in named)
+    return False
+
+
+def _legacy_families(face) -> frozenset:
+    """A face's family names (name ID 1), lowercased: "Aptos Display" for the face resvg
+    files as "Aptos"."""
+    try:
+        return frozenset(text.lower() for name_id, text in face.names if name_id == 1)
+    except (struct.error, TypeError, FontError):
+        return frozenset()
+
+
+# --------------------------------------------------------------------------------------
+# Faces filed under one name: drawn in passes of their own
+# --------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class DrawingPlan:
+    """How :func:`docx2svg.png.svg_to_png` draws an SVG whose text asks for two faces the
+    rasteriser files under one name (:func:`drawing_plan`): in passes, each over the last.
+
+    ``stacks`` gives each ``font-family`` value drawn after the first pass its pass (the
+    rest are drawn in the first); ``withheld`` per pass, the files of those handed over
+    that are left out of it -- the faces that would otherwise answer for that pass's own."""
+
+    stacks: dict
+    withheld: list
+
+    @property
+    def passes(self) -> int:
+        return len(self.withheld)
+
+
+@dataclass(frozen=True)
+class _PoolFace:
+    """What a plan reads of a face handed to the rasteriser."""
+
+    source: str
+    css: tuple
+    rasteriser_families: tuple
+    legacy: frozenset
+
+
+@functools.lru_cache(maxsize=4096)
+def _pool_faces(path: str, mtime: int, size: int) -> tuple:
+    out = []
+    for _, face in _faces_in(Path(path)):
+        try:
+            out.append(_PoolFace(path, face.css, tuple(name.lower() for name in face.rasteriser_families),
+                                 _legacy_families(face)))
+        except (struct.error, TypeError, FontError):
+            continue
+    return tuple(out)
+
+
+@functools.lru_cache(maxsize=64)
+def _pool(stamps: tuple) -> tuple:
+    """The faces of the files ``stamps`` names, in load order, by each name the rasteriser
+    files them under; ``None`` where no two faces of different files tie (one name, one
+    weight, width and style): nothing to plan, the common case."""
+    faces = [face for stamp in dict.fromkeys(stamps) for face in _pool_faces(*stamp)]
+    seen: dict = {}
+    tie = False
+    for face in faces:
+        for name in face.rasteriser_families:
+            other = seen.setdefault((name, face.css), face.source)
+            tie = tie or other != face.source
+    if not tie:
+        return None
+    by_name: dict = {}
+    for face in faces:
+        for name in dict.fromkeys(face.rasteriser_families):
+            by_name.setdefault(name, []).append(face)
+    return tuple((name, tuple(members)) for name, members in by_name.items())
+
+
+_TEXT_TAG = re.compile(r"<text\b[^>]*>")
+_SVG_ATTRIBUTE = re.compile(r'\s(font-family|font-weight|font-stretch|font-style)="([^"]*)"')
+_GENERIC = frozenset({"serif", "sans-serif", "monospace", "cursive", "fantasy"})
+
+
+def _text_queries(svg: str) -> dict:
+    """``font-family`` value -> the ``(families, usWidthClass, style, weight)`` its texts
+    ask for, as :mod:`docx2svg.svg` writes them (on the ``<text>`` element)."""
+    out: dict = {}
+    for tag in _TEXT_TAG.findall(svg):
+        attributes = dict(_SVG_ATTRIBUTE.findall(tag))
+        value = attributes.get("font-family")
+        if value is None:
+            continue
+        families = [name.strip().strip("'\"").replace("\\'", "'").replace("&apos;", "'").replace("&amp;", "&")
+                    for name in value.split(",")]
+        families = tuple(name for name in families if name and name.lower() not in _GENERIC)
+        if not families:
+            continue
+        weight = attributes.get("font-weight", "normal")
+        weight = 700 if weight == "bold" else 400 if weight == "normal" else int(weight) if weight.isdigit() else 400
+        query = (families, _STRETCH_CLASS.get(attributes.get("font-stretch", "normal"), 5),
+                 attributes.get("font-style", "normal"), weight)
+        out.setdefault(value, set()).add(query)
+    return out
+
+
+def drawing_plan(svg: str, font_files=(), font_dirs=()) -> DrawingPlan | None:
+    """The passes ``svg`` is drawn in with ``font_files`` and ``font_dirs`` (the files a
+    rasteriser is handed, :func:`rasteriser_files` and the application's folders), or
+    ``None``: one pass, as given, draws every text in its own face.
+
+    resvg files a face under its typographic family (name ID 16) alone, so Aptos Display
+    is "Aptos" at 400 as Aptos is, and of two faces that tie the first loaded draws both
+    (:func:`css_match`).  A text whose face loses such a tie to a face of another family
+    -- its face is the first of the tie whose family (name ID 1) is the name the document
+    gives first, and the faces of other families are other files -- is drawn in a pass of its own without those files, over the passes
+    before it (:func:`docx2svg.png.pass_svg`); a pass may also only leave files out (a
+    folder holding both faces, the document using one).  A tie no file left out undoes
+    (two faces of one file) stays as it is.
+    """
+    from ooxml_common.fonts.rasterdb import file_stamps
+
+    if not font_files and not font_dirs or "<text" not in svg:
+        return None
+    pool = _pool(tuple(file_stamps([str(path) for path in font_files or ()],
+                                   [str(path) for path in font_dirs or ()])))
+    if pool is None:
+        return None
+    queries = _text_queries(svg)
+    if not queries:
+        return None
+    by_name = dict(pool)
+
+    def drawn(query, withheld) -> "_PoolFace | None":
+        families, stretch, style, weight = query
+        for family in families:
+            members = [face for face in by_name.get(family.lower(), ()) if face.source not in withheld]
+            if members:
+                return css_match(members, stretch, style, weight)[0]      # a tie: the first loaded
+        return None
+
+    def wanted(query) -> "tuple[_PoolFace | None, frozenset]":
+        """The face the text is to be drawn in, and the files to leave out for it."""
+        families, stretch, style, weight = query
+        for family in families:
+            members = by_name.get(family.lower())
+            if members:
+                found = css_match(list(members), stretch, style, weight)
+                named = [face for face in found if families[0].lower() in face.legacy]
+                rivals = frozenset(face.source for face in found if face not in named)
+                if named and found[0] not in named and named[0].source not in rivals:
+                    return named[0], rivals
+                return found[0], frozenset()
+        return None, frozenset()
+
+    needs = {value: [(query, *wanted(query)) for query in sorted(found, key=repr)]
+             for value, found in queries.items()}
+    if not any(rivals for wants in needs.values() for _, _, rivals in wants):
+        return None
+    passes: list[tuple[list, set]] = [([], set())]      # (values, files left out)
+
+    def holds(values, withheld) -> bool:
+        return all(drawn(query, withheld) is face for value in values for query, face, _ in needs[value])
+
+    for value, wants in needs.items():
+        rivals = set().union(*(rivals for _, _, rivals in wants))
+        for values, withheld in passes:
+            if holds(values + [value], withheld | rivals):
+                values.append(value)
+                withheld.update(rivals)
+                break
+        else:
+            if holds([value], rivals):
+                passes.append(([value], set(rivals)))
+            else:
+                passes[0][0].append(value)              # as it was: no pass draws it apart
+    if len(passes) == 1 and not passes[0][1]:
+        return None
+    return DrawingPlan(stacks={value: number for number, (values, _) in enumerate(passes) if number
+                               for value in values},
+                       withheld=[frozenset(withheld) for _, withheld in passes])
 
 
 def default_font_dirs() -> tuple[Path, ...]:
