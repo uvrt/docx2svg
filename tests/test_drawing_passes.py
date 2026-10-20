@@ -17,6 +17,7 @@ from __future__ import annotations
 import io
 import struct
 import zipfile
+import zlib
 from pathlib import Path
 
 import pytest
@@ -116,18 +117,42 @@ def _needs_resvg() -> None:
         pytest.skip("needs resvg-py")
 
 
-def _rows(png: bytes, top: int, bottom: int) -> bytes:
-    from PIL import Image
-
-    image = Image.open(io.BytesIO(png)).convert("L")
-    return image.crop((0, top, image.width, bottom)).tobytes()
+def _rows(png: bytes, top: int, bottom: int) -> list[bytes]:
+    """Rows ``top`` to ``bottom`` of a PNG as resvg writes it (8-bit RGBA, not interlaced),
+    unfiltered here: no image library needed."""
+    width, height, depth, colour = struct.unpack(">IIBB", png[16:26])
+    assert (depth, colour) == (8, 6)
+    data, at = b"", 8
+    while at < len(png):
+        length, kind = struct.unpack(">I4s", png[at:at + 8])
+        if kind == b"IDAT":
+            data += png[at + 8:at + 8 + length]
+        at += 12 + length
+    raw, stride, rows, previous = zlib.decompress(data), width * 4, [], bytes(width * 4)
+    for y in range(height):
+        kind, line = raw[y * (stride + 1)], bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+        for x in range(stride):
+            left = line[x - 4] if x >= 4 else 0
+            up, corner = previous[x], previous[x - 4] if x >= 4 else 0
+            if kind == 1:
+                line[x] = (line[x] + left) & 255
+            elif kind == 2:
+                line[x] = (line[x] + up) & 255
+            elif kind == 3:
+                line[x] = (line[x] + (left + up) // 2) & 255
+            elif kind == 4:
+                estimate = left + up - corner
+                pa, pb, pc = abs(estimate - left), abs(estimate - up), abs(estimate - corner)
+                line[x] = (line[x] + (left if pa <= pb and pa <= pc else up if pb <= pc else corner)) & 255
+        rows.append(bytes(line))
+        previous = line
+    return rows[top:bottom]
 
 
 def test_a_heading_face_filed_under_the_body_face_s_name_draws_its_own_text(folder):
     """The first line in the display face, as a page of it alone draws it -- not in the
     body face, which the rasteriser loads first and which ties with it -- and no warning."""
     _needs_resvg()
-    pytest.importorskip("PIL")
     options = ConvertOptions(width=600, font_dirs=[str(folder)])
     both = docx2svg.convert_docx_to_png(_document(DISPLAY, BODY), options)[0]
     assert not [w for w in options.warnings if w.code == "face-not-addressable"]
