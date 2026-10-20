@@ -6,6 +6,15 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **Two faces the rasteriser files under one name are drawn apart** (round 10, item 4):
+  Aptos Display and Aptos are both "Aptos" at 400 to resvg, so a page with headings in one
+  and body text in the other drew both in whichever loaded first and warned
+  `face-not-addressable`. `svg_to_png` now draws such a page in passes
+  (`fonts.drawing_plan`, `png.pass_svg`): each face's text in a pass without the other
+  family's files, over the passes before -- with Word's and the cloud cache's faces and
+  with an application's folder holding both. docx-agent's render path, which calls
+  `svg_to_png`, gets the same. Pages that need no pass are unchanged byte for byte.
+
 - **A public API for laying out once and writing pages later** (round 10):
   `lay_out_docx(source, options)` returns `(layout, data, fonts)` -- every page laid out, the
   bytes, the faces it was measured with; picklable, so a layout can be kept or handed to

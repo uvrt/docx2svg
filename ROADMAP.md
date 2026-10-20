@@ -4052,6 +4052,29 @@ every file it is handed on every call, so `svg_to_png` hands it the subset
 those its missing characters fall back to, in load order -- which draws the same pixels.
 Still named in place; nothing copied.
 
+**Two faces filed under one name, drawn apart** (round 10, item 4; as pptx2svg since round
+10, item 3): resvg files a face under its typographic family alone, so Aptos Display is
+"Aptos" at 400 as Aptos is, and of two faces that tie the first loaded draws both. A
+document with headings in Aptos Display and body text in Aptos drew every line in Aptos
+(the files are handed over sorted by family, Aptos first) and warned
+`face-not-addressable` -- whether the faces came from Word's bundle and the cloud cache or
+from an application's folder holding both. `fonts.drawing_plan` now reads the SVG's
+`<text>` queries against the files and folders handed to the rasteriser (header tables
+only, kept per file stamp) and, where a text's face loses such a tie to a face of another
+family (its face the first of the tie whose name ID 1 is the name the document gives
+first, the other family's faces in other files), draws that text in a pass of its own
+without those files, over the passes before it (`png.pass_svg`, `visibility` as pptx2svg
+hides a pass's other text); a pass that only leaves files out is one pass. A tie within
+one file (Avenir Book and Roman) stays as it was, and still warns. Where no text loses a
+tie, nothing changes: no plan, the call as before. Checked by `tests/test_drawing_passes.py`
+with two made-up faces (open outlines renamed in a temporary folder), which fails on main.
+Over the 60 documents of round 10's corpus (302 pages; fixtures, docx-agent's golden
+inputs, local documents), with this machine's fonts and with a folder of Office's Aptos
+faces as `font_dirs`: every SVG byte-identical, every PNG byte-identical but 17 pages of 16
+documents -- exactly those that warned `face-not-addressable` for Aptos and Aptos Display
+before and warn nothing now, their headings drawn in Aptos Display; docx-agent's render of
+them is `convert_docx_to_png`'s byte for byte.
+
 ### 5.12 Paint order, and the glyph that is where Word drew it but not seen
 
 **The bug.** Every shaded (banded) table row drew no text: `sample-with-table`'s
