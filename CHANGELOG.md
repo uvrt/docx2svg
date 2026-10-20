@@ -6,6 +6,12 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **Rasterising loads only the fonts a page can use** (round 10, O2; ooxml-common 0.23.0,
+  now the floor): `svg_to_png` hands resvg the files of its folders and list that the page
+  can use, in resvg's load order (`ooxml_common.fonts.rasterdb`), instead of every file of
+  every folder on every call. Same pixels: 845 page renders (fixtures, local documents,
+  five font setups, the docx-agent render path) byte-identical to before. With system
+  fonts on Linux (fontconfig's list) everything is handed over, as before.
 - **EMF+ pictures are drawn from their EMF+ records** (round 7, L9 step 2; ooxml-common
   0.22.0, now the floor), as Windows PowerPoint draws them, no longer from a dual file's GDI
   fallback; an EMF+-only file is no longer a placeholder. A file whose EMF+ records draw

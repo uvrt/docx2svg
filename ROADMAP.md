@@ -4046,6 +4046,12 @@ the synthesised bold italic of Segoe UI and Lato, whose caches hold no such face
 advances are wider). The committed documents use none of these faces: the fidelity scores
 are unchanged, every document's line identical.
 
+**Only the files a page can use** (round 10): resvg-py rebuilds its font database from
+every file it is handed on every call, so `svg_to_png` hands it the subset
+`ooxml_common.fonts.rasterdb.needed_font_files()` names -- faces a run can resolve to and
+those its missing characters fall back to, in load order -- which draws the same pixels.
+Still named in place; nothing copied.
+
 ### 5.12 Paint order, and the glyph that is where Word drew it but not seen
 
 **The bug.** Every shaded (banded) table row drew no text: `sample-with-table`'s
