@@ -266,6 +266,83 @@ SUBSTITUTES: dict[str, str] = {
     "courier new": "Liberation Mono",
 }
 
+#: The faces an absent face with no substitute of its own is laid out with, by its class
+#: (:func:`face_class`), first installed winning: the open faces the renderers already
+#: measure and draw with (the substitutes above, pptx2svg's Arimo, Tinos and Cousine,
+#: Carlito and Caladea), then the Office and macOS faces they stand in for.  None of them
+#: has the absent face's metrics: every use is reported as approximate, naming both.
+GENERIC_FALLBACKS: dict[str, tuple[str, ...]] = {
+    "sans-serif": ("Liberation Sans", "Arimo", "Arial", "Helvetica", "Carlito", "Calibri"),
+    "serif": ("Liberation Serif", "Tinos", "Times New Roman", "Times", "Caladea", "Cambria"),
+    "monospace": ("Liberation Mono", "Cousine", "Courier New", "Courier"),
+}
+
+#: ``w:font/w:family`` in ``word/fontTable.xml`` (ECMA-376 17.8.3.9, ST_FontFamily) -> the
+#: class :data:`GENERIC_FALLBACKS` is keyed by; ``modern`` is fixed pitch.
+_FONT_TABLE_CLASS = {"roman": "serif", "swiss": "sans-serif", "modern": "monospace"}
+
+
+def face_class(family: str, font_table: dict | None = None) -> str:
+    """``sans-serif``, ``serif`` or ``monospace`` for a face: what the document's font
+    table says of it (``w:family``, ``w:pitch="fixed"``), else what its name says
+    (:func:`ooxml_common.text.fontmap.generic_family`, the rule pptx2svg's SVG names its
+    fallback by)."""
+    from ooxml_common.text.fontmap import generic_family
+
+    entry = (font_table or {}).get(family.lower())
+    if entry is not None:
+        kind, pitch = entry
+        if pitch == "fixed":
+            return "monospace"
+        if kind in _FONT_TABLE_CLASS:
+            return _FONT_TABLE_CLASS[kind]
+    return generic_family(family)
+
+
+def default_substitutes(family: str, font_table: dict | None = None) -> list[tuple[str, str]]:
+    """The faces an absent ``family`` is laid out with when neither the caller nor
+    :data:`SUBSTITUTES` names one, best first, each with its kind:
+
+    * ``default`` -- the face pptx2svg measures and draws it with
+      (:func:`ooxml_common.text.fontmap.substitution_for`: Carlito for Calibri Light and
+      Aptos, Caladea for Cambria...), then the Office face that one is the measured clone
+      of here (Calibri for Carlito, :data:`SUBSTITUTES`): the rule PowerPoint rendering
+      already uses, shared rather than copied;
+    * ``generic`` -- :data:`GENERIC_FALLBACKS` for its class (:func:`face_class`)."""
+    from ooxml_common.text.fontmap import SUBSTITUTIONS, substitution_for
+
+    out: list[tuple[str, str]] = []
+    row = substitution_for(family)
+    if row is not None and row.substitute.lower() != family.lower():
+        out.append((row.substitute, "default"))
+        out += [(other.office, "default") for other in SUBSTITUTIONS.values()
+                if other.substitute == row.substitute and SUBSTITUTES.get(other.office.lower()) == row.substitute]
+    out += [(name, "generic") for name in GENERIC_FALLBACKS[face_class(family, font_table)]]
+    seen: set[str] = {family.lower()}
+    kept = []
+    for name, kind in out:
+        if name.lower() not in seen:
+            seen.add(name.lower())
+            kept.append((name, kind))
+    return kept
+
+
+def font_table_classes(package_bytes: bytes | None) -> dict[str, tuple[str | None, str | None]]:
+    """``word/fontTable.xml``'s ``w:family`` and ``w:pitch`` per face (lowercased name)."""
+    if not package_bytes:
+        return {}
+    try:
+        with zipfile.ZipFile(io.BytesIO(package_bytes)) as archive:
+            table = archive.read("word/fontTable.xml").decode("utf-8", "replace")
+    except (KeyError, zipfile.BadZipFile, OSError):
+        return {}
+    out: dict[str, tuple[str | None, str | None]] = {}
+    for name, body in re.findall(r'<w:font w:name="([^"]+)"[^>]*?(?:/>|>(.*?)</w:font>)', table, re.S):
+        kind = re.search(r'<w:family w:val="([^"]+)"', body)
+        pitch = re.search(r'<w:pitch w:val="([^"]+)"', body)
+        out[name.lower()] = (kind.group(1) if kind else None, pitch.group(1) if pitch else None)
+    return out
+
 
 #: What :attr:`Substitution.substitute` says for a face laid out from :mod:`docx2svg.recorded`.
 RECORDED = "recorded metrics"
@@ -312,6 +389,12 @@ class Substitution:
     family: str
     substitute: str
     metric_compatible: bool
+    #: How the substitute was chosen: ``named`` by the caller (``font_substitutes``, or
+    #: :data:`SUBSTITUTES`), ``default`` (:func:`default_substitutes`: the face PowerPoint
+    #: rendering uses for it) or ``generic`` (the first installed face of its class).
+    kind: str = "named"
+    #: For a ``generic`` one, the class it was chosen by (:func:`face_class`).
+    face_class: str | None = None
 
     def message(self) -> str:
         if self.substitute == RECORDED:
@@ -322,12 +405,20 @@ class Substitution:
             return (f"{self.family!r} is not installed: laid out and drawn with {self.substitute!r}, its open "
                     "metric compatible substitute (the same advances and line metrics; outlines, underline "
                     "geometry and kerning may differ)")
+        if self.kind in ("default", "generic"):
+            why = ("the face PowerPoint rendering uses for it" if self.kind == "default"
+                   else f"the first installed {self.face_class or 'sans-serif'} face")
+            return (f"{self.family!r} is not installed and no substitute was named: laid out and drawn with "
+                    f"{self.substitute!r}, {why}, as an approximation (its advances and line metrics are not "
+                    "the absent face's: line breaks and page breaks may differ; name a substitute in "
+                    "ConvertOptions.font_substitutes, or install the face, to change it)")
         return (f"{self.family!r} is not installed: laid out and drawn with {self.substitute!r}, an approximate "
                 "substitute the caller named (its advances and line metrics are not Word's: line breaks and "
                 "page breaks may differ)")
 
     def as_dict(self) -> dict:
-        return {"family": self.family, "substitute": self.substitute, "metric_compatible": self.metric_compatible}
+        return {"family": self.family, "substitute": self.substitute, "metric_compatible": self.metric_compatible,
+                "kind": self.kind}
 
 
 def embedded_faces(package_bytes: bytes) -> dict[tuple[str, bool, bool], Face]:
@@ -395,6 +486,15 @@ class InstalledFonts:
     substitutions: dict = field(default_factory=dict, repr=False)
     #: Every face asked for that was found nowhere and had no installed substitute.
     missing: set = field(default_factory=set, repr=False)
+    #: Lay an absent face with no substitute named out with :func:`default_substitutes`'
+    #: first installed face, as an approximation (``False``: it is missing).
+    fallbacks: bool = True
+    #: ``(face, character)`` -> the face its advance was taken from where the face lacks
+    #: the character (:meth:`advance`), or ``.notdef`` (the face's missing glyph).
+    glyph_fallbacks: dict = field(default_factory=dict, repr=False)
+    _defaults: dict = field(default_factory=dict, repr=False)
+    _glyphs: dict = field(default_factory=dict, repr=False)
+    _font_table: dict | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         self._embedded = embedded_faces(self.package) if self.package else {}
@@ -422,9 +522,10 @@ class InstalledFonts:
         embedded = _lookup(self._embedded, family, bold, italic)
         if embedded is not None:
             return embedded
-        # Word's face is absent, in every style: its substitute, if one is installed.
-        name = self.substitutes.get(family.lower())
-        found = _lookup(index, name, bold, italic) if name else None
+        # Word's face is absent, in every style: the substitute named for it -- followed
+        # through the names (a caller's Calibri Light -> Calibri is Carlito where Calibri
+        # is absent too) -- if one is installed.
+        found, substitution = self._named(index, family, bold, italic)
         if found is None:
             # A symbol face: laid out from the integers recorded from Word's copy, and drawn
             # by :meth:`drawing_name`'s Unicode equivalents (no file to draw it with).
@@ -435,13 +536,52 @@ class InstalledFonts:
                 if record and family not in self.substitutions:
                     self.substitutions[family] = Substitution(family, RECORDED, True)
                 return face
+            if self.fallbacks:
+                # No substitute named and none installed: the face PowerPoint rendering
+                # uses for it, else the first installed face of its class -- approximate,
+                # and said so, rather than a document that stops at its first paragraph.
+                found, substitution = self._default(index, family, bold, italic)
+        if found is None:
             if record:
                 self.missing.add(family)
             return None
         if record and family not in self.substitutions:
-            compatible = SUBSTITUTES.get(family.lower(), "").lower() == name.lower()
-            self.substitutions[family] = Substitution(family, name, compatible)
+            self.substitutions[family] = substitution
         return _face_at(*found)
+
+    def _named(self, index: dict, family: str, bold: bool, italic: bool):
+        """The first installed face of the chain of substitutes named for ``family``."""
+        seen = {family.lower()}
+        name = self.substitutes.get(family.lower())
+        while name and name.lower() not in seen:
+            found = _lookup(index, name, bold, italic)
+            if found is not None:
+                compatible = SUBSTITUTES.get(family.lower(), "").lower() == name.lower()
+                return found, Substitution(family, name, compatible)
+            seen.add(name.lower())
+            name = self.substitutes.get(name.lower())
+        return None, None
+
+    def _default(self, index: dict, family: str, bold: bool, italic: bool):
+        """:func:`default_substitutes`' first installed face for ``family`` (or the
+        substitute named for it), cached."""
+        key = (id(index), family.lower(), bold, italic)
+        if key not in self._defaults:
+            result = None, None
+            if self._font_table is None:
+                self._font_table = font_table_classes(self.package)
+            for name, kind in default_substitutes(family, self._font_table):
+                found = _lookup(index, name, bold, italic)
+                used = name
+                if found is None:
+                    found, named = self._named(index, name, bold, italic)
+                    used = named.substitute if named is not None else name
+                if found is not None:
+                    result = found, Substitution(family, used, False, kind,
+                                                 face_class(family, self._font_table) if kind == "generic" else None)
+                    break
+            self._defaults[key] = result
+        return self._defaults[key]
 
     def drawing_name(self, family: str, bold: bool = False, italic: bool = False) -> DrawingName | None:
         """How the SVG names ``family`` so that a rasteriser finds the file Word draws it
@@ -478,7 +618,41 @@ class InstalledFonts:
     def advance(self, family: str, bold: bool, italic: bool, char: str) -> tuple[int, int] | None:
         face = self.face(family, bold, italic)
         width = face.advance(char) if face is not None else None
+        if width is None and face is not None and self.fallbacks and len(char) == 1:
+            key = (family, bold, italic, char)
+            if key not in self._glyphs:
+                self._glyphs[key] = self._glyph_fallback(face, family, bold, italic, char)
+            return self._glyphs[key]
         return None if width is None else (width, face.units_per_em)
+
+    def _glyph_fallback(self, face, family: str, bold: bool, italic: bool, char: str) -> tuple[int, int] | None:
+        """The advance of a character ``family`` lacks, from the first installed face that
+        has it -- Times New Roman first, the face Word draws Hebrew in where the run's face
+        has none (ROADMAP.md, "Where Word is not ECMA-376", cases f09, f13, f24), then
+        :func:`default_substitutes`' faces and every class's :data:`GENERIC_FALLBACKS` --
+        else the face's own missing glyph (``.notdef``).  Not measured: Word's font
+        fallback for other characters is not known.  Recorded in :attr:`glyph_fallbacks`
+        (``font-glyph-fallback``) rather than stopping the paragraph."""
+        index = installed_index(self.dirs)
+        names = ["Times New Roman"] + [name for name, _ in default_substitutes(family, self._font_table or {})]
+        names += [name for group in GENERIC_FALLBACKS.values() for name in group]
+        for name in dict.fromkeys(names):
+            found = _lookup(index, name, bold, italic)
+            if found is None:
+                found, named = self._named(index, name, bold, italic)
+                name = named.substitute if named is not None else name
+            if found is None:
+                continue
+            other = _face_at(*found)
+            width = other.advance(char)
+            if width is not None:
+                self.glyph_fallbacks.setdefault((family, char), name)
+                return width, other.units_per_em
+        advances = getattr(face, "advances", None)
+        if not advances:
+            return None
+        self.glyph_fallbacks.setdefault((family, char), ".notdef")
+        return advances[0], face.units_per_em
 
     def kern(self, family: str, bold: bool, italic: bool, left: str, right: str) -> int | None:
         face = self.face(family, bold, italic)

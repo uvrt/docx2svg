@@ -97,7 +97,7 @@ def test_an_embedded_face_where_none_is_installed():
     metrics = fonts.metrics("Ubuntu")
     assert metrics is not None
     assert fonts.advance("Ubuntu", False, False, "H") is not None
-    assert InstalledFonts(dirs=installed).metrics("Ubuntu") is None
+    assert InstalledFonts(dirs=installed, fallbacks=False).metrics("Ubuntu") is None
     cloud = InstalledFonts(data).face("Ubuntu")
     if cloud is not None and not cloud.source.startswith("embedded:"):
         embedded = embedded_faces(data)[("ubuntu", False, False)]
