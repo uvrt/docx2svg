@@ -1981,13 +1981,16 @@ class _Placer:
                         line_y = top + placed.pitch + placed.below
                         continue
                     if paragraph.table is not None:
-                        # A table nested in the cell (``table.nested_entry``), from its top.
+                        # A table nested in the cell (``table.nested_entry``), from its top --
+                        # a floating one from the row's top, by its ``w:tblpY``.
                         top = line_y + placed.above
+                        line_y = top + placed.pitch + placed.below
+                        if paragraph.table.nested_floating is not None:
+                            top = content_top + twips_to_px(paragraph.table.nested_floating.y)
                         nested = table_model.place_table(paragraph.table, top, top + Fraction(10 ** 7),
                                                          first_on_page=False,
                                                          mode15=(self.document.compatibility_mode or 0) >= 15)
                         self._table(page, SimpleNamespace(flow=paragraph.table), nested)
-                        line_y = top + placed.pitch + placed.below
                         continue
                     height = paragraph.heights[placed.number]
                     if placed.number == 0 and k > 0:

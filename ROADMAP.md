@@ -7165,7 +7165,7 @@ is laid out. `docx2svg.paginate.CARRY_ON` (on) switches it; off, the layout stop
 
 | Where | Before (round 15) | After |
 | --- | --- | --- |
-| Body: a table the measured rules refuse (`table.Unsupported`: autofit or percent widths not measured, a floating table nested in a cell or positioned as not measured, a drawing or a frame in a cell, a cell paragraph that cannot be measured, a word wider than its autofit column...) | `layout-stopped:table`, no page after | laid out by `flow_table(carry_on=True)`: on its `w:tblGrid` (the grid Word last laid it out on) where its widths are not measured, a floating table in the flow where it stands, a frame as a paragraph of its cell, a drawing in a cell whose wrap is not measured there as one text does not wrap around, the word broken inside its column; a cell paragraph or nested table it still cannot lay out a placeholder in its cell (`layout-approximate:table`, `layout-placeholder:*`); a table that fails even so a placeholder of its rows |
+| Body: a table the measured rules refuse (`table.Unsupported`: autofit or percent widths not measured, a floating table nested in a cell (now positioned against its cell, measured below) or positioned as not measured, a drawing or a frame in a cell, a cell paragraph that cannot be measured, a word wider than its autofit column...) | `layout-stopped:table`, no page after | laid out by `flow_table(carry_on=True)`: on its `w:tblGrid` (the grid Word last laid it out on) where its widths are not measured, a floating table in the flow where it stands, a frame as a paragraph of its cell, a drawing in a cell whose wrap is not measured there as one text does not wrap around, the word broken inside its column; a cell paragraph or nested table it still cannot lay out a placeholder in its cell (`layout-approximate:table`, `layout-placeholder:*`); a table that fails even so a placeholder of its rows |
 | Body: a floating table in a section of several columns | `layout-stopped:columns` | in the column's flow, approximate |
 | Body: a frame (`w:framePr`, not a drop cap); a drop cap that cannot be laid out in its frame | `layout-stopped:frame` / `unmeasurable` | laid out as a paragraph of the flow, approximate (`layout-approximate:frame`) |
 | Body: VML or an embedded object (`w:pict`, `w:object`, `mc:Fallback`) | `layout-stopped:drawing` | read (`docx2svg.parse.vml`): positioned, a floating drawing; else a character of its box; one stating no size a placeholder |
@@ -7237,7 +7237,7 @@ glyphs inside its box (`layout-approximate:text-path`), Word's own rendering of 
 
 ### A picture's crop (round 16)
 
-`a:srcRect` (ECMA-376 20.1.8.55) on a floating and on an inline picture: the image scaled so
+`a:srcRect` (ECMA-376 20.1.8.55; measured below) on a floating and on an inline picture: the image scaled so
 that what is kept fills the picture's box, cut to the box, a negative side padding it with
 nothing -- the arithmetic pptx2svg crops with (`ooxml_common.drawingml.shape.render_image`),
 the rectangle read by the same shared reader (`parse_relative_rect`). A floating cropped
@@ -7260,13 +7260,34 @@ px each way: in mode 15 Word sets the page's notes in one area). (Their multi-co
 section's own note still stops them under the measured rules; carrying on lays it out as in
 a column of its own.)
 
-### Measuring in Word: not this round
+### Measured in Word 16.106 (round 16)
 
-The brief asked for Word's own answer for a floating table with `vertAnchor="page"` nested
-in a cell, a watermark's text path, and a crop. Word for Mac, driven through docx-agent's
-oracle with the documents staged in the home folder's root as the round asks, stopped at a
-"Grant File Access" dialog (no grant is given to the home folder), so nothing was measured;
-the three are approximations, reported as such.
+Made-up documents exported through docx-agent's oracle (the machine-wide lock, staged in its
+folder in the Office group container; the home folder's root asks for a file grant and was
+not used), read from the PDF with pdfium; positions in pt from the page's top left, A4,
+margins 1,417 twips, mode 15.
+
+* **A floating table nested in a cell** (`vertAnchor="page"`, `horzAnchor="page"`,
+  `tblpX` 2,000, `tblpY` 3,000, in a 1x1 table): Word draws it against the **cell**, not the
+  page -- its first cell's text at x 176.9, baseline 254.9 (the model: 176.64, 254.88); the
+  cell's paragraph after it straight under the one before it (baseline 127.0; the model's
+  126.96); the row down to the nested table's foot, the next paragraph at 301.4 (301.44). So
+  `table.nested_entry` positions it from the cell's left grid line and the row's top, takes
+  no room in the cell's stack, and makes the row at least that tall. Only this case is
+  measured; any other anchor of a nested floating table is placed the same way, reported
+  (`layout-approximate:table`). The cell's text is not laid out around it (not measured).
+* **A crop** (`a:srcRect l="12000" r="30000"`, and `l="-10000" t="-10000"`) on a floating
+  picture of 236.2 x 118.1 pt: the image object is 407.24 pt wide, from x 21.98 (the frame at
+  70.85 less 12% of 407.24) -- 236.2 / 0.58 -- and, padded, 214.73 pt from x 92.32 and 10.74
+  pt down: exactly the arithmetic above.
+* **The cell footnote after a section of three columns** (one empty paragraph, a continuous
+  break): the note's text at x 76.89, baseline 768.24 with and without the first section --
+  the model's, in both.
+* **The watermark** (`v:shape` with `v:textpath string="DRAFT"`, silver, opacity 0.5,
+  rotation 315, centred on the margins): **Word's PDF draws nothing of it** -- no object on
+  the page but the text. Word's window could not be captured (ScreenCaptureKit returned no
+  display with the screen locked), so what Word shows on screen is not measured; it is drawn
+  as described above and reported approximate.
 
 ---
 

@@ -12,7 +12,8 @@ snapshot commit; the development history before it is summarised here.
   box of its stated or estimated height, `data-docx-placeholder="1"`, in the flow where it
   stands (`layout-placeholder:<reason>`, page and element path, `Coverage.placeholders`) --
   and everything after it is laid out. A table the measured rules refuse is laid out on its
-  `w:tblGrid`, a floating table nested in a cell (or in columns) in the flow, a frame as a
+  `w:tblGrid`, a floating table nested in a cell against its cell (as Word draws one,
+  measured), one in columns in the flow, a frame as a
   paragraph, a cell paragraph or nested table it still cannot lay out as a placeholder in
   its cell; a row taller than the page is drawn whole and the table goes on. The table of
   every stop path, before and after, is in ROADMAP.md ("Carrying on past what is not laid

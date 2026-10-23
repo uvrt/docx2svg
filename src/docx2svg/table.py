@@ -977,6 +977,9 @@ class CellParagraph:
     #: A paragraph or nested table drawn as a placeholder of one line as tall as its
     #: estimated height (:func:`placeholder_entry`): what it stands for.
     placeholder: object = None
+    #: A floating table nested in the cell: how far below the row's top it reaches, px
+    #: (:func:`nested_entry`); the row is at least that tall.
+    reach: Fraction | None = None
 
 
 @dataclass(frozen=True)
@@ -1050,6 +1053,9 @@ class TableFlow:
     #: Rows placed whole past a page's foot because not one line of them fits on an empty
     #: page (:func:`place_table` with :data:`docx2svg.paginate.CARRY_ON`).
     overflowed: set = field(default_factory=set)
+    #: A floating table nested in a cell: where it is positioned against the cell
+    #: (:func:`nested_entry`); ``None`` otherwise.
+    nested_floating: "Floating | None" = None
 
 
 class Unsupported(Exception):
@@ -1289,12 +1295,27 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
             raise
         floating = None
         approximated.append(("table", f"{why.args[0]}: laid out in the flow, where it stands", table.path))
+    if floating is not None and nested and carry_on:
+        # Positioned against its cell, whatever it names, and taking no room in the cell's
+        # text: the row grows to hold it (:func:`nested_entry`; measured once, below).
+        approximated.append(("table", "a floating table nested in a cell is positioned against its cell -- its "
+                                      "w:tblpX from the cell's left edge, its w:tblpY from the row's top -- as Word "
+                                      "positions one against the page (measured for that case only), and the "
+                                      "cell's text is not laid out around it", table.path))
+        resolved.properties = {**resolved.properties, "tblInd": (floating.x - (floating.x > 0), "dxa"),
+                               "jc": floating.x_spec or "left"}
+        resolved.indent_stated = True
+        floating = dataclasses.replace(floating, page=False)
+        nested_floating = floating
+        floating = None
+    else:
+        nested_floating = None
     if floating is not None and (nested or inline):
         if not carry_on:
             raise Unsupported("a floating table nested in a cell (not measured)")
-        where = "nested in a cell" if nested else "in a section of several text columns"
-        approximated.append(("table", f"a floating table {where} is laid out in the flow where it stands, not "
-                                      "positioned by its w:tblpPr (not measured)", table.path))
+        approximated.append(("table", "a floating table in a section of several text columns is laid out in the "
+                                      "flow where it stands, not positioned by its w:tblpPr (not measured)",
+                             table.path))
         floating = None
     if carry_on and floating is None and "tblpPr" in resolved.properties:
         resolved.properties = {k: v for k, v in resolved.properties.items() if k != "tblpPr"}
@@ -1472,6 +1493,9 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
             flow = CellFlow(cell, box, placed, merged=cell.merge == "continue", loose=loose)
             flow.stack, flow.after = cell_stack(placed, previous_style, default_style)
             flow.content = content_height(placed, previous_style, default_style)
+            for entry in placed:
+                if entry.reach is not None:
+                    flow.content = max(flow.content, entry.reach - twips_to_px(cell.margins["top"]))
             if reach is not None:
                 # The row holds a drawing text wraps around in it (``make_cell_anchor_probe.py``).
                 flow.content = max(flow.content, reach - twips_to_px(cell.margins["top"]))
@@ -1495,7 +1519,8 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
         flow.span_height = available
     bottom = _edge_width([flow.cell for flow in rows[-1].cells], [], columns) if rows else Fraction(0)
     return TableFlow(table, resolved, rows, bottom, [twips_to_px(page_left + x) for x in lines],
-                     previous_style, default_style, page_left, list(lines), floating, approximated=approximated)
+                     previous_style, default_style, page_left, list(lines), floating, approximated=approximated,
+                     nested_floating=nested_floating)
 
 
 def on_grid(resolved: ResolvedTable, approximated: list, path: str) -> None:
@@ -1566,6 +1591,10 @@ def nested_entry(document: Document, table: Table, cell: Cell, page_left, lines:
 
     text_left = page_left + lines[cell.column] + left_offset(cell)
     text_right = page_left + lines[min(cell.column + cell.span, len(lines) - 1)] - right_offset(cell)
+    if carry_on and "tblpPr" in table.properties:
+        # A floating table nested in the cell (:func:`flow_table`'s ``carry_on``): laid out
+        # against the cell's left grid line, its ``w:tblpX`` the indent from it.
+        text_left = page_left + lines[cell.column]
     inner = _replace(section, margins=_replace(section.margins, left=text_left, gutter=0,
                                                right=section.page_size.width_twips - text_right),
                      column_count=1, columns=())
@@ -1575,6 +1604,16 @@ def nested_entry(document: Document, table: Table, cell: Cell, page_left, lines:
         approximated.extend(flow.approximated)
     height = place_table(flow, Fraction(0), Fraction(10 ** 7), first_on_page=False,
                          mode15=(document.compatibility_mode or 0) >= 15).end
+    if flow.nested_floating is not None:
+        # Measured (round 16, a 1x1 table holding one with ``vertAnchor="page"``,
+        # ``horzAnchor="page"``, ``tblpX`` 2,000 and ``tblpY`` 3,000, mode 15): Word draws it
+        # 2,000 twips right of the cell's left edge and 3,000 below the row's top, the
+        # cell's text after it straight under the text before it, and the row down to the
+        # table's foot.  So it takes no room in the cell's stack, and reaches its ``y``
+        # plus its height below the cell's top (:attr:`CellParagraph.reach`).
+        return CellParagraph(None, block, {}, [], [], None, None, [NestedHeight(Fraction(0))],
+                             undrawn=frozenset({0}), table=flow,
+                             reach=twips_to_px(flow.nested_floating.y) + height)
     return CellParagraph(None, block, {}, [], [], None, None, [NestedHeight(height)], undrawn=frozenset({0}),
                          table=flow)
 

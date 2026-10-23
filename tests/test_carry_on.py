@@ -259,10 +259,18 @@ def test_without_carrying_on_the_layout_stops_as_before(monkeypatch):
 def test_a_nested_floating_table_is_laid_out_in_its_cell():
     opts = options()
     layout = convert_docx_to_layout(_docx(_p("Before") + NESTED_FLOATING + _text(30)), opts)
-    texts = {"".join("".join(s.chars) for s in line.spans) for page in layout.pages for line in page.lines}
-    assert {"Cover title", "Inner A", "Inner B", "Below the inner table"} <= texts
+    lines = {"".join("".join(s.chars) for s in line.spans): line for page in layout.pages for line in page.lines}
+    assert {"Cover title", "Inner A", "Inner B", "Below the inner table"} <= set(lines)
+    # Against its cell, as Word draws it: 3,000 twips below the row's top, 2,000 right of the
+    # cell's edge, taking no room in the cell's text; the row as tall as it.
+    assert lines["Below the inner table"].baseline < lines["Inner A"].baseline
+    assert lines["Inner A"].spans[0].xs[0] - lines["Cover title"].spans[0].xs[0] == pytest.approx(2000 / 20 * 300 / 72,
+                                                                                                abs=3)
+    first_body = next(line for line in layout.pages[0].lines if "".join(line.spans[0].chars).startswith("Body 0"))
+    assert first_body.baseline > lines["Inner A"].baseline
     assert len(layout.pages) > 1 and layout.coverage.stop is None and layout.coverage.status == "approximate"
-    assert any("nested in a cell" in w.message for w in opts.warnings if w.code == "layout-approximate:table")
+    assert any("positioned against its cell" in w.message for w in opts.warnings
+               if w.code == "layout-approximate:table")
 
 
 def test_a_table_row_taller_than_the_page_is_drawn_whole_and_the_rest_goes_on():
