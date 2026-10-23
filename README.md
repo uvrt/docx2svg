@@ -54,6 +54,10 @@ never read from the server ([docs/api.md](docs/api.md#locale)).
   a picture fill, a header's drawing the body wraps around, and some floating and note
   cases in multi-column sections. Each is reported with a stable warning code, never
   dropped in silence.
+- **The layout never stops at one of them.** What it cannot lay out by a measured rule it
+  lays out by an approximate one (`layout-approximate:<reason>`) or draws as a marked
+  placeholder of its height -- a dashed grey box -- and carries on
+  (`layout-placeholder:<reason>`, with page and element path), so every page is drawn.
 - **Fonts** are named in the SVG, not embedded. The layout reads the faces Word uses
   where they are installed (Office's cloud-font cache too); see [Fonts](#fonts).
 
@@ -62,9 +66,9 @@ Full list and per-area status: [docs/supported.md](docs/supported.md).
 ## Fonts
 
 The layout measures every glyph with the face Word lays it out with, so it needs the
-faces themselves: installed, or embedded in the document. Nothing is guessed. Where a face
-is missing, the paragraph it is in can't be measured. The layout stops there and says
-why (`layout-stopped:unmeasurable`), and every page before the stop is still laid out.
+faces themselves: installed, or embedded in the document. Where a face is missing it is
+laid out with a substitute, and said so: the measured ones below where they are installed,
+else an approximate one (below), so a missing face never stops the layout.
 
 **Open substitutes.** When an Office face is neither installed nor embedded, docx2svg
 uses an open face whose advances and line metrics were measured equal to it, if that
@@ -83,11 +87,16 @@ Every substitution is reported: a `font-substituted` warning, and an entry in th
 fidelity is measured against Word's own faces. `ConvertOptions(substitute_fonts=False)`
 (or `--no-substitute-fonts`) turns substitution off.
 
-**Everything else has no substitute.** That includes Aptos (Word's default since 2023),
-Aptos Display, Calibri Light and Cambria: Aptos has no open clone, and the closest open
-faces for the other three were measured and don't match. Gelasio is said to match Georgia,
-but it hasn't been measured here, so it isn't used. Without such a face the layout stops
-at its first paragraph. You can name a substitute yourself, e.g.
+**Everything else has no measured substitute.** That includes Aptos (Word's default since
+2023), Aptos Display, Calibri Light and Cambria: Aptos has no open clone, and the closest
+open faces for the other three were measured and don't match. Gelasio is said to match
+Georgia, but it hasn't been measured here, so it isn't used. Such a face is laid out with
+the face PowerPoint rendering uses for it (pptx2svg's rule, shared: Carlito for Calibri
+Light and Aptos, Caladea for Cambria), or that face's Office original (Calibri for Carlito),
+else with the first installed face of its class (sans-serif, serif or monospace, from the
+document's font table or the face's name) -- reported as *approximate*, naming both faces.
+A character a face lacks is measured in another face (`font-glyph-fallback`). You can name
+a substitute yourself, e.g.
 `ConvertOptions(font_substitutes={"Cambria": "Caladea"})`. It is used and reported as
 *approximate*, but expect different line and page breaks. Caladea's advances are 1.8 to
 5.7% narrower than Cambria's and its line is 1.150 em against 1.172. With Caladea for
@@ -133,14 +142,17 @@ summary of how much was laid out:
 
 - the pages laid out, and Word's saved page count as an estimate when the layout stopped
 - the blocks laid out and skipped
-- the first stop, with its reason and element path
+- the first stop, with its reason and element path (none while the layout carries on)
 - any header, footer or text-box stops
+- any placeholders: what was drawn as a marked box of its height instead of laid out, with
+  the reason, page and element path
 - the faces substituted or missing
 - any approximations: places laid out by a rule not yet measured against Word (for
   example a floating drawing in a table cell at a position no probe covered), with the
   reason, page and element path, where the layout used to stop
 
-`coverage.complete` is true only when nothing was skipped. `coverage.status` is `complete`,
+`coverage.complete` is true only when nothing was skipped or drawn as a placeholder.
+`coverage.status` is `complete`,
 `approximate` (nothing skipped, something approximated) or `partial`. The CLI prints
 `coverage.summary()` with the warnings.
 
