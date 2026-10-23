@@ -81,6 +81,45 @@ def test_sequences_count_as_word_counts():
     assert all(isinstance(value, fields.Uncomputable) for value in texts[7:])
 
 
+#: Word 16.106 (macOS), round 16's ``f4_probe.py``: SEQ fields in document order, each
+#: updated by Word, and what it drew -- ``None`` where it drew an error in its language.
+SEQ_ORDERS = [
+    ('SEQ Aa \\# "00"', "01"), ('SEQ Aa \\# "00"', "02"),
+    ('SEQ \\# "00" Bb', "01"), ('SEQ \\# "00" Bb', "02"),
+    ('SEQ \\#"00" Cc', "01"), ('SEQ \\#"00" Cc', "02"),
+    ("SEQ Dd", "1"), ('SEQ \\# "00" Dd', "02"), ('SEQ Dd \\# "000"', "003"),
+    ("SEQ \\* ARABIC Ee", "1"), ("SEQ \\* roman Ee", "ii"), ("SEQ Ee \\* ROMAN", "III"),
+    ("SEQ Ff \\r 5", "5"), ("SEQ \\r 7 Ff", "7"), ("SEQ Ff", "8"),
+    ("SEQ Gg", "1"), ("SEQ \\c Gg", "1"), ("SEQ Gg \\c", "1"),
+    ("SEQ \\h Hh", ""), ("SEQ Hh", "2"), ("SEQ Hh \\h", ""), ("SEQ Hh", "4"),
+    ("SEQ \\n Ii", "1"), ("SEQ \\n Ii \\* MERGEFORMAT", "2"),
+    ('SEQ \\r 3 \\# "00" Jj', "03"), ('SEQ \\* MERGEFORMAT \\# "00" Jj', None),
+    ("SEQ \\* alphabetic Kk", "a"), ('SEQ \\# "#0" Kk', " 2"),
+    ("SEQ \\r Mm", None), ("SEQ Mm", "1"),
+    ('SEQ Nn \\* MERGEFORMAT \\# "00"', None), ('SEQ Nn \\# "00" \\* MERGEFORMAT', "02"),
+    ('SEQ Oo \\* ARABIC \\# "00"', None), ('SEQ \\# "00" \\* ARABIC Oo', "2"),
+    ('SEQ \\# "##0" Qq', "  1"), ('SEQ \\# "#" Qq', "2"), ('SEQ \\# "0#" Qq', "03"),
+    ('SEQ \\r 120 \\# "#0" Rr', "120"), ("SEQ \\# 00 Rr", "121"),
+    ('SEQ "Tt"', "1"), ('SEQ \\# "00" "Tt"', "02"),
+    ("SEQ \\h \\r 4 Uu", ""), ("SEQ Uu", "5"),
+]
+
+
+def test_sequence_switches_stand_before_or_after_the_identifier():
+    """Word reads a SEQ's identifier wherever its switches stand (round 16, F4)."""
+    w = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    body = "".join(f'<w:p><w:fldSimple w:instr=" {instruction.replace(chr(34), "&quot;")} ">'
+                   '<w:r><w:t>9</w:t></w:r></w:fldSimple></w:p>' for instruction, _ in SEQ_ORDERS)
+    root = parse_document.parse_xml(f'<w:document {w}><w:body>{body}</w:body></w:document>'.encode())
+    blocks = parse_document._story(parse_document.child(root, "body"), path="w:body",
+                                   fields=parse_document._Fields(cross_references=True))
+    values = fields.sequence_values(fields.body_paragraphs(blocks))
+    drawn = [values[(k, 0)] for k in range(len(SEQ_ORDERS))]
+    assert [None if isinstance(v, fields.Uncomputable) else v for v in drawn] == [w for _, w in SEQ_ORDERS]
+    assert fields.sequence_switches(' SEQ \\# "00" Item ') == ("Item", [("#", "00")])
+    assert fields.sequence_switches(" SEQ \\r Item ") == (None, [("r", "Item")])
+
+
 def test_field_text_takes_pageref():
     assert fields.field_text(" PAGEREF _Toc1 \\h ", "PAGEREF", page=11, pages=None, section_pages=None,
                              section_format="lowerRoman") == "xi"
