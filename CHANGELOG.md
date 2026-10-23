@@ -40,6 +40,13 @@ snapshot commit; the development history before it is summarised here.
   after a continuous break -- a table cell's or a paragraph's -- were laid out but not drawn
   on a page holding a section of several columns; they are drawn at the page's foot.
   `make_columns_probe.py`'s `notesregion` scores rise (`columns-observations.json`).
+- **`SEQ` with its switches before the identifier** (round 16, F4; measured in Word 16.106):
+  `SEQ \# "00" Item` counts `Item` and draws 01, 02, as Word does, where it was "names no
+  sequence" (`fields.sequence_switches`, `fields.sequence_step`, which docx-agent's field
+  update now shares). A switch's argument is the token after it whatever it is (`SEQ \r Mm`
+  names none); a `\#` after a `\*` is not computed (Word draws an error in its language);
+  a numeric picture's `#` with no digit is a space (`\# "#0"` draws " 2"), for every
+  computed field.
 
 - **Two faces the rasteriser files under one name are drawn apart** (round 10, item 4):
   Aptos Display and Aptos are both "Aptos" at 400 to resvg, so a page with headings in one
