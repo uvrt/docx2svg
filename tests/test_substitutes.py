@@ -93,7 +93,7 @@ def test_carlito_lays_calibri_out_as_word_does(substitutes_only):
     assert len(layout.pages) == 3
     coverage = layout.coverage
     assert coverage.complete and coverage.substituted_fonts == [
-        {"family": "Calibri", "substitute": "Carlito", "metric_compatible": True}]
+        {"family": "Calibri", "substitute": "Carlito", "metric_compatible": True, "kind": "named"}]
     assert [w.code for w in options.warnings].count("font-substituted") == 1
     assert "Carlito" in next(w.message for w in options.warnings if w.code == "font-substituted")
 
@@ -103,7 +103,7 @@ def test_the_svg_names_the_substitute_after_the_document_s_face(substitutes_only
     assert 'font-family="Calibri, Carlito"' in svgs[0]
 
 
-def test_without_substitution_an_absent_face_stops_the_layout(substitutes_only):
+def test_without_substitution_an_absent_face_stops_the_layout(substitutes_only, stopping):
     options = docx2svg.ConvertOptions(substitute_fonts=False)
     layout = docx2svg.convert_docx_to_layout((FIXTURES / "layout-sweep.docx").read_bytes(), options)
     assert not layout.coverage.complete
@@ -118,7 +118,8 @@ def test_a_substitute_the_caller_names_is_reported_approximate(substitutes_only)
     options = docx2svg.ConvertOptions(font_substitutes={"Calibri Light": "Carlito"})
     layout = docx2svg.convert_docx_to_layout((FIXTURES / "style-document.docx").read_bytes(), options)
     approximate = [s for s in layout.coverage.substituted_fonts if not s["metric_compatible"]]
-    assert approximate == [{"family": "Calibri Light", "substitute": "Carlito", "metric_compatible": False}]
+    assert approximate == [{"family": "Calibri Light", "substitute": "Carlito", "metric_compatible": False,
+                           "kind": "named"}]
     assert any("approximate" in w.message for w in options.warnings if w.code == "font-substituted")
 
 
