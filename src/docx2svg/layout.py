@@ -129,6 +129,8 @@ class Picture:
     #: The part the relationship is the part's own (a header's picture); ``None``: the
     #: main document's.
     part: str | None = None
+    #: Its ``a:srcRect`` crop (:attr:`docx2svg.model.Graphic.crop`), ``None`` for none.
+    crop: tuple | None = None
 
 
 @dataclass
@@ -186,6 +188,26 @@ class Stop:
 
 
 @dataclass
+class Box:
+    """A placeholder drawn where the layout carries on past what it cannot lay out
+    (:class:`docx2svg.paginate.Placeholder`): the box it takes on the page (device px from
+    the page's top left), what it stands for and why -- drawn as a dashed grey box with
+    its reason (:func:`docx2svg.svg.render_page`), the same look as a drawing the
+    renderer cannot show."""
+
+    path: str
+    reason: str
+    message: str
+    x: Fraction
+    y: Fraction
+    width: Fraction
+    height: Fraction
+    #: ``header`` or ``footer`` for a story's, with the story's part.
+    story: str | None = None
+    part: str | None = None
+
+
+@dataclass
 class Float:
     """A floating drawing (``wp:anchor``) placed on its page: the drawing's box (device px
     from the page's top left), how it stacks, and what it paints -- the primitives of
@@ -237,6 +259,8 @@ class Page:
     #: Where the body's stack ends on the page (``None`` for a blank page): the top of
     #: its footnotes under ``w:pos`` ``beneathText``.
     body_end: Fraction | None = None
+    #: The placeholders drawn on the page (:class:`Box`), in the order placed.
+    boxes: list = field(default_factory=list)
 
     def layers(self) -> tuple[list, list]:
         """The floats behind the text and those in front of it, each in paint order:
@@ -298,11 +322,22 @@ class Layout:
         if entry not in self.warnings:
             self.warnings.append(entry)
 
+    #: ``(code, message, 1-based page, element path)`` of every placeholder drawn where the
+    #: layout carried on past what it cannot lay out (``layout-placeholder:<reason>``).
+    placeholders: list[tuple[str, str, int | None, str | None]] = field(default_factory=list)
+
     def approximate(self, reason: str, message: str, page: int | None, path: str | None) -> None:
         """Record an approximation (:attr:`approximations`), and warn of it."""
         entry = (f"layout-approximate:{reason}", message, page, path)
         if entry not in self.approximations:
             self.approximations.append(entry)
+        self.warn(entry[0], message, page)
+
+    def placeholder(self, reason: str, message: str, page: int | None, path: str | None) -> None:
+        """Record a placeholder (:attr:`placeholders`), and warn of it."""
+        entry = (f"layout-placeholder:{reason}", message, page, path)
+        if entry not in self.placeholders:
+            self.placeholders.append(entry)
         self.warn(entry[0], message, page)
 
 
@@ -620,13 +655,14 @@ class _Placer:
         # The footnotes' references and the notes' own marks, numbered (:mod:`docx2svg.notes`);
         # numbers that restart on each page are numbered again from the pages found.
         by_page = any(section.footnote_restart == "eachPage" for section in original.sections)
-        if any(in_table for *_, in_table in footnote_references(original)) and any(
-                paginate.is_multi_column(section) for section in original.sections):
-            # In one column a cell's footnotes are laid out (``paginate._table_notes``); in a
-            # section of several, not measured.
-            self.layout.warn("footnotes-not-drawn", "a footnote referenced in a table cell in a document with "
-                             "sections of several text columns takes no room at the page foot and is not drawn "
-                             "(its reference's number is)")
+        if any(in_table and paginate.is_multi_column(original.sections[section])
+               for _, section, _, in_table in footnote_references(original)):
+            # In one column a cell's footnotes are laid out (``paginate._table_notes``) -- on
+            # a page it shares with a section of several columns too (:meth:`_footnotes`);
+            # in a section of several, not measured.
+            self.layout.warn("footnotes-not-drawn", "a footnote referenced in a table cell in a section of several "
+                             "text columns takes no room at the page foot and is not drawn (its reference's "
+                             "number is)")
         footnote_pages: dict | None = None
         document = with_footnotes(original)
         values: dict = {}
@@ -647,6 +683,8 @@ class _Placer:
             self.layout.warn("field-layout-unsettled", "the body's page-number fields did not settle on one "
                              "layout in four passes; the last is drawn")
         self.references = paginate.story_references(document)
+        for message in getattr(items, "approximated", ()):
+            self.layout.approximate("pagination", message, None, None)
         self._notes(items)
         details = self._details(items)
         ends = result.starts[1:] + [paginate.Position(result.stopped, result.stopped_line)
@@ -967,9 +1005,11 @@ class _Placer:
             y0 = twips_to_px(section.margins.header)
         else:
             y0 = twips_to_px(section.page_size.height_twips - section.margins.footer) - height
-        lines, pictures, floats = len(page.lines), len(page.pictures), len(page.floats)
+        lines, pictures, floats, boxes = len(page.lines), len(page.pictures), len(page.floats), len(page.boxes)
         placer._walk(page, items, details, paginate.Position(0), paginate.Position(len(items)), y0,
                      bottom=Fraction(10 ** 7))
+        for box in page.boxes[boxes:]:
+            box.story, box.part = kind, part
         for line in page.lines[lines:]:
             line.story, line.part = kind, part
         for picture in page.pictures[pictures:]:
@@ -1006,6 +1046,18 @@ class _Placer:
         frames = self.result.frames.get(index) if getattr(self, "result", None) is not None else None
         if frames and any(frame.multi for frame in frames) and page.info is not None:
             self._column_footnotes(page, frames)
+            # A one-column section sharing the page (a continuous break after the columns):
+            # its notes -- a body paragraph's, a table cell's -- stand at the page's foot
+            # across the text area, as on a page of one column (not measured on a shared
+            # page; they were once left out).
+            single = [frame for frame in frames if not frame.multi and (frame.notes or frame.carried)]
+            for frame in single:
+                if any(f.multi and (f.notes or f.carried) for f in frames):
+                    self.layout.approximate("notes", "footnotes of a one-column section on a page it shares with "
+                                            "a section of several columns whose notes are drawn too: stacked at "
+                                            "the page's foot across the text area (not measured)",
+                                            page.number + 1, None)
+                self._note_stack(page, frame.carried, frame.notes, self.document.sections[frame.section])
             return
         entry = self.result.notes.get(index)
         if not entry or page.info is None:
@@ -1221,7 +1273,7 @@ class _Placer:
         position_of = {id(b): k for k, b in enumerate(body)}
         self.box_neighbours: dict[int, tuple[bool, bool]] = {}
         for flow_index, item in enumerate(items):
-            if not isinstance(item, paginate.Para):
+            if not isinstance(item, paginate.Para) or item.placeholder is not None:
                 continue
             paragraph = by_block[item.block]
             k = position_of.get(id(paragraph))
@@ -1475,11 +1527,18 @@ class _Placer:
             # where it stands, and the stack goes on as if it were not there.
             restore = (y, previous, first_on_page) if item.section_mark and not first_on_page and \
                 not paginate.section_mark_room(previous, document.compatibility_mode) else None
-            info = details[index]
+            placeholder = item.placeholder
+            info = details[index] if placeholder is None else None
             box_before = Fraction(0)
             band_top = band_bottom = None
             y_gap = y
             starts_here = line_number == 0
+            box_top = None
+            if placeholder is None and starts_here and item.approximations:
+                for reason, message in item.approximations:
+                    path = getattr(details.get(index), "paragraph", None)
+                    self.layout.approximate(reason, message, page.number + 1,
+                                            path.path if path is not None else None)
             # Where a floating drawing's ``paragraph`` is (:mod:`docx2svg.floating`): the
             # page's top for its first paragraph, else where the paragraph before ends
             # after its own space after.
@@ -1522,7 +1581,8 @@ class _Placer:
                     reach = height.pitch + (twips_to_px(item.after) if number_ == item.count - 1
                                             and (document.compatibility_mode or 0) < 15 else 0)
                     y = paginate.clear_of_bands(y, reach, bands)
-                drop = getattr(info.lines[number_], "drop", None) if number_ < len(info.lines) else None
+                drop = getattr(info.lines[number_], "drop", None) if info is not None and number_ < len(info.lines) \
+                    else None
                 if drop is not None:
                     # A line beside a drawing that no segment took text at: it went down
                     # to the drawing's foot (``paginate.fit_beside``).
@@ -1543,14 +1603,18 @@ class _Placer:
                 band_bottom = band[1]
                 if number_ == 0 and getattr(item, "drop_cap", None) is not None:
                     self._drop_cap(page, item, self._paragraph_top)
-                if number_ not in item.undrawn:
+                if placeholder is not None:
+                    box_top = y if box_top is None else box_top
+                elif number_ not in item.undrawn:
                     self._line(page, info, item, number_, y, height, baseline, band)
                 y += height.pitch
                 first_on_page = False
+            if placeholder is not None and box_top is not None:
+                self._box(page, placeholder, page.column[0], box_top, page.column[1] - page.column[0], y - box_top)
             ends_here = paginate.Position(index, item.count) <= end
             if ends_here:
                 y += item.border
-            if band_top is not None:
+            if band_top is not None and info is not None:
                 self._paragraph_rules(page, info, index, band_top, band_bottom, y_gap, y,
                                       starts_here=starts_here, ends_here=ends_here)
             previous = item
@@ -1559,6 +1623,17 @@ class _Placer:
                 y, previous, first_on_page = restore
             index, line_number = index + 1, 0
         return y, previous
+
+    def _box(self, page: Page, placeholder, x: Fraction, y: Fraction, width: Fraction, height: Fraction) -> None:
+        """Draw ``placeholder`` (:class:`docx2svg.paginate.Placeholder`) as a :class:`Box`
+        on ``page`` and report it -- with the story's part where it is in one."""
+        part = getattr(self, "story_part", None)
+        page.boxes.append(Box(placeholder.path, placeholder.reason, placeholder.message, x, y, width, height))
+        where = f"{placeholder.path} in {part}" if part else placeholder.path
+        size = "its estimated height" if placeholder.estimated else "its stated height"
+        self.layout.placeholder(placeholder.reason, f"{where} is drawn as a placeholder of {size} "
+                                f"({placeholder.message}); the layout carries on after it", page.number + 1,
+                                placeholder.path)
 
     def _anchor_extent(self, page: Page, obstacle: paginate.Obstacle, y: Fraction):
         """A floating drawing's box where the paragraph starting at the stop (``y``) holds
@@ -1625,7 +1700,7 @@ class _Placer:
             line_top = self._paragraph_top if number == 0 else top
             frames = self._frames(page, item.section, self._paragraph_top, line_top, top + height.pitch, character)
             run = info.paragraph.runs[run_index]
-            path = f"{info.paragraph.path}/{run.path}/wp:anchor[{k + 1}]" if run.path else info.paragraph.path
+            path = anchor_path(info.paragraph.path, run, k)
             band = next((b for b in list(getattr(self, "_bands", ())) + list(getattr(self, "_wraps", ()))
                          if b.key == (item.block, source, run_index, k)), None)
             self._place_float(page, anchor, frames, path, info.paragraph.path, y=band.y if band else None,
@@ -1674,6 +1749,17 @@ class _Placer:
         placed.primitives = drawn.primitives
         for code in dict.fromkeys(drawn.warnings):
             kind, _, what = code.partition(":")
+            if code == "drawing-approximate:text path":
+                # Said once, on the first page it is drawn on (a watermark is on every page).
+                said = self.layout.__dict__.setdefault("text_paths", set())
+                key = (placed.part or getattr(self, "story_part", None), path)
+                if key not in said:
+                    said.add(key)
+                    self.layout.approximate("text-path", f"a VML text path ({path}: a watermark's text) is drawn "
+                                            "stretched to its box, in its face, colour, opacity and rotation, here "
+                                            "and on every page after it that shows it; the glyphs' size and place "
+                                            "in the box are not measured", page.number + 1, path)
+                continue
             self.layout.warn(kind, f"a floating drawing's {what or 'content'} is not drawn faithfully ({path})",
                              page.number + 1)
         for box_graphic, bx, by, bw, bh in drawn.text_boxes:
@@ -1780,6 +1866,7 @@ class _Placer:
                         span.color = colour
         placed.lines.extend(scratch.lines)
         placed.rules.extend(scratch.rules)
+        page.boxes.extend(scratch.boxes)
         placed.primitives.extend(drawing_picture(p) for p in scratch.pictures)
         # An inline drawing that is not a picture -- a chart, a shape -- is drawn on the
         # scratch page as a float of its line's box (:meth:`_draw_lines`); it goes with the
@@ -1842,6 +1929,23 @@ class _Placer:
         the body's is; and the rows' borders and shading."""
         from . import table as table_model
 
+        flow = item.flow
+        for piece in laid.pieces:
+            if piece.row in flow.overflowed and not piece.header:
+                self.layout.approximate("table", f"a row of {flow.table.path} (w:tr[{piece.row + 1}]) not one line "
+                                        "of which fits on an empty page is drawn whole, past the page's foot (Word "
+                                        "cuts it off there: not modelled)", page.number + 1,
+                                        f"{flow.table.path}/w:tr[{piece.row + 1}]")
+        if laid.pieces and id(flow) not in self.__dict__.setdefault("approximated_tables", set()):
+            # A table laid out by the approximate rules: said once, on its first page.
+            self.approximated_tables.add(id(flow))
+            if flow.approximation:
+                self.layout.approximate("table", f"{flow.table.path} is laid out by approximate rules, the measured "
+                                        f"ones refusing it ({flow.approximation}); what each approximates is "
+                                        "reported with it", page.number + 1, flow.table.path)
+            for reason, message, path in flow.approximated:
+                if reason != "placeholder":
+                    self.layout.approximate(reason, message, page.number + 1, path)
         for index, piece in enumerate(laid.pieces):
             # A row beside a drawing text wraps around is drawn where the table was laid
             # out in the room beside it (``paginate.table_beside``).
@@ -1870,6 +1974,12 @@ class _Placer:
                 for k in lines:
                     placed = cell.stack[k]
                     paragraph = placed.paragraph
+                    if paragraph.placeholder is not None:
+                        top = line_y + placed.above
+                        self._box(page, paragraph.placeholder, Fraction(cell.box.text_left), top,
+                                  Fraction(cell.box.budget) * TWIP_PX, placed.pitch)
+                        line_y = top + placed.pitch + placed.below
+                        continue
                     if paragraph.table is not None:
                         # A table nested in the cell (``table.nested_entry``), from its top.
                         top = line_y + placed.above
@@ -1960,7 +2070,7 @@ class _Placer:
             else:
                 frames = self._frames(page, item.section, piece.top, line_top, top + height.pitch, character)
             run = info.paragraph.runs[run_index]
-            path = f"{info.paragraph.path}/{run.path}/wp:anchor[{k + 1}]" if run.path else info.paragraph.path
+            path = anchor_path(info.paragraph.path, run, k)
             why = paragraph.approximate.get((run_index, k))
             if why:
                 self.layout.approximate(
@@ -2250,7 +2360,8 @@ class _Placer:
                                    depth, False, (0, counter[0]))
                     self._draw_graphic(page, placed, relationship, placed.path, paragraph.path)
                     continue
-                picture = Picture(where, relationship, x + left * emu, stands - bottom * emu - depth, width, depth)
+                picture = Picture(where, relationship, x + left * emu, stands - bottom * emu - depth, width, depth,
+                                  crop=getattr(relationship, "crop", None))
                 page.pictures.append(picture)
                 if relationship is None:
                     self.layout.warn("drawing-not-drawn", "an inline drawing that is not a picture (a chart, a "
@@ -2527,6 +2638,19 @@ class _Placer:
                 self.layout.warn("underline-style-approximate",
                                  f"a {span.underline} underline is drawn approximately (only single, words, dotted and dash "
                                  f"underlines are measured to the pixel)")
+
+
+def anchor_path(paragraph_path: str, run, k: int) -> str:
+    """The path of a run's ``k``-th floating drawing (:mod:`docx2svg.paths`): its
+    ``wp:anchor[n]`` among the run's DrawingML ones, or a VML shape's own path
+    (:mod:`docx2svg.parse.vml`)."""
+    if not run.path:
+        return paragraph_path
+    anchor = run.anchors[k]
+    if anchor.vml and anchor.graphic is not None and anchor.graphic.path:
+        return f"{paragraph_path}/{anchor.graphic.path}"
+    n = sum(1 for other in run.anchors[:k] if not other.vml)
+    return f"{paragraph_path}/{run.path}/wp:anchor[{n + 1}]"
 
 
 def drawing_picture(picture: Picture):

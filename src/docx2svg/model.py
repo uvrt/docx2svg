@@ -287,6 +287,9 @@ class Graphic:
     uri: str | None = None
     #: The structural path of the drawing's content, for ``data-docx-path``.
     path: str = field(default="", compare=False)
+    #: A picture's ``a:srcRect``: the fractions cut off its left, top, right and bottom
+    #: (negative: padding); ``None`` where it is not cropped.
+    crop: tuple | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
@@ -320,6 +323,8 @@ class Anchor:
     #: ``wp:wrapPolygon`` of a ``wrapTight`` or ``wrapThrough``: its points, in 21,600ths of
     #: the extent on each axis, from ``wp:start`` through every ``wp:lineTo``.
     polygon: tuple[tuple[int, int], ...] | None = field(default=None, compare=False)
+    #: Read from a VML shape (:mod:`docx2svg.parse.vml`), not a ``wp:anchor``.
+    vml: bool = field(default=False, compare=False)
 
     @property
     def moves_text(self) -> bool:

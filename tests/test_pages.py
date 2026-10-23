@@ -27,6 +27,10 @@ sys.path.insert(0, str(REPO / "tools"))
 import read_baselines  # noqa: E402
 import read_pages  # noqa: E402
 
+#: Scored as the measured rules lay these probes out: where they stop, they stop (round 16:
+#: what carrying on draws past it is approximate by design).
+pytestmark = pytest.mark.usefixtures("strict_layout")
+
 #: name -> (page tops placed where Word placed them, Word's page tops, of them never
 #: reached, paragraphs on Word's pages, paragraphs scored, where the model stopped)
 COMMITTED = {

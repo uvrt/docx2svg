@@ -163,6 +163,30 @@ def _paint(sp_pr: Element | None, style: Element | None = None) -> dict:
             "style": read.parse_shape_style(style)}
 
 
+def picture_crop(pic: Element | None) -> tuple[float, float, float, float] | None:
+    """A picture's ``a:srcRect`` (ECMA-376 20.1.8.55): the fractions of the image cut off
+    its left, top, right and bottom -- a negative one pads it with nothing -- read by the
+    shared reader pptx2svg crops with (``ooxml_common.drawingml.read.parse_relative_rect``);
+    ``None`` where it crops nothing."""
+    rect = read.parse_relative_rect(child(child(pic, "blipFill"), "srcRect"))
+    return rect if rect is not None and any(rect) else None
+
+
+class PictureRef(str):
+    """An inline picture's relationship id (:attr:`docx2svg.model.Run.drawings`), with its
+    crop (:func:`picture_crop`): a ``str`` everywhere one is expected."""
+
+    crop: tuple | None = None
+
+    def __new__(cls, relationship: str, crop: tuple | None = None) -> "PictureRef":
+        made = super().__new__(cls, relationship)
+        made.crop = crop
+        return made
+
+    def __reduce__(self):
+        return (PictureRef, (str(self), self.crop))
+
+
 def _graphic(element: Element, path: str, blocks: Callable[[Element, str], list]) -> Graphic | None:
     name = local_name(element.tag)
     if name == "chart" and element.get(_R + "id"):
@@ -176,14 +200,11 @@ def _graphic(element: Element, path: str, blocks: Callable[[Element, str], list]
         sp_pr = child(element, "spPr")
         blip = child(child(element, "blipFill"), "blip")
         unsupported = _unsupported(sp_pr)
-        if child(child(element, "blipFill"), "srcRect") is not None and any(
-                attr(child(child(element, "blipFill"), "srcRect"), side) not in (None, "0")
-                for side in ("l", "t", "r", "b")):
-            unsupported.append("cropped")
         paint = _paint(sp_pr, child(element, "style"))
         paint.pop("fill")
         return Graphic("picture", relationship=blip.get(_R_EMBED) if blip is not None else None,
-                       unsupported=tuple(unsupported), path=path, **paint, **_xfrm(child(sp_pr, "xfrm")))
+                       unsupported=tuple(unsupported), path=path, crop=picture_crop(element), **paint,
+                       **_xfrm(child(sp_pr, "xfrm")))
     if name == "wsp":
         sp_pr = child(element, "spPr")
         body = child(element, "bodyPr")

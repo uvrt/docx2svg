@@ -73,6 +73,8 @@ class Primitive:
     what: str = ""
     attrs: str = ""
     markup: str = ""
+    #: An image's crop (:attr:`docx2svg.model.Graphic.crop`).
+    crop: tuple | None = None
 
 
 @dataclass
@@ -353,8 +355,15 @@ def _draw(graphic, x, y, width, height, path, colours: Colours, defs, drawn: Dra
     transform = _transform(here)
     if graphic.kind == "picture":
         drawn.primitives.append(Primitive("image", path, x=x, y=y, width=width, height=height,
-                                          relationship=graphic.relationship, transform=transform))
+                                          relationship=graphic.relationship, transform=transform,
+                                          crop=graphic.crop))
         _outline(graphic, x, y, width, height, path, colours, defs, drawn, here)
+        return
+    if graphic.kind == "textpath":
+        drawn.primitives.append(Primitive("markup", path, x=x, y=y, width=width, height=height,
+                                          markup=text_path_markup(graphic.body, x, y, width, height),
+                                          transform=transform))
+        warnings.append("drawing-approximate:text path")
         return
     if graphic.kind == "group":
         cw, ch = graphic.child_extent
@@ -398,6 +407,39 @@ def _draw(graphic, x, y, width, height, path, colours: Colours, defs, drawn: Dra
           path)
     if graphic.text:
         drawn.text_boxes.append((graphic, x, y, width, height))
+
+
+#: A VML text path's text as drawn in its box (:func:`text_path_markup`): the em at
+#: 1/1.2 of the box's height, the baseline 0.8 of an em below its top -- the line a face
+#: of Calibri's or Arial's ascent and descent fills.  Not measured.
+TEXT_PATH_EM = Fraction(5, 6)
+TEXT_PATH_BASELINE = Fraction(4, 5)
+
+
+def text_path_markup(body: dict, x, y, width, height) -> str:
+    """A VML text path (:mod:`docx2svg.parse.vml`: a watermark) as SVG text: its string
+    stretched to the box's width (``textLength``, the glyphs with it: ``fitshape``), its
+    size from the box's height (:data:`TEXT_PATH_EM`), in its face, bold and italic, its
+    fill colour at its ``v:fill`` opacity -- turned with the shape by the caller.  Where
+    Word draws the glyphs inside the box is not measured: an approximation, reported
+    (``drawing-approximate:text path``)."""
+    from xml.sax.saxutils import escape, quoteattr
+
+    em = height * TEXT_PATH_EM
+    fill = body.get("fill")
+    paint = f'fill="#{fill}"' if fill else 'fill="none"'
+    opacity = body.get("opacity", 1.0)
+    if fill and opacity < 1:
+        paint += f' fill-opacity="{num(opacity)}"'
+    if body.get("stroke"):
+        paint += f' stroke="#{body["stroke"]}" stroke-width="{num(float(height) / 200)}"'
+    face = body.get("font") or "Calibri"
+    weight = ' font-weight="bold"' if body.get("bold") else ""
+    style = ' font-style="italic"' if body.get("italic") else ""
+    return (f'<text x="{num(float(x))}" y="{num(float(y + em * TEXT_PATH_BASELINE + (height - em) / 2))}"'
+            f' font-family={quoteattr(face + ", sans-serif")} font-size="{num(float(em))}"{weight}{style}'
+            f' textLength="{num(float(width))}" lengthAdjust="spacingAndGlyphs" {paint}>'
+            f'{escape(body.get("string") or "")}</text>')
 
 
 def _fill_attrs(fill, defs, box, turns: tuple, geometry) -> str:

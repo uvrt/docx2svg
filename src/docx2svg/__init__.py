@@ -26,16 +26,22 @@ the layout's own pages, and in the body ``PAGEREF``, ``REF`` and ``SEQ`` from it
 bookmarks; every other field is drawn as Word cached it).  Floating
 drawings that text does not wrap around (behind or in front of the text): pictures,
 shapes, groups and text boxes, positioned and stacked as Word does, and those text wraps
-above and below (``wrapTopAndBottom``).  Floating drawings text wraps beside and
-multi-column sections are not laid out yet: the layout **stops**
-at the first one, the page it is on shows a marked band where it starts, no page after
-it is invented, and ``ConvertOptions.warnings`` says so with a stable code
-(``layout-stopped:drawing``...), and a header or footer holding one is drawn up to it
-(``story-stopped:drawing``).  A drop cap is drawn in its frame, the text beside it; any
-other frame stops the layout (``layout-stopped:frame``).  Endnotes are numbered and drawn
-after the text, under their separators, and footnotes at the foot of their reference's
-page (:mod:`docx2svg.notes`), a table cell's too; one in a cell of a document with
-sections of several text columns is not drawn (``footnotes-not-drawn``).
+above and below (``wrapTopAndBottom``), and those text wraps beside.  A drop cap is drawn
+in its frame, the text beside it.  Endnotes are numbered and drawn after the text, under
+their separators, and footnotes at the foot of their reference's page
+(:mod:`docx2svg.notes`), a table cell's too; one in a cell of a section of several text
+columns is not drawn (``footnotes-not-drawn``).  VML is read (:mod:`docx2svg.parse.vml`):
+a watermark's text path, an embedded object's picture, rectangles, ovals and text boxes.
+
+**The layout carries on** past what its measured rules do not reach (round 16,
+:data:`docx2svg.paginate.CARRY_ON`): it lays it out by an approximate rule
+(``layout-approximate:<reason>``) or draws it as a marked placeholder of its stated or
+estimated height (``layout-placeholder:<reason>``), and every page after it is laid out;
+``ConvertOptions.warnings`` and ``ConvertOptions.coverage`` say what, where and why.  With
+``CARRY_ON`` off the layout **stops** at the first such item, as it did before: the page it
+is on shows a marked band where it starts, no page after it is invented
+(``layout-stopped:<reason>``), and a header or footer holding one is drawn up to it
+(``story-stopped:<reason>``).
 
 The runtime is standard-library only.  Faces are read in place from where Word finds
 them (:mod:`docx2svg.fonts`); PNG output needs the ``png`` extra (resvg-py).
@@ -91,7 +97,8 @@ __all__ = [
 @dataclass(frozen=True)
 class Warning:  # noqa: A001 -- the sibling project's name for the same thing
     """Something the output does not show faithfully, with a stable ``code`` a caller can
-    fail a build on (``layout-stopped:drawing``, ``footnotes-not-drawn``...)."""
+    fail a build on (``layout-placeholder:drawing``, ``layout-approximate:table``,
+    ``footnotes-not-drawn``...)."""
 
     code: str
     message: str
@@ -136,8 +143,10 @@ class ConvertOptions:
     #: (:data:`docx2svg.fonts.SUBSTITUTES`: Carlito for Calibri, Liberation Sans, Serif
     #: and Mono for Arial, Times New Roman and Courier New) where that is installed.
     #: Never in place of a face that is present; every use is a ``font-substituted``
-    #: warning and is listed in :attr:`coverage`.  ``False``: an absent face stops the
-    #: layout at its first paragraph, as before.
+    #: warning and is listed in :attr:`coverage`.  An absent face with no measured
+    #: substitute is laid out with an approximate one (:func:`docx2svg.fonts.default_substitutes`),
+    #: and a character a face lacks is measured in another face (``font-glyph-fallback``).
+    #: ``False``: none of these; an absent face's paragraphs are placeholders.
     substitute_fonts: bool = True
     #: More substitutions, or other ones: Word's face -> the face to use when it is absent
     #: (``{"Cambria": "Caladea"}``).  One that is not in :data:`docx2svg.fonts.SUBSTITUTES`
@@ -192,7 +201,8 @@ def _fonts(data: bytes, options: ConvertOptions):
     dirs = tuple(default_font_dirs()) + _user_dirs(options, subfolders=True)
     substitutes = dict(SUBSTITUTES) if options.substitute_fonts else {}
     substitutes.update({name.lower(): value for name, value in (options.font_substitutes or {}).items()})
-    return InstalledFonts(data, dirs=dirs, substitutes=substitutes, recorded_faces=options.substitute_fonts)
+    return InstalledFonts(data, dirs=dirs, substitutes=substitutes, recorded_faces=options.substitute_fonts,
+                          fallbacks=options.substitute_fonts)
 
 
 _PARSER_WARNINGS = {
@@ -237,6 +247,16 @@ def lay_out_docx(source, options: ConvertOptions | None = None) -> tuple:
         options.warnings.append(Warning(code, _PARSER_WARNINGS.get(code, "a body element is not read")))
     for substitution in getattr(fonts, "substitutions", {}).values():
         options.warnings.append(Warning("font-substituted", substitution.message()))
+    glyphs: dict = {}
+    for (family, char), used in getattr(fonts, "glyph_fallbacks", {}).items():
+        glyphs.setdefault((family, used), []).append(char)
+    for (family, used), chars in glyphs.items():
+        source = "its missing glyph (.notdef)" if used == ".notdef" else repr(used)
+        options.warnings.append(Warning(
+            "font-glyph-fallback",
+            f"{family!r} has no glyph for {chars[0]!r} (U+{ord(chars[0]):04X})"
+            + (f" and {len(chars) - 1} more character(s)" if len(chars) > 1 else "")
+            + f": measured with {source}, as an approximation (Word's own font fallback is not measured)"))
     for code, message, page in layout.warnings:
         options.warnings.append(Warning(code, message, page))
     layout.coverage = options.coverage = coverage_of(layout, document, data, fonts)

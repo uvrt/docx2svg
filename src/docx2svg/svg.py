@@ -225,7 +225,9 @@ def render_page(page: Page, *, glyph_size: str = "device", images=None, width: i
         else:
             for picture in page.pictures:
                 out.append(_picture(picture.path, picture.relationship, picture.x, picture.y, picture.width,
-                                    picture.height, getattr(picture, "part", None), images, warn))
+                                    picture.height, getattr(picture, "part", None), images, warn,
+                                    crop=getattr(picture, "crop", None)))
+    out.extend(_box(box) for box in getattr(page, "boxes", ()))
     if defs.defs:
         out.insert(head, "<defs>" + "".join(defs.defs) + "</defs>")
     if page.stop is not None:
@@ -283,8 +285,12 @@ def _metafile(data: bytes, path: str, warn):
     return "image/svg+xml", drawing.svg
 
 
-def _picture(path: str, relationship, x, y, width, height, source, images, warn, transform: str | None = None) -> str:
-    """A picture part in its box, or a placeholder of the box where it cannot be carried."""
+def _picture(path: str, relationship, x, y, width, height, source, images, warn, transform: str | None = None,
+             crop: tuple | None = None) -> str:
+    """A picture part in its box, or a placeholder of the box where it cannot be carried.
+    A cropped one (``a:srcRect``: ``crop``, fractions of the image) is the image scaled so
+    that what is kept fills the box, cut to the box -- a negative fraction leaving the
+    box's edge empty -- as pptx2svg crops (``ooxml_common.drawingml.shape.render_image``)."""
     found = None
     if images and relationship:
         found = images(relationship, source) if source else images(relationship)
@@ -294,6 +300,18 @@ def _picture(path: str, relationship, x, y, width, height, source, images, warn,
     if found is not None and found[0] in _IMAGE_TYPES:
         content_type, data = found
         href = f"data:{content_type};base64,{base64.b64encode(data).decode('ascii')}"
+        if crop:
+            left, top, right, bottom = (Fraction(value).limit_denominator(100000) for value in crop)
+            kept_w = max(1 - left - right, Fraction(1, 10 ** 6))
+            kept_h = max(1 - top - bottom, Fraction(1, 10 ** 6))
+            scaled_w, scaled_h = Fraction(width) / kept_w, Fraction(height) / kept_h
+            cropped = (f'<svg data-docx-path={quoteattr(path)} x="{number(x)}" y="{number(y)}"'
+                       f' width="{number(width)}" height="{number(height)}"'
+                       f' viewBox="0 0 {number(width)} {number(height)}" overflow="hidden">'
+                       f'<image x="{number(-left * scaled_w)}" y="{number(-top * scaled_h)}"'
+                       f' width="{number(scaled_w)}" height="{number(scaled_h)}" preserveAspectRatio="none"'
+                       f' href="{href}"/></svg>')
+            return f"<g{extra}>{cropped}</g>" if extra else cropped
         return (f'<image data-docx-path={quoteattr(path)} x="{number(x)}" y="{number(y)}" width="{number(width)}"'
                 f' height="{number(height)}" preserveAspectRatio="none"{extra} href="{href}"/>')
     if warn is not None and relationship is not None:
@@ -327,7 +345,8 @@ def _float(placed, glyph_size: str, names, images, warn, defs=None) -> list[str]
             out.append("</g>")
         elif primitive.kind == "image":
             out.append(_picture(primitive.path, primitive.relationship, primitive.x, primitive.y, primitive.width,
-                                primitive.height, placed.part, images, warn, primitive.transform))
+                                primitive.height, placed.part, images, warn, primitive.transform,
+                                crop=getattr(primitive, "crop", None)))
         else:
             out.append(_placeholder(primitive.x, primitive.y, primitive.width, primitive.height, primitive.path,
                                     primitive.what or "drawing"))
@@ -343,6 +362,25 @@ def _placeholder(x, y, width, height, path: str, what: str) -> str:
             + _rect(x, y, width, height, "#F2F2F2",
                     extra=' stroke="#9A9A9A" stroke-width="3" stroke-dasharray="12 8"')
             + "</g>")
+
+
+def _box(box) -> str:
+    """A placeholder where the layout carried on past what it cannot lay out
+    (:class:`docx2svg.layout.Box`): the dashed grey box a drawing the renderer cannot show
+    is drawn as (:func:`_placeholder`), with what it stands for written in it where it is
+    tall enough -- drawn over everything, so that it is never taken for content."""
+    story = f' data-docx-story="{box.story}" data-docx-part={quoteattr(box.part)}' if box.story else ""
+    parts = [f'<g data-docx-unsupported={quoteattr(box.reason)} data-docx-placeholder="1"'
+             f' data-docx-path={quoteattr(box.path)}{story}>',
+             _rect(box.x, box.y, box.width, box.height, "#F2F2F2",
+                   extra=' stroke="#9A9A9A" stroke-width="3" stroke-dasharray="12 8"')]
+    size = min(Fraction(33), Fraction(box.height) * 3 / 5)
+    if size >= 12 and box.width >= size * 16:
+        parts.append(f'<text x="{number(box.x + 12)}" y="{number(box.y + min(size + 12, box.height - 4))}"'
+                     f' font-family="sans-serif" font-size="{number(size)}" fill="#6B6B6B">'
+                     f"{escape(f'docx2svg: not drawn: {box.reason}')}</text>")
+    parts.append("</g>")
+    return "".join(parts)
 
 
 def _stop(page: Page) -> str:

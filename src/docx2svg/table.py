@@ -594,8 +594,8 @@ def paragraph_minimum(document: Document, paragraph, section, advances, metrics)
 
     try:
         pieces, _lines = linebreak.break_paragraph(document, paragraph, section, advances, metrics)
-    except linebreak.Unmeasurable:
-        raise Unsupported("a cell paragraph that cannot be measured") from None
+    except linebreak.Unmeasurable as error:
+        raise Unsupported(f"a cell paragraph that cannot be measured ({paragraph.path}: {error})") from None
     widest = word = Fraction(0)
     for piece in pieces:
         if piece.kind in (linebreak.SPACE, linebreak.BREAK, linebreak.TAB):
@@ -635,8 +635,8 @@ def paragraph_extent(document: Document, paragraph, section, advances, metrics) 
 
     try:
         pieces = linebreak.pieces(document, paragraph, advances, metrics)
-    except linebreak.Unmeasurable:
-        raise Unsupported("a cell paragraph that cannot be measured") from None
+    except linebreak.Unmeasurable as error:
+        raise Unsupported(f"a cell paragraph that cannot be measured ({paragraph.path}: {error})") from None
     if any(piece.kind in (linebreak.TAB, linebreak.OBJECT) for piece in pieces):
         raise Unsupported("autofit: a tab or a drawing in a cell sized by its content (not measured)")
     pp = resolve_paragraph(document, paragraph)
@@ -974,6 +974,9 @@ class CellParagraph:
     #: A table nested in the cell, stacked as a paragraph of one line as tall as the
     #: table (:func:`nested_entry`); ``None`` for a paragraph.
     table: "TableFlow | None" = None
+    #: A paragraph or nested table drawn as a placeholder of one line as tall as its
+    #: estimated height (:func:`placeholder_entry`): what it stands for.
+    placeholder: object = None
 
 
 @dataclass(frozen=True)
@@ -1037,6 +1040,16 @@ class TableFlow:
     grid_twips: list = field(default_factory=list)
     #: Where a floating table is positioned (:func:`floating_of`); ``None`` in the flow.
     floating: "Floating | None" = None
+    #: Laid out by the approximate rules (:func:`flow_table`'s ``carry_on``): why the
+    #: measured ones could not lay it out; ``None`` for a table laid out as measured.
+    approximation: str | None = None
+    #: What :func:`flow_table`'s ``carry_on`` approximated inside it, ``(reason, message,
+    #: path)``, and the placeholders it drew a cell's paragraph or nested table as
+    #: (``(reason, message, path)``), for the layout's warnings.
+    approximated: list = field(default_factory=list)
+    #: Rows placed whole past a page's foot because not one line of them fits on an empty
+    #: page (:func:`place_table` with :data:`docx2svg.paginate.CARRY_ON`).
+    overflowed: set = field(default_factory=set)
 
 
 class Unsupported(Exception):
@@ -1230,12 +1243,26 @@ def floating_edges(flow: TableFlow) -> tuple[Fraction, Fraction]:
 
 def flow_table(document: Document, table: Table, section, advances, metrics, *, block: int,
                labels: dict | None = None, features: list | None = None, cache: dict | None = None,
-               previous=None, nested: bool = False) -> TableFlow:
+               previous=None, nested: bool = False, carry_on: bool = False, inline: bool = False) -> TableFlow:
     """Lay a top-level table out for the flow: its grid, each cell's paragraphs broken
     at the cell's width with their line heights, and each row's height.  Raises
     :class:`Unsupported` for what is not modelled yet (a nested or floating table, a
     vertical merge, an autofit table whose content would widen a column, a paragraph the
-    model cannot measure)."""
+    model cannot measure).
+
+    ``carry_on`` lays out what the measured rules refuse by approximate ones instead,
+    each recorded in :attr:`TableFlow.approximated` (round 16: the layout carries on):
+
+    * a table whose widths are not measured -- autofit from content, in percent -- on its
+      ``w:tblGrid`` (Word writes the grid it last laid the table out on), a word wider
+      than its column broken inside it;
+    * a floating table nested in a cell, one positioned against a frame not measured, and
+      with ``inline`` (a section of several columns) any floating table, in the flow;
+    * a frame in a cell, and a floating drawing in a cell text wraps around in a way not
+      measured there, as if text did not wrap around it;
+    * a cell paragraph the line breaker cannot measure, and a nested table it cannot lay
+      out even so, as a placeholder of its estimated height (:func:`placeholder_entry`).
+    """
     from dataclasses import replace as _replace
 
     from . import lines as line_model
@@ -1254,9 +1281,24 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
     unmodelled = _unmodelled(resolved)
     if unmodelled:
         raise Unsupported(unmodelled)
-    floating = floating_of(document, table, resolved.properties)
-    if floating is not None and nested:
-        raise Unsupported("a floating table nested in a cell (not measured)")
+    approximated: list = []
+    try:
+        floating = floating_of(document, table, resolved.properties)
+    except Unsupported as why:
+        if not carry_on:
+            raise
+        floating = None
+        approximated.append(("table", f"{why.args[0]}: laid out in the flow, where it stands", table.path))
+    if floating is not None and (nested or inline):
+        if not carry_on:
+            raise Unsupported("a floating table nested in a cell (not measured)")
+        where = "nested in a cell" if nested else "in a section of several text columns"
+        approximated.append(("table", f"a floating table {where} is laid out in the flow where it stands, not "
+                                      "positioned by its w:tblpPr (not measured)", table.path))
+        floating = None
+    if carry_on and floating is None and "tblpPr" in resolved.properties:
+        resolved.properties = {k: v for k, v in resolved.properties.items() if k != "tblpPr"}
+
     if floating is not None:
         # Laid out in its frame as a table with that indent, or that alignment, is in the
         # column (:func:`floating_of`).
@@ -1270,7 +1312,12 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
     if in_percent(resolved) and resolved.rows and resolved.rows[0].cells and all(
             (cell.properties.get("tcW") or (0, None))[1] == "dxa" for cell in resolved.rows[0].cells):
         # Shared by the cells' widths and their narrowest content (:func:`dxa_shares`).
-        resolved.minimums = column_minimums(document, resolved, section, advances, metrics)
+        try:
+            resolved.minimums = column_minimums(document, resolved, section, advances, metrics)
+        except Unsupported:
+            if not carry_on or not table.grid:
+                raise
+            on_grid(resolved, approximated, table.path)
     autofit = (resolved.properties.get("tblLayout") or "autofit") != "fixed"
     kinds = {(cell.properties.get("tcW") or (0, None))[1] for cell in resolved.rows[0].cells} if (
         resolved.rows and resolved.rows[0].cells) else set()
@@ -1281,14 +1328,21 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
             resolved.extents = {(row.index, cell.index): cell_extent(document, cell, section, advances, metrics)
                                 for row in resolved.rows for cell in row.cells if cell.merge != "continue"}
         except Unsupported:
-            if in_percent(resolved) or autofit_unmodelled(resolved):
+            if (in_percent(resolved) or autofit_unmodelled(resolved)) and not carry_on:
                 raise
             resolved.extents = None
-    lines = grid_lines(document, resolved, column_width)
-    if autofit and resolved.extents is None:
-        unsized = autofit_unmodelled(resolved)
-        if unsized:
-            raise Unsupported(unsized)
+    try:
+        lines = grid_lines(document, resolved, column_width)
+        if autofit and resolved.extents is None:
+            unsized = autofit_unmodelled(resolved)
+            if unsized:
+                raise Unsupported(unsized)
+    except Unsupported:
+        if not carry_on or not table.grid:
+            raise
+        on_grid(resolved, approximated, table.path)
+        autofit = False
+        lines = grid_lines(document, resolved, column_width)
     # Each cell's paragraphs and nested tables, with their index in ``baselines.blocks``
     # order (a nested table's: its first paragraph's).
     entries_of: dict[tuple[int, int], list] = {}
@@ -1314,30 +1368,59 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
             for k, (number, paragraph) in enumerate(items):
                 if isinstance(paragraph, Table):
                     before = items[k - 1][1] if k and not isinstance(items[k - 1][1], Table) else None
-                    placed.append(nested_entry(document, paragraph, cell, page_left, lines, section, advances,
-                                               metrics, block=number, labels=labels, features=features, cache=cache,
-                                               previous=before))
+                    try:
+                        placed.append(nested_entry(document, paragraph, cell, page_left, lines, section, advances,
+                                                   metrics, block=number, labels=labels, features=features,
+                                                   cache=cache, previous=before, carry_on=carry_on,
+                                                   approximated=approximated))
+                    except Unsupported as why:
+                        if not carry_on:
+                            raise
+                        placed.append(placeholder_entry(document, paragraph, number, box.budget, "table",
+                                                        f"a nested table the layout does not model: {why.args[0]}",
+                                                        approximated))
                     continue
                 reason = features[number] if features and number < len(features) else None
+                if reason == "frame" and carry_on:
+                    approximated.append(("frame", "a frame (w:framePr) in a cell is laid out as a paragraph of the "
+                                                  "cell", paragraph.path))
+                    reason = None
                 if reason not in (None, "note reference"):
                     raise Unsupported(f"a {reason} in a cell")
                 if any(kind == "drawing" for run in paragraph.runs for _, kind in run.breaks):
-                    raise Unsupported("a drawing in a cell")
+                    if not carry_on:
+                        raise Unsupported("a drawing in a cell")
+                    placed.append(placeholder_entry(document, paragraph, number, box.budget, "drawing",
+                                                    "a drawing this model does not lay out (a VML shape it cannot "
+                                                    "read, an embedded object)", approximated))
+                    continue
                 why = cell_anchors_unmodelled(document, paragraph)
                 if why:
-                    raise Unsupported(why)
+                    if not carry_on:
+                        raise Unsupported(why)
+                    approximated.append(("cell-drawing", f"{why}: laid out as if text did not wrap around it",
+                                         paragraph.path))
+                    paragraph = unwrapped(paragraph)
                 approximate = cell_anchors_approximate(document, paragraph)
                 pp = resolved_items[k]
                 label = (labels or {}).get(number)
                 pieces, broken = line_model.broken(document, paragraph, cell_section, advances, metrics, label)
                 if pieces is None:
-                    raise Unsupported("a cell paragraph that cannot be measured")
+                    if not carry_on:
+                        raise Unsupported("a cell paragraph that cannot be measured")
+                    placed.append(placeholder_entry(document, paragraph, number, box.budget, "unmeasurable",
+                                                    _unmeasured(document, paragraph, cell_section, advances, metrics,
+                                                                label), approximated))
+                    continue
                 if autofit and any(line.emergency for line in broken) and resolved.extents is None and (
                         paragraph_minimum(document, paragraph, cell_section, advances, metrics) > box.budget):
                     # A word wider than its column, which Word would widen.  One wider only
                     # than a first line's room is broken inside, the column kept: a
                     # first-line indent does not count below mode 15 (:func:`paragraph_extent`).
-                    raise Unsupported("autofit: a word wider than its column")
+                    if not carry_on:
+                        raise Unsupported("autofit: a word wider than its column")
+                    approximated.append(("table", "a word wider than its column, which Word would widen the "
+                                                  "column for, is broken inside it", paragraph.path))
                 shares = line_model.shares_of(document, paragraph, pieces, broken)
                 objects = line_model.objects_of(pieces, broken)
                 object_runs = line_model.object_runs_of(pieces, broken)
@@ -1350,8 +1433,15 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
                         height = line_model.line_height(document, paragraph, pp, chars, metrics, first_line=n == 0,
                                                         cache=cache)
                     if height is None:
-                        raise Unsupported("no face metrics in a cell")
+                        break
                     heights.append(height)
+                if len(heights) != len(shares):
+                    if not carry_on:
+                        raise Unsupported("no face metrics in a cell")
+                    placed.append(placeholder_entry(document, paragraph, number, box.budget, "no face metrics",
+                                                    "a cell paragraph whose faces have no line metrics",
+                                                    approximated))
+                    continue
                 neighbours = [resolved_items[j] if 0 <= j < len(items) else None for j in (k - 1, k + 1)]
                 top_border, border = paragraph_borders_px(pp, *neighbours)
                 from .paginate import _line_of_sources, anchors_of
@@ -1405,11 +1495,61 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
         flow.span_height = available
     bottom = _edge_width([flow.cell for flow in rows[-1].cells], [], columns) if rows else Fraction(0)
     return TableFlow(table, resolved, rows, bottom, [twips_to_px(page_left + x) for x in lines],
-                     previous_style, default_style, page_left, list(lines), floating)
+                     previous_style, default_style, page_left, list(lines), floating, approximated=approximated)
+
+
+def on_grid(resolved: ResolvedTable, approximated: list, path: str) -> None:
+    """Lay ``resolved`` out on its ``w:tblGrid`` as a fixed table: :func:`flow_table`'s
+    ``carry_on`` for widths the measured rules do not reach (Word writes the grid it last
+    laid the table out on, so the grid is its last layout's widths)."""
+    approximated.append(("table", "its columns are laid out on its w:tblGrid widths, as a fixed table's (Word "
+                                  "writes the grid it last laid the table out on)", path))
+    resolved.extents = None
+    resolved.minimums = None
+    resolved.properties = {k: v for k, v in resolved.properties.items() if k != "tblW"}
+    resolved.properties["tblLayout"] = "fixed"
+
+
+def placeholder_entry(document: Document, item, block: int, width_twips: int, reason: str, message: str,
+                      approximated: list) -> CellParagraph:
+    """A cell paragraph or nested table :func:`flow_table`'s ``carry_on`` cannot lay out:
+    one "line" as tall as its estimated height (:func:`docx2svg.paginate.placeholder_heights`),
+    drawn as a marked box (:attr:`CellParagraph.placeholder`) and reported."""
+    from .paginate import Placeholder, placeholder_heights
+
+    height = sum(placeholder_heights(document, item, width_twips), Fraction(0))
+    placeholder = Placeholder(reason, message, item.path)
+    approximated.append(("placeholder", message, item.path))
+    return CellParagraph(None, block, {}, [], [], None, None, [NestedHeight(height)], undrawn=frozenset({0}),
+                         placeholder=placeholder)
+
+
+def _unmeasured(document: Document, paragraph, section, advances, metrics, label) -> str:
+    """Why the line breaker cannot measure a cell paragraph: the face and character."""
+    from . import linebreak
+
+    try:
+        linebreak.break_paragraph(document, paragraph, section, advances, metrics, label)
+    except linebreak.Unmeasurable as error:
+        return f"a cell paragraph that cannot be measured: {error}"
+    return "a cell paragraph that cannot be measured"
+
+
+def unwrapped(paragraph):
+    """``paragraph`` with every floating drawing text wraps around made one it does not
+    (``wrapNone``): what :func:`flow_table`'s ``carry_on`` lays a cell out with where the
+    wrap is not measured in a cell."""
+    import dataclasses
+
+    runs = tuple(dataclasses.replace(run, anchors=tuple(
+        dataclasses.replace(anchor, wrap="wrapNone") if anchor.moves_text else anchor for anchor in run.anchors))
+        if run.anchors else run for run in paragraph.runs)
+    return dataclasses.replace(paragraph, runs=runs)
 
 
 def nested_entry(document: Document, table: Table, cell: Cell, page_left, lines: list, section, advances, metrics,
-                 *, block: int, labels, features, cache, previous) -> CellParagraph:
+                 *, block: int, labels, features, cache, previous, carry_on: bool = False,
+                 approximated: list | None = None) -> CellParagraph:
     """A table nested in ``cell`` as its cell's stack holds it: one "line" as tall as the
     table, laid out in the cell's text area as a mode-15 table is in the column, in every
     mode (:attr:`ResolvedTable.nested`).
@@ -1430,7 +1570,9 @@ def nested_entry(document: Document, table: Table, cell: Cell, page_left, lines:
                                                right=section.page_size.width_twips - text_right),
                      column_count=1, columns=())
     flow = flow_table(document, table, inner, advances, metrics, block=block, labels=labels, features=features,
-                      cache=cache, previous=previous, nested=True)
+                      cache=cache, previous=previous, nested=True, carry_on=carry_on)
+    if approximated is not None:
+        approximated.extend(flow.approximated)
     height = place_table(flow, Fraction(0), Fraction(10 ** 7), first_on_page=False,
                          mode15=(document.compatibility_mode or 0) >= 15).end
     return CellParagraph(None, block, {}, [], [], None, None, [NestedHeight(height)], undrawn=frozenset({0}),
@@ -2214,7 +2356,20 @@ def _place_table(flow: TableFlow, y: Fraction, bottom: Fraction, *, row: int = 0
             True) for m in active)
         if not any(counts) and not grows:
             if nothing_yet:
-                raise Overflow(row, TablePage(pieces, y, (row, part)))
+                from .paginate import CARRY_ON
+
+                if not CARRY_ON:
+                    raise Overflow(row, TablePage(pieces, y, (row, part)))
+                # Not one line of it fits on an empty page (a picture taller than the page):
+                # placed whole, past the page's foot, and the table goes on on the next page.
+                flow.overflowed.add(row)
+                pieces.append(RowPiece(row, starts, ends, y, current.top_border, height, continued=continued))
+                y += current.top_border + height
+                for m in active:
+                    if row == m.last:
+                        state[id(m)].end = len(m.flow(flow).stack)
+                row, part = row + 1, ()
+                return finish(y + edge, (row, ()) if row < len(rows) else None)
             return leave((row, part))
         pieces.append(RowPiece(row, starts, split_ends, y, current.top_border, split_height, continued=continued,
                                split=True))
