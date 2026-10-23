@@ -5655,6 +5655,17 @@ which agree. **The rules** (`fields.cross_references`, `fields.sequence_values`,
   nothing or `\n` adds one, `\c` repeats, `\r 5` sets 5, `\h` adds one and draws nothing,
   `\*` formats (`vii`, `h`). A `w:fldSimple`'s result is in the paragraph's format, a
   complex one's as `PAGE`'s.
+  *Round 16 (F4), Word 16.106, 45 `SEQ` fields updated by Word (docx-agent's round-16
+  `f4_probe.py`):* **the switches may stand before the identifier** -- `SEQ \# "00" Item`,
+  `SEQ \#"00" Item`, `SEQ \r 7 Item`, `SEQ \* roman Item`, `SEQ \h Item`, `SEQ \# "00"
+  "Item"` count and draw as `SEQ Item` with those switches (01, 02; 7 then 8; `ii`); a switch
+  that takes an argument (`\#`, `\*`, `\@`, `\r`, `\s`) takes the next token whatever it
+  is (`SEQ \r Mm` is Word's "no sequence given" error, `Mm` not counted); `\c`, `\h`, `\n`
+  take none. A `\#` after a `\*` (`SEQ Item \* MERGEFORMAT \# "00"`, either side of the
+  identifier) is Word's error text in its language, the sequence counted; `\# "00" \*
+  ARABIC` draws 2 (the later switch). A picture's `#` with no digit is a space (`"#0"`: a
+  space and 2; `"##0"`: two spaces and 1; `"0#"`: 03), a longer number all its digits.
+  Not matched: `SEQ \* Upper \* roman Item` (Word `i`, here `I`), one case.
 * **`REF name`** is the bookmark's text **in its own runs' formatting**: direct and
   character-style formatting carried (Times New Roman 14 bold; the character style's
   Courier New), **the source paragraph's style not** (a plain run of a Cambria heading is

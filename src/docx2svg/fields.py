@@ -12,7 +12,8 @@ not have computed):
   pages the section has content on) are arabic whatever the section's format;
 * ``\\* roman`` / ``Roman`` (the switch's first letter's case is the result's),
   ``alphabetic`` / ``ALPHABETIC``, ``Arabic``, ``ArabicDash`` (``- 4 -``), ``Hex``
-  (upper case) and ``\\# "000"`` override the section's format; ``MERGEFORMAT`` and
+  (upper case) and ``\\# "000"`` override the section's format (a picture's ``#`` is a
+  space where the number has no digit: ``\\# "#0"`` draws 2 as a space and 2); ``MERGEFORMAT`` and
   ``CHARFORMAT`` do not (they choose the result's run format: the parser's); ``Upper``,
   ``Lower``, ``FirstCap`` and ``Caps`` change case after;
 * ``ordinal``, ``cardinalText`` and ``ordinalText`` (and the switches ``Ordinal``,
@@ -34,7 +35,10 @@ settings), each formatted as a ``PAGE`` is unless said:
   (``figure`` counts with ``Figure``) -- in document order, table cells in their place:
   ``\\n`` (or nothing) adds one, ``\\c`` repeats the last, ``\\r n`` sets ``n``, ``\\h``
   adds one and draws nothing; ``\\*`` formats.  ``\\s`` (restart at a heading level) is
-  not computed, nor is any field of an identifier that has one.
+  not computed, nor is any field of an identifier that has one.  The switches may stand
+  before the identifier (``SEQ \\# "00" Item`` is ``SEQ Item \\# "00"``), a switch that
+  takes an argument taking the next token whatever it is; a ``\\#`` after a ``\\*`` is
+  Word's error text (round 16's ``f4_probe.py``; :func:`sequence_switches`).
 * ``REF name`` is the bookmark's text **in its own runs' formatting** -- direct and
   character-style formatting carried, the source paragraph's style not (a run in a
   Cambria heading is drawn in the destination's Calibri) -- a ``SEQ`` in it as counted;
@@ -111,10 +115,16 @@ def switches(instruction: str) -> list[tuple[str, str]]:
 
 
 def _picture(value: int, picture: str) -> str:
-    """A numeric picture made of ``0`` and ``#`` only: zero-padded to its ``0``s."""
+    """A numeric picture made of ``0`` and ``#`` only: the digits right-aligned in it, a
+    place with no digit drawn ``0`` for a ``0`` and a space for a ``#`` (measured,
+    ``f4_probe.py``: ``"00"`` 01, ``"#0"`` and 2 a space then 2, ``"##0"`` and 1 two
+    spaces then 1, ``"0#"`` 03, ``"#"`` 2; a number longer than the picture all its
+    digits, ``"#0"`` 120)."""
     if not picture or any(char not in "0#" for char in picture):
         raise Uncomputable(f"the numeric picture {picture!r} is not measured")
-    return f"{value:0{picture.count('0')}d}"
+    digits = str(value)
+    places = picture[:max(0, len(picture) - len(digits))]
+    return "".join("0" if char == "0" else " " for char in places) + digits
 
 
 def field_text(instruction: str, keyword: str, *, page: int, pages: int | None, section_pages: int | None,
@@ -261,32 +271,77 @@ def sequence_values(paragraphs: list[Paragraph]) -> dict[tuple[int, int], str | 
     the module docstring); an :class:`Uncomputable` where it cannot be."""
     fields = [(block, k, run.field.instruction) for block, paragraph in enumerate(paragraphs)
               for k, run in enumerate(paragraph.runs) if run.field is not None and run.field.keyword == "SEQ"]
-    restarted = {(_argument(instruction) or "").upper() for _, _, instruction in fields
-                 if any(letter == "s" for letter, _ in _flags(instruction))}
+    parsed = [(block, k, instruction, sequence_switches(instruction)) for block, k, instruction in fields]
+    restarted = {(name or "").upper() for _, _, _, (name, found) in parsed if any(key == "s" for key, _ in found)}
     counts: dict[str, int] = {}
     out: dict[tuple[int, int], str | Uncomputable] = {}
-    for block, k, instruction in fields:
-        name = (_argument(instruction) or "").upper()
-        if not name:
-            out[(block, k)] = Uncomputable("a SEQ field names no sequence")
-            continue
-        if name in restarted:
-            out[(block, k)] = Uncomputable(f"the sequence {name!r} restarts at heading levels (\\s)")
-            continue
-        flags = dict(_flags(instruction))
-        if "r" in flags and flags["r"] is not None:
-            counts[name] = int(flags["r"])
-        elif "c" not in flags:
-            counts[name] = counts.get(name, 0) + 1
-        value = counts.get(name, 0)
-        if "h" in flags:
-            out[(block, k)] = ""
-            continue
-        try:
-            out[(block, k)] = number_text(instruction, value)
-        except Uncomputable as why:
-            out[(block, k)] = why
+    for block, k, instruction, (name, found) in parsed:
+        out[(block, k)] = sequence_step(instruction, (name or "").upper(), found, counts, restarted)
     return out
+
+
+#: ``SEQ``'s switches that take the token after them as their argument, whatever it is
+#: (measured, ``f4_probe.py``: ``SEQ \\r Mm`` is Word's "no sequence given" error, ``Mm``
+#: read as ``\\r``'s argument); ``\\c``, ``\\h`` and ``\\n`` take none.
+SEQ_ARGUMENTS = frozenset("#*@rs")
+
+
+def sequence_switches(instruction: str) -> tuple[str | None, list[tuple[str, str | None]]]:
+    """A ``SEQ`` instruction's identifier and its switches in order, ``[(key, argument)]``:
+    the key the switch's character (a letter lower-cased), the argument the token after a
+    switch that takes one (:data:`SEQ_ARGUMENTS`), quotes removed.  The identifier is the
+    first other token, quotes removed, **wherever the switches stand**: Word reads
+    ``SEQ \\# "00" Item``, ``SEQ \\#"00" Item``, ``SEQ \\r 7 Item``, ``SEQ \\* roman Item``,
+    ``SEQ \\h Item`` and ``SEQ \\# "00" "Item"`` as ``SEQ Item ...`` (measured,
+    ``f4_probe.py``).  ``None`` when there is none."""
+    tokens = re.findall(r'"[^"]*"|\\\S|[^\s"\\]+', instruction)
+    name: str | None = None
+    found: list[tuple[str, str | None]] = []
+    k = 1 if tokens and tokens[0].upper() == "SEQ" else 0
+    while k < len(tokens):
+        token = tokens[k]
+        k += 1
+        if token.startswith("\\"):
+            key = token[1] if token[1] in "#*@!" else token[1].lower()
+            argument = None
+            if key in SEQ_ARGUMENTS and k < len(tokens):
+                argument = tokens[k].strip('"')
+                k += 1
+            found.append((key, argument))
+        elif name is None:
+            name = token.strip('"')
+    return name, found
+
+
+def sequence_step(instruction: str, name: str, found: list[tuple[str, str | None]], counts: dict[str, int],
+                  restarted: frozenset[str] | set[str] = frozenset()) -> str | Uncomputable:
+    """One ``SEQ`` field counted: ``counts`` (identifier, upper case -> its value) moved on
+    as Word moves it, and the field's text, or an :class:`Uncomputable` -- ``name`` and
+    ``found`` are :func:`sequence_switches`' (the name upper-cased).  A ``\\#`` after a
+    ``\\*`` is Word's error text in the application's language, the sequence counted all
+    the same (measured: ``SEQ Item \\* MERGEFORMAT \\# "00"``; ``\\# "00" \\* ARABIC``
+    draws 2, the later switch winning)."""
+    if not name:
+        return Uncomputable("a SEQ field names no sequence")
+    if name in restarted:
+        return Uncomputable(f"the sequence {name!r} restarts at heading levels (\\s)")
+    flags = dict(found)
+    if "r" in flags:
+        if not (flags["r"] or "").isdigit():
+            return Uncomputable("\\r takes a number")
+        counts[name] = int(flags["r"])
+    elif "c" not in flags:
+        counts[name] = counts.get(name, 0) + 1
+    value = counts.get(name, 0)
+    if "h" in flags:
+        return ""
+    keys = [key for key, _ in found]
+    if "*" in keys and "#" in keys[keys.index("*"):]:
+        return Uncomputable("a \\# after a \\* is Word's error text, in the application's language")
+    try:
+        return number_text(instruction, value)
+    except Uncomputable as why:
+        return why
 
 
 _REF_FLAGS = frozenset({"h"})
