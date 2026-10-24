@@ -20,16 +20,20 @@ no cached drawing, a picture fill, a header's drawing the body wraps around, a f
 drawing not positioned against its column in a section of several text columns, an
 endnote in one in mode 15, and a footnote in one that a continuous break joins to another
 section -- it says so: a
-stable warning code, and where the layout cannot go on (a table's height is not
-modelled), a marked band on the page where it stops and no page invented after it.
+stable warning code. **And it carries on** (round 16): what the measured rules do not lay
+out is laid out by an approximate rule (`layout-approximate:<reason>`) or drawn as a marked
+placeholder of its stated or estimated height (`layout-placeholder:<reason>`), and every
+page after it is laid out. VML (a watermark's text path, an embedded object's picture,
+rectangles, ovals, text boxes) and cropped pictures are drawn.
 
 Faces are named in the SVG, not embedded. The layout reads the faces Word uses where
 they are installed -- Office's cloud-font cache too, where Word 365 keeps Aptos Display --
 (standard library only); a PNG is drawn with the same files. Where an Office face is
 absent, its open metric compatible substitute is used: Carlito for Calibri, and
 Liberation Sans, Serif or Mono for Arial, Times New Roman or Courier New. An absent Symbol
-or Wingdings is laid out from metrics recorded from Word's copies. Each substitution is
-reported (README.md, "Fonts").
+or Wingdings is laid out from metrics recorded from Word's copies. Any other absent face is
+laid out with an approximate substitute (the one PowerPoint rendering uses, else the first
+installed face of its class). Each substitution is reported (README.md, "Fonts").
 
 ## Status by area
 

@@ -89,8 +89,13 @@ def _coverage(options: ConvertOptions):
 
 
 def test_the_folder_is_laid_out_from_only_when_named(folder, monkeypatch):
-    unnamed = _coverage(ConvertOptions())
+    unnamed = _coverage(ConvertOptions(substitute_fonts=False))
     assert not unnamed.complete and unnamed.missing_fonts == [FAMILY]
+    # Substituting, the absent face is laid out with an approximate stand-in, and said so.
+    approximate = _coverage(ConvertOptions())
+    assert approximate.missing_fonts == []
+    assert [(s["metric_compatible"], s["kind"]) for s in approximate.substituted_fonts
+            if s["family"] == FAMILY] in ([(False, "default")], [(False, "generic")])
 
     named = _coverage(ConvertOptions(font_dirs=[str(folder)]))
     assert named.complete and named.missing_fonts == []
@@ -100,7 +105,7 @@ def test_the_folder_is_laid_out_from_only_when_named(folder, monkeypatch):
     assert from_env.complete and from_env.missing_fonts == []
 
     # An explicit empty list wins over the variable: none.
-    none = _coverage(ConvertOptions(font_dirs=[]))
+    none = _coverage(ConvertOptions(font_dirs=[], substitute_fonts=False))
     assert not none.complete and none.missing_fonts == [FAMILY]
 
 

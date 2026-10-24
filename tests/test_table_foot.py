@@ -46,7 +46,7 @@ def test_every_glyph_and_border_where_word_draws_it(name, data):
     (0, "none", (7447, 7318, 84, 84)), (0, "15", (7405, 7368, 6, 6)),  # a header row split like any row
     (1, "none", (7531, 7531, 0, 0)), (1, "15", (7411, 7411, 120, 0)),  # mode 15: a header left at the foot
 ])
-def test_refuted_rules_keep_their_scores(index, setting, expected):
+def test_refuted_rules_keep_their_scores(index, setting, expected, strict_layout):
     name, data = dict(enumerate(DOCUMENTS))[0 if setting == "none" else 1]
     _what, variant = reader.refuted()[index]
     with variant():

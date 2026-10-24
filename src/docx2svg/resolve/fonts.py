@@ -158,6 +158,16 @@ def slot_face(resolved: Resolved, slot: str, document: Document) -> tuple[str | 
     return reference.face, chain
 
 
+#: The face Word draws a character in when its slot names none (:func:`slot_face` gives
+#: ``None``): **Times New Roman for a complex-script one, MS Mincho for an East Asian one**
+#: -- measured (``make_style_probe.py``, cases f15, f18 and f23 in three settings variants:
+#: a ``minorBidi`` / ``minorEastAsia`` reference without ``w:themeFontLang``).  Times New
+#: Roman for an ``ascii`` or ``hAnsi`` slot (an empty theme ``a:latin``) is not measured.
+#: An absent face is then substituted as any is (:mod:`docx2svg.fonts`).
+SLOT_FALLBACK = {"cs": "Times New Roman", "eastAsia": "MS Mincho", "ascii": "Times New Roman",
+                 "hAnsi": "Times New Roman"}
+
+
 @dataclass(frozen=True)
 class CharacterFormat:
     """What one character is measured in."""
@@ -188,6 +198,11 @@ def character_format(resolved: Resolved, char: str, document: Document) -> Chara
     slot = slot_for(char, complex_script=complex_script, hint=resolved.get("rFonts.hint"),
                     east_asian_language=resolved.get("lang.eastAsia"))
     face, face_origins = slot_face(resolved, slot, document)
+    if face is None:
+        # The slot names no face (a theme reference Word does not follow, an empty theme
+        # slot): the face Word draws instead (:data:`SLOT_FALLBACK`).
+        face = SLOT_FALLBACK[slot]
+        face_origins = face_origins + (Origin(APPLICATION, detail=f"no face for the {slot} slot: Word's {face}"),)
     size_key, bold_key, italic_key = ("szCs", "bCs", "iCs") if complex_script else ("sz", "b", "i")
     if size_key in resolved:
         half_points = resolved[size_key]

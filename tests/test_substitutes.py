@@ -93,7 +93,7 @@ def test_carlito_lays_calibri_out_as_word_does(substitutes_only):
     assert len(layout.pages) == 3
     coverage = layout.coverage
     assert coverage.complete and coverage.substituted_fonts == [
-        {"family": "Calibri", "substitute": "Carlito", "metric_compatible": True}]
+        {"family": "Calibri", "substitute": "Carlito", "metric_compatible": True, "kind": "named"}]
     assert [w.code for w in options.warnings].count("font-substituted") == 1
     assert "Carlito" in next(w.message for w in options.warnings if w.code == "font-substituted")
 
@@ -103,7 +103,7 @@ def test_the_svg_names_the_substitute_after_the_document_s_face(substitutes_only
     assert 'font-family="Calibri, Carlito"' in svgs[0]
 
 
-def test_without_substitution_an_absent_face_stops_the_layout(substitutes_only):
+def test_without_substitution_an_absent_face_stops_the_layout(substitutes_only, stopping):
     options = docx2svg.ConvertOptions(substitute_fonts=False)
     layout = docx2svg.convert_docx_to_layout((FIXTURES / "layout-sweep.docx").read_bytes(), options)
     assert not layout.coverage.complete
@@ -118,7 +118,8 @@ def test_a_substitute_the_caller_names_is_reported_approximate(substitutes_only)
     options = docx2svg.ConvertOptions(font_substitutes={"Calibri Light": "Carlito"})
     layout = docx2svg.convert_docx_to_layout((FIXTURES / "style-document.docx").read_bytes(), options)
     approximate = [s for s in layout.coverage.substituted_fonts if not s["metric_compatible"]]
-    assert approximate == [{"family": "Calibri Light", "substitute": "Carlito", "metric_compatible": False}]
+    assert approximate == [{"family": "Calibri Light", "substitute": "Carlito", "metric_compatible": False,
+                           "kind": "named"}]
     assert any("approximate" in w.message for w in options.warnings if w.code == "font-substituted")
 
 
@@ -224,7 +225,15 @@ def test_a_complete_layout_says_so():
     assert coverage.summary() == "complete: 1 page(s), 3 block(s)"
 
 
-def test_a_body_stop_is_counted_and_located():
+@pytest.fixture
+def stopping(monkeypatch):
+    """The layout as it was before round 16: it stops at what it cannot lay out."""
+    from docx2svg import paginate
+
+    monkeypatch.setattr(paginate, "CARRY_ON", False)
+
+
+def test_a_body_stop_is_counted_and_located(stopping):
     body = _paragraphs(2) + f"<w:p>{_VML}<w:r><w:t>a shape</w:t></w:r></w:p>" + _paragraphs(3)
     options = _uniform()
     layout = docx2svg.convert_docx_to_layout(_document(body, pages=5), options)
@@ -240,7 +249,7 @@ def test_a_body_stop_is_counted_and_located():
     assert coverage.summary().startswith("partial: 1 of ~5 page(s), 2 of 6 block(s) laid out; stopped on page 1")
 
 
-def test_a_header_stop_leaves_the_body_complete_but_not_the_coverage():
+def test_a_header_stop_leaves_the_body_complete_but_not_the_coverage(stopping):
     layout = docx2svg.convert_docx_to_layout(_document(_paragraphs(2), header=_VML), _uniform())
     coverage = layout.coverage
     assert coverage.stop is None and coverage.blocks_laid_out == 2
@@ -248,10 +257,23 @@ def test_a_header_stop_leaves_the_body_complete_but_not_the_coverage():
     assert not coverage.complete
 
 
-def test_without_an_estimate_none_is_invented():
+def test_without_an_estimate_none_is_invented(stopping):
     body = f"<w:p>{_VML}</w:p>" + _paragraphs(2)
     coverage = docx2svg.convert_docx_to_layout(_document(body), _uniform()).coverage
     assert (coverage.estimated_pages, coverage.estimate_source, coverage.blocks_laid_out) == (None, None, 0)
+
+
+def test_carrying_on_a_placeholder_is_counted_located_and_the_pages_are_the_layout_s():
+    body = _paragraphs(2) + f"<w:p>{_VML}<w:r><w:t>a shape</w:t></w:r></w:p>" + _paragraphs(3)
+    coverage = docx2svg.convert_docx_to_layout(_document(body, pages=5), _uniform()).coverage
+    assert coverage.stop is None and not coverage.complete and coverage.status == "partial"
+    assert [(p.code, p.page, p.path) for p in coverage.placeholders] == [
+        ("layout-placeholder:drawing", 1, "w:body/w:p[3]")]
+    assert (coverage.blocks, coverage.blocks_laid_out, coverage.blocks_skipped) == (6, 5, 1)
+    assert (coverage.estimated_pages, coverage.estimate_source) == (1, "layout")
+    assert coverage.summary().startswith("partial: 1 page(s), 5 of 6 block(s) laid out; 1 placeholder(s)")
+    header = docx2svg.convert_docx_to_layout(_document(_paragraphs(2), header=_VML), _uniform()).coverage
+    assert header.story_stops == [] and [p.path for p in header.placeholders] == ["w:hdr/w:p[1]"]
 
 
 # -- probes ------------------------------------------------------------------------------------
@@ -259,8 +281,9 @@ def test_without_an_estimate_none_is_invented():
 _W = ('xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
       'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" '
       'xmlns:v="urn:schemas-microsoft-com:vml"')
-_VML = ('<w:r><w:pict><v:rect style="position:absolute;margin-left:0;margin-top:0;width:100pt;height:20pt;'
-        'z-index:-1" fillcolor="#4472c4" stroked="f"/></w:pict></w:r>')
+#: A VML shape that states no size: nothing lays it out (:mod:`docx2svg.parse.vml`).
+_VML = ('<w:r><w:pict><v:shape style="position:absolute;margin-left:0;margin-top:0;z-index:-1" '
+        'fillcolor="#4472c4" stroked="f"/></w:pict></w:r>')
 _REL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 _CT = "application/vnd.openxmlformats-officedocument.wordprocessingml"
 

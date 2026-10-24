@@ -91,7 +91,7 @@ def test_a_cell_starts_on_a_whole_pixel_held_in_layout_units():
 
 
 @pytest.mark.faces
-def test_an_autofit_table_word_resizes_is_laid_out_and_what_is_not_settled_stops():
+def test_an_autofit_table_word_resizes_is_laid_out_and_what_is_not_settled_stops(strict_layout):
     """Stage 7 recorded, and stage 7b models (``make_autofit_width_probe.py``), what
     ``make_table_autofit_probe.py`` shows Word resizing: a cell with no width, a table width
     in percent over cells with none and a word wider than its column are laid out now; a

@@ -42,7 +42,7 @@ from .linebreak import Line as BrokenLine, ListCounters, column_boxes, is_multi_
 from .model import Document, Paragraph, Table
 from .resolve import autospaced, resolve_paragraph
 from .vertical import (
-    autospace_kept, keeps_space_before_at_page_top, page_top_gap_px, paragraph_borders_px, paragraph_gap_px,
+    PX_PER_PT, autospace_kept, keeps_space_before_at_page_top, page_top_gap_px, paragraph_borders_px, paragraph_gap_px,
     twips_to_px,
 )
 
@@ -74,6 +74,111 @@ class Obstacle:
     detail: str | None = None
     #: A table's row the model stopped at (``None``: the whole item).
     row: int | None = None
+
+
+#: Whether the flow carries on past what it cannot lay out (the default), drawing it as a
+#: marked placeholder (:class:`Placeholder`) or laying it out by an approximate rule, and
+#: reporting either -- rather than stopping at the first :class:`Obstacle` (``False``:
+#: the layout stops there, as it did before round 16).
+CARRY_ON = True
+
+
+@dataclass(frozen=True)
+class Placeholder:
+    """What a placeholder item stands for: a paragraph or table the model cannot lay out,
+    taken into the flow as a box of its declared or estimated height
+    (:func:`placeholder_heights`) so that everything after it is laid out, and drawn as a
+    marked box (``layout-placeholder:<reason>``)."""
+
+    reason: str
+    #: What about it is not laid out (the obstacle's detail, or why it cannot be measured).
+    message: str
+    #: Its element's path (``w:body/w:tbl[2]``), for ``data-docx-path`` and the warning.
+    path: str
+    #: ``True`` where its height is estimated from its text (not declared in the file).
+    estimated: bool = True
+
+
+#: A placeholder line of text: the size's pitch at single spacing, about 1.17 em (Calibri's
+#: 1.22, Times New Roman's 1.15), and a character half an em wide.  An estimate only.
+_ESTIMATED_PITCH = Fraction(117, 100)
+_ESTIMATED_ADVANCE = Fraction(1, 2)
+
+
+def _estimated_lines(document: Document, paragraph: Paragraph, width_twips: int) -> list[Fraction]:
+    """A paragraph's lines as a placeholder estimates them, px: its text at its first run's
+    size (:data:`_ESTIMATED_PITCH`), wrapped at ``width_twips``, and a line as tall as
+    each inline drawing whose extent it states."""
+    from .resolve import resolve_run
+
+    runs = [run for run in paragraph.runs if run.text]
+    resolved = resolve_run(document, paragraph, runs[0]) if runs else resolve_paragraph(document, paragraph)
+    half_points = (resolved.get("sz") if runs else None) or 24
+    em = Fraction(half_points, 2) * PX_PER_PT
+    chars = sum(len(run.text) for run in paragraph.runs)
+    width = max(twips_to_px(max(width_twips, 1)), em)
+    count = max(1, math.ceil(chars * em * _ESTIMATED_ADVANCE / width)) if chars else 1
+    out = [em * _ESTIMATED_PITCH] * count
+    for run in paragraph.runs:
+        for _, kind in run.breaks:
+            if kind.startswith("drawing:"):
+                cy = int(kind.split(":")[2])
+                out.append(Fraction(cy, 12700) * PX_PER_PT)
+    return out
+
+
+def placeholder_heights(document: Document, item, width_twips: int) -> list[Fraction]:
+    """The heights of a placeholder's lines, px: a paragraph's estimated lines
+    (:func:`_estimated_lines`); a table's rows, each its stated ``w:trHeight`` or what its
+    cells' content is estimated to take, whichever is more."""
+    if not isinstance(item, Table):
+        return _estimated_lines(document, item, width_twips)
+    out = []
+    grid = list(item.grid) or [max(width_twips, 1)]
+    for r, row in enumerate(item.rows):
+        stated = (item.row_properties[r] if r < len(item.row_properties) else {}).get("trHeight")
+        height = twips_to_px(stated[0]) if stated and stated[0] else Fraction(0)
+        column = 0
+        for c, cell in enumerate(row):
+            properties = item.cell_properties[r][c] if r < len(item.cell_properties) and c < len(
+                item.cell_properties[r]) else {}
+            span = properties.get("gridSpan") or 1
+            width = sum(grid[column:column + span]) or grid[min(column, len(grid) - 1)]
+            stated_width = properties.get("tcW")
+            if stated_width and stated_width[1] == "dxa" and stated_width[0] > 0:
+                width = stated_width[0]
+            column += span
+            content = sum((sum(placeholder_heights(document, block, max(width - 216, 1)), Fraction(0))
+                           for block in cell), Fraction(0))
+            height = max(height, content)
+        out.append(max(height, Fraction(1)))
+    return out or [Fraction(1)]
+
+
+def placeholder_item(document: Document, item, block: int, section_number: int, reason: str, message: str,
+                     *, section_start: bool = False, width_twips: int | None = None) -> "Para":
+    """A :class:`Para` standing for ``item`` (a paragraph or a table) the model cannot lay
+    out: one line per estimated line or row (:func:`placeholder_heights`), so that it
+    goes on to the next page as a paragraph would, its paragraph's space before and after
+    and nothing kept with it."""
+    from .linebreak import column_width_twips
+
+    section = document.sections[section_number]
+    width = width_twips if width_twips is not None else column_width_twips(section)
+    heights = [line_model.LineHeight(pitch=h, text_above=h, text_below=Fraction(0), natural=h, rule="exact",
+                                     line=0) for h in placeholder_heights(document, item, width)]
+    before = after = 0
+    paragraph = None
+    if isinstance(item, Paragraph):
+        pp = resolve_paragraph(document, item)
+        before, after = pp.get("spacing.before", 0) or 0, pp.get("spacing.after", 0) or 0
+        paragraph = item
+    stated = isinstance(item, Table) and all(
+        (properties.get("trHeight") or (0,))[0] for properties in item.row_properties) and bool(item.row_properties)
+    return Para(block=block, section=section_number, heights=heights, before=before, after=after,
+                widow_control=False, section_start=section_start,
+                placeholder=Placeholder(reason, message, item.path, estimated=not stated),
+                placeholder_of=paragraph)
 
 
 @dataclass
@@ -129,6 +234,16 @@ class Para:
     drop_cap: "DropCap | None" = None
     #: Lines that end in an automatic hyphen (``w:autoHyphenation``; :func:`hyphen_at_page_end`).
     auto_hyphen_ends: frozenset[int] = frozenset()
+    #: Where the model cannot lay the paragraph (or table) out: what it stands for, drawn
+    #: as a marked box of its lines' heights (:func:`placeholder_item`); ``None`` for a
+    #: paragraph laid out.
+    placeholder: Placeholder | None = None
+    #: The paragraph a placeholder stands for (``None`` for a table).
+    placeholder_of: Paragraph | None = None
+    #: ``(reason, message)`` of what of the paragraph is laid out by a rule no probe
+    #: measured (a frame laid out in the flow, a footnote that cannot be laid out left
+    #: out...), reported where it is drawn (``layout-approximate:<reason>``).
+    approximations: tuple = ()
 
     @property
     def count(self) -> int:
@@ -543,6 +658,9 @@ class Flow(list):
         self.note_at = None
         self.measure = ()
         self.areas = {}
+        #: What the paginator laid out by an approximate rule rather than stop
+        #: (:data:`CARRY_ON`), as messages: reported by the layout.
+        self.approximated = []
 
 
 def story_document(document: Document, blocks: list, section) -> Document:
@@ -760,6 +878,22 @@ def _note_lines(document: Document, paragraphs: list, section, advances, metrics
     for index, paragraph in enumerate(paragraphs):
         pp = resolve_paragraph(document, paragraph)
         pieces, broken = line_model.broken(document, paragraph, section, advances, metrics)
+        if pieces is None and CARRY_ON and isinstance(paragraph, Paragraph):
+            # Drawn as a placeholder of its estimated lines (:func:`flow`, when the note is
+            # drawn), and taking that room at the page's foot.
+            from .linebreak import column_width_twips
+
+            heights = placeholder_heights(document, paragraph, column_width_twips(section))
+            before = pp.get("spacing.before", 0) or 0
+            if index == 0:
+                first_before, gap = before, Fraction(0)
+            else:
+                gap = paragraph_gap_px(previous_after, before)[0]
+            for number, height in enumerate(heights):
+                out.append(NoteLine(height + (gap if number == 0 else 0), number, len(heights), False, note, index,
+                                    len(out)))
+            previous_after = last_after = pp.get("spacing.after", 0) or 0
+            continue
         if pieces is None:
             return None
         shares = line_model.shares_of(document, paragraph, pieces, broken)
@@ -1130,25 +1264,44 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
     for item, block in items:
         if isinstance(item, Table):
             section_number = _section_of(document, top_level)
+            section_start = section_number not in section_seen
+            position = body_index[id(item)]
+            before = document.body[position - 1] if position else None
+            mode: dict = {}
+            approximation = None
             try:
-                position = body_index[id(item)]
-                before = document.body[position - 1] if position else None
                 laid = table_model.flow_table(document, item, document.sections[section_number], advances, metrics,
                                               block=block, labels=labels, features=features, cache=heights_cache,
                                               previous=before if isinstance(before, Paragraph) else None)
+                if is_multi_column(document.sections[section_number]) and laid.floating is not None:
+                    raise table_model.Unsupported("a floating table in a section of several text columns")
             except table_model.Unsupported as why:
-                out.append(Obstacle(block, "table", section_number, detail=str(why.args[0])))
-                continue
-            section_start = section_number not in section_seen
+                if not CARRY_ON:
+                    reason = "columns" if laid_floating(why) else "table"
+                    out.append(Obstacle(block, reason, section_number, detail=str(why.args[0])))
+                    continue
+                # Laid out by the approximate rules (:func:`docx2svg.table.flow_table`'s
+                # ``carry_on``), else drawn as a placeholder of its estimated height.
+                approximation = str(why.args[0])
+                mode = {"carry_on": True, "inline": is_multi_column(document.sections[section_number])}
+                try:
+                    laid = table_model.flow_table(document, item, document.sections[section_number], advances,
+                                                  metrics, block=block, labels=labels, features=features,
+                                                  cache=heights_cache,
+                                                  previous=before if isinstance(before, Paragraph) else None, **mode)
+                except table_model.Unsupported as again:
+                    section_seen.add(section_number)
+                    out.append(placeholder_item(document, item, block, section_number, "table",
+                                                f"a table the layout does not model: {again.args[0]}",
+                                                section_start=section_start))
+                    continue
+                laid.approximation = approximation
             section_seen.add(section_number)
-            if is_multi_column(document.sections[section_number]) and laid.floating is not None:
-                out.append(Obstacle(block, "columns", section_number, detail="a floating table"))
-                continue
 
-            def reflow(section, item=item, block=block, before=before):
+            def reflow(section, item=item, block=block, before=before, mode=mode):
                 return table_model.flow_table(document, item, section, advances, metrics, block=block, labels=labels,
                                               features=features, cache=heights_cache,
-                                              previous=before if isinstance(before, Paragraph) else None)
+                                              previous=before if isinstance(before, Paragraph) else None, **mode)
 
             out.append(TableItem(block, section_number, laid, section_start=section_start,
                                  reflow=reflow if out.wraps or out.columns else None))
@@ -1160,17 +1313,38 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
         section_start = section_number not in section_seen
         section_seen.add(section_number)
         pp = resolve_paragraph(document, item)
+        approximations: list = []
+
+        def carry(reason: str, detail: str | None = None, *, item=item, block=block, section_number=section_number,
+                  section_start=section_start) -> None:
+            """The paragraph as a placeholder (or, without :data:`CARRY_ON`, the obstacle)."""
+            if not CARRY_ON:
+                out.append(Obstacle(block, reason, section_number, item, detail=detail))
+                return
+            out.append(placeholder_item(document, item, block, section_number, reason,
+                                        detail or _unlaid(document, item, reason, section, advances, metrics),
+                                        section_start=section_start))
+
         if block in drop_caps:
             # A drop cap: not in the stack; the paragraph after it carries it.
             pending_drop = drop_cap_of(document, item, pp, section, advances, metrics, heights_cache)
             if pending_drop is not None:
                 continue
-            out.append(Obstacle(block, "unmeasurable", section_number, item))
-            continue
+            if not CARRY_ON:
+                out.append(Obstacle(block, "unmeasurable", section_number, item))
+                continue
+            approximations.append(("frame", "a drop cap that cannot be laid out in its frame is laid out as a "
+                                            "paragraph of the flow"))
         drop, pending_drop = pending_drop, None
         reason = features[block] if features and block < len(features) else None
         if reason == "note reference":
             reason = None  # laid out: the page foot takes the note (``page_end``)
+        if reason == "frame" and CARRY_ON:
+            # A frame (``w:framePr``) other than a drop cap: laid out where it stands in the
+            # flow, at the column's width, not positioned by its frame.
+            reason = None
+            approximations.append(("frame", "a frame (w:framePr) is laid out as a paragraph of the flow where it "
+                                            "stands, not positioned by its frame"))
         if reason is None and any(kind == "drawing" for run in item.runs for _, kind in run.breaks):
             reason = "drawing"  # VML, an embedded object: not modelled
         if reason is None and any(anchor.moves_text and anchor.wrap not in ("wrapTopAndBottom",) + SIDE_WRAPS
@@ -1199,12 +1373,17 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
                 # their own under their separator (``make_columns_probe.py``, ``endnotes``):
                 # not modelled.
                 reason, detail = "columns", "an endnote"
+            if reason == "columns" and CARRY_ON:
+                # Laid out in its column as if it were measured there, and said so.
+                approximations.append(("columns", f"{detail} in a section of several text columns is laid out "
+                                                  "as in a column of its own (not measured)"))
+                reason = detail = None
         if reason is None:
             pieces, broken = line_model.broken(document, item, section, advances, metrics, labels.get(block))
             if pieces is None:
                 reason = "unmeasurable"
         if reason is not None:
-            out.append(Obstacle(block, reason, section_number, item, detail=detail))
+            carry(reason, detail)
             continue
         shares = line_model.shares_of(document, item, pieces, broken)
         objects = line_model.objects_of(pieces, broken)
@@ -1221,7 +1400,7 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
                 break
             heights.append(height)
         if len(heights) != len(shares):
-            out.append(Obstacle(block, "no face metrics", section_number, item))
+            carry("no face metrics")
             continue
         one_column = not is_multi_column(section)
         page_breaks = frozenset(
@@ -1263,6 +1442,12 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
             for source, note_id in references:
                 laid = note(note_id, section_number)
                 if laid is None:
+                    if CARRY_ON:
+                        # The paragraph is laid out; the note takes no room and is not drawn.
+                        approximations.append(("footnote", f"footnote {note_id}, which cannot be laid out, takes no "
+                                                           "room at the page foot and is not drawn (its reference's "
+                                                           "number is)"))
+                        continue
                     reason = "footnote not measurable"
                     break
                 line = line_of.get(source, line_of.get(source - 1, len(broken) - 1))
@@ -1304,6 +1489,7 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
             continuation=continuation(section_number) if item.note == "endnote" else None,
             drop_cap=drop,
             auto_hyphen_ends=_auto_hyphen_ends(pieces, broken),
+            approximations=tuple(approximations),
         ))
         unequal = len({width for _, width, _ in column_boxes(section)}) > 1
         word_moves = out[-1].auto_hyphen_ends and hyphen_at_page_end(document) == "word"
@@ -1316,6 +1502,28 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
             out[-1].lines = list(broken)
             out[-1].plain_from = 0
     return out
+
+
+def laid_floating(why: Exception) -> bool:
+    """Whether ``why`` is :func:`flow`'s own refusal of a floating table in columns."""
+    return "in a section of several text columns" in str(why.args[0])
+
+
+def _unlaid(document: Document, paragraph: Paragraph, reason: str, section, advances, metrics) -> str:
+    """What a paragraph drawn as a placeholder is, for its warning: for one the line
+    breaker cannot measure, the face and the first character it could not measure."""
+    from . import linebreak
+
+    if reason in ("unmeasurable", "no face metrics"):
+        try:
+            linebreak.break_paragraph(document, paragraph, section, advances, metrics)
+        except linebreak.Unmeasurable as error:
+            return f"a paragraph that cannot be measured: {error}"
+        return "a paragraph whose faces have no line metrics"
+    if reason == "drawing":
+        return ("a drawing this model does not lay out (a VML shape it cannot read, an embedded object, a wrap it "
+                "does not know)")
+    return reason
 
 
 def continuation_line(document: Document, section, advances, metrics, cache: dict | None = None):
@@ -1671,9 +1879,10 @@ def _lay_noted(document: Document, items: list, start: Position, rules: Rules, c
             area = note_area(document, items, pooled[0].section, ids)
             if area is None:
                 _notes_stop(items, start, "a footnote that cannot be laid out")
-            need = area.room
+            need = area.room if area is not None else Fraction(0)
             if need >= pooled[0].bottom + room - pooled[0].top:
                 _notes_stop(items, start, "footnotes taller than the page")
+                need = Fraction(0)
         if need == room:
             break
         seen.append(room)
@@ -1693,7 +1902,16 @@ def _lay_noted(document: Document, items: list, start: Position, rules: Rules, c
 
 def _notes_stop(items: list, start: Position, detail: str) -> None:
     """Stop the layout at the page's first paragraph that starts on it, as at an
-    :class:`Obstacle` of the columns."""
+    :class:`Obstacle` of the columns -- or, with :data:`CARRY_ON`, record that the page's
+    notes in columns are not laid out as measured (their room not kept where it cannot be
+    known) and go on."""
+    if CARRY_ON:
+        message = f"{detail} on a page whose notes run through its columns: laid out without the room of what " \
+                  "cannot be measured (not measured)"
+        found = getattr(items, "approximated", None)
+        if found is not None and message not in found:
+            found.append(message)
+        return
     index = start.item + (1 if start.line or start.part else 0)
     index = min(index, len(items) - 1)
     item = items[index]
@@ -2017,8 +2235,15 @@ def page_wraps(document: Document, items: list, tops: dict, page: int) -> list:
             if (document.compatibility_mode or 0) >= 15 and wrap.bottom - twips_to_px(item.floating.bottom) > foot:
                 # Mode 15 splits a floating table that reaches below the bottom margin
                 # across two pages (``make_float_table_probe.py``, the last case): not
-                # modelled.  Below it, it stays whole where it is positioned.
-                raise Unplaceable(index)
+                # modelled.  Below it, it stays whole where it is positioned -- and so it
+                # does here too with :data:`CARRY_ON`, said so.
+                if not CARRY_ON:
+                    raise Unplaceable(index)
+                message = (f"a floating table ({item.flow.table.path}) that reaches below the bottom margin, which "
+                           "Word splits across pages in mode 15, is drawn whole where it is positioned (not modelled)")
+                found = getattr(items, "approximated", None)
+                if found is not None and message not in found:
+                    found.append(message)
             out.append(wrap)
             continue
         for source, run, k, anchor, line in getattr(item, "anchors", ()):

@@ -72,7 +72,20 @@ def _floating_table(tmp_path) -> Path:
     return target
 
 
-def test_a_table_stops_the_layout_and_says_so(tmp_path):
+def test_a_table_it_cannot_position_is_laid_out_in_the_flow_and_says_so(tmp_path):
+    """Round 16: the layout carries on -- the table is laid out where it stands, reported
+    as approximate, and the text after it goes on to the second page Word draws."""
+    opts = options()
+    documents = convert_docx_to_svg(_floating_table(tmp_path), opts)
+    codes = [w.code for w in opts.warnings]
+    assert not [code for code in codes if code.startswith("layout-stopped")]
+    approximate = [w for w in opts.warnings if w.code == "layout-approximate:table"]
+    assert approximate and approximate[0].page == 1 and "w:body/w:tbl[1]" in approximate[0].message
+    assert "aligned inside or outside" in approximate[0].message
+    assert len(documents) == 2
+
+
+def test_a_table_stops_the_layout_and_says_so(tmp_path, strict_layout):
     opts = options()
     documents = convert_docx_to_svg(_floating_table(tmp_path), opts)
     codes = [w.code for w in opts.warnings]
@@ -125,8 +138,9 @@ def test_the_command_line_writes_one_file_per_page(tmp_path, monkeypatch, capsys
     finally:
         monkeypatch.setattr(docx2svg, "_fonts", original)
     assert status == 2  # --strict: the table is a warning
-    assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["sample-simple-floating-1.svg"]
-    assert "layout-stopped:table" in capsys.readouterr().err
+    assert sorted(p.name for p in (tmp_path / "out").iterdir()) == ["sample-simple-floating-1.svg",
+                                                                     "sample-simple-floating-2.svg"]
+    assert "layout-approximate:table" in capsys.readouterr().err
 
 
 def test_png_needs_its_extra_and_draws_at_300_dpi():

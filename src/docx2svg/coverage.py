@@ -1,11 +1,13 @@
 """How much of a document a layout covers: the summary a caller reads before trusting it.
 
-The layout never guesses.  Where it meets what it cannot lay out yet it stops -- the body
-at the first obstacle (``layout-stopped:<reason>``), a header, footer or text box at its
-own (``story-stopped:<reason>``) -- and an absent face is laid out with its open
-substitute or not at all (:mod:`docx2svg.fonts`).  Each of those is a warning; this is
-their sum, so that "laid out and nothing was wrong" is told apart from "could not lay it
-all out" without reading every warning:
+Where the layout meets what its measured rules do not reach it carries on (round 16):
+it lays it out by an approximate rule or draws it as a marked placeholder of its height
+(``layout-placeholder:<reason>``) -- with :data:`docx2svg.paginate.CARRY_ON` off it stops,
+the body at the first obstacle (``layout-stopped:<reason>``), a header, footer or text box
+at its own (``story-stopped:<reason>``) -- and an absent face is laid out with a substitute
+(:mod:`docx2svg.fonts`).  Each of those is a warning; this is their sum, so that "laid out
+and nothing was wrong" is told apart from "could not lay it all out" without reading every
+warning:
 
 * ``pages`` laid out and ``estimated_pages`` -- the layout's own count when it reached the
   end, else Word's count from ``docProps/app.xml`` as last saved (``estimate_source`` says
@@ -14,6 +16,8 @@ all out" without reading every warning:
   ``blocks_skipped`` -- a table the layout stopped in counts as skipped;
 * ``stop`` -- the first body stop, with its reason, message, page and element path;
   ``story_stops`` -- every header, footer, note or text box drawn only up to a point;
+  ``placeholders`` -- every placeholder drawn instead (a body block drawn as one counts
+  as skipped);
 * ``substituted_fonts`` and ``missing_fonts``;
 * ``approximations`` -- every place laid out *without stopping* but by a rule no probe
   measured (``layout-approximate:<reason>``): its reason, message, page and element path.
@@ -21,13 +25,13 @@ all out" without reading every warning:
   cell's text is laid out as if text did not wrap around it and the drawing is placed by
   its anchor, and the rest of the page and the document goes on.
 
-``complete`` is true only when every block was laid out, no story stopped and no face was
-missing.  A complete layout with substituted faces is complete: what it says about
+``complete`` is true only when every block was laid out, no story stopped, nothing was
+drawn as a placeholder and no face was missing.  A complete layout with substituted faces is complete: what it says about
 pagination holds as far as the substitutes are metric compatible
 (``substituted_fonts[...]["metric_compatible"]``).  ``status`` says the three apart:
 ``complete`` (and nothing approximated), ``approximate`` (complete, with
 ``approximations``: what they touch, and what follows them on their page, may be off) and
-``partial`` (not complete: a stop, a story stop or a missing face).
+``partial`` (not complete: a stop, a story stop, a placeholder or a missing face).
 
 Standard library only.
 """
@@ -72,6 +76,9 @@ class Coverage:
     missing_fonts: list[str] = field(default_factory=list)
     #: Every place laid out by a rule no probe measured, without stopping.
     approximations: list[StopInfo] = field(default_factory=list)
+    #: Every placeholder drawn where the layout carried on past what it cannot lay out
+    #: (``layout-placeholder:<reason>``): its reason, message, page and element path.
+    placeholders: list[StopInfo] = field(default_factory=list)
 
     @property
     def status(self) -> str:
@@ -99,6 +106,9 @@ class Coverage:
                 text += f"; stopped on page {self.stop.page} ({self.stop.reason})"
             if self.story_stops:
                 text += f"; {len(self.story_stops)} header/footer/box stop(s)"
+            if self.placeholders:
+                text += (f"; {len(self.placeholders)} placeholder(s) (first on page {self.placeholders[0].page}: "
+                         f"{self.placeholders[0].reason})")
             if self.missing_fonts:
                 text += f"; missing faces: {', '.join(self.missing_fonts)}"
             if self.approximations:
@@ -149,6 +159,10 @@ def coverage_of(layout, document, package: bytes | None = None, fonts=None) -> C
     story_stops = [StopInfo(c, _reason(c), m, p) for c, m, p in layout.warnings if c.startswith("story-stopped:")]
     approximations = [StopInfo(c, _reason(c), m, p, path)
                       for c, m, p, path in getattr(layout, "approximations", ())]
+    approximations += [StopInfo("layout-approximate:glyph", f"{family!r} has no glyph for {char!r}: measured with "
+                                f"{'its missing glyph' if used == '.notdef' else repr(used)}", None, None)
+                       for (family, char), used in getattr(fonts, "glyph_fallbacks", {}).items()]
+    placeholders = [StopInfo(c, _reason(c), m, p, path) for c, m, p, path in getattr(layout, "placeholders", ())]
 
     laid_out = len(body)
     if stop is not None:
@@ -165,7 +179,11 @@ def coverage_of(layout, document, package: bytes | None = None, fonts=None) -> C
     # Any measuring object may stand in for InstalledFonts; one that substitutes nothing says so.
     substituted = [s.as_dict() for s in getattr(fonts, "substitutions", {}).values()]
     missing = sorted(getattr(fonts, "missing", ()))
-    complete = stop is None and not story_stops and not missing
+    # A body block drawn as a placeholder is not laid out.
+    skipped = {path for *_, path in getattr(layout, "placeholders", ()) if path}
+    if stop is None and skipped:
+        laid_out -= sum(1 for block in body if getattr(block, "path", "") in skipped)
+    complete = stop is None and not story_stops and not missing and not placeholders
     pages = len(layout.pages)
     if stop is None:
         estimate, source = pages, "layout"
@@ -174,4 +192,4 @@ def coverage_of(layout, document, package: bytes | None = None, fonts=None) -> C
     else:
         estimate, source = None, None
     return Coverage(complete, pages, estimate, source, len(body), laid_out, len(body) - laid_out, stop, story_stops,
-                    substituted, missing, approximations)
+                    substituted, missing, approximations, placeholders)

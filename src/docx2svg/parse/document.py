@@ -51,7 +51,8 @@ from ..model import (
 from ..opc import REL_ENDNOTES, REL_FOOTNOTES, REL_NUMBERING, REL_SETTINGS, REL_STYLES, REL_THEME, Package
 from ..paths import Steps, row_level
 from ..xmlutil import attr, attr_bool, attr_int, child, children, local_name, parse_xml
-from .drawing import drawing_element, read_anchor, read_graphic_data
+from .drawing import PictureRef, drawing_element, picture_crop, read_anchor, read_graphic_data
+from .vml import read_vml
 from .properties import read_paragraph_properties, read_run_properties, read_table_properties
 from .styles import (
     parse_compat_options, parse_compat_settings, parse_compatibility_mode, parse_default_tab_stop,
@@ -227,10 +228,17 @@ def _anchor(node: Element, path: str, fields: "_Fields") -> Anchor | None:
 
 
 def _picture(node: Element) -> str | None:
-    """The relationship id of the picture an inline ``w:drawing`` shows, or ``None``."""
+    """The relationship id of the picture an inline ``w:drawing`` shows, or ``None``; with
+    its crop where ``a:srcRect`` cuts it (:class:`~docx2svg.parse.drawing.PictureRef`)."""
     node = drawing_element(node)
     if node is None or child(node, "inline") is None:
         return None
+    for element in node.iter():
+        if local_name(element.tag) == "pic":
+            blip = child(child(element, "blipFill"), "blip")
+            if blip is not None and blip.get(_R_EMBED):
+                crop = picture_crop(element)
+                return PictureRef(blip.get(_R_EMBED), crop) if crop else blip.get(_R_EMBED)
     for element in node.iter():
         if local_name(element.tag) == "blip" and element.get(_R_EMBED):
             return element.get(_R_EMBED)
@@ -346,6 +354,8 @@ def _runs(element: Element, path: str = "", fields: _Fields | None = None) -> li
                            path=path, drawings=tuple(drawings), anchors=tuple(anchors)))
         text_parts, marks, drawings, anchors, length = [], [], [], [], 0
 
+    #: Each kind of run object met so far (``w:pict``...), for a VML object's path.
+    seen: dict[str, int] = {}
     for node in children(element):
         name = local_name(node.tag)
         if name == "fldChar":
@@ -417,10 +427,25 @@ def _runs(element: Element, path: str = "", fields: _Fields | None = None) -> li
             # A floating drawing is ``anchor:<k>``, the k-th of :attr:`Run.anchors`; an
             # inline one ``drawing:...`` with its picture in :attr:`Run.drawings`; anything
             # else (VML, an embedded object) ``drawing``.
-            found = _anchor(node, f"{path}/wp:anchor[{len(anchors) + 1}]", fields)
+            found = _anchor(node, f"{path}/wp:anchor[{sum(1 for a in anchors if not a.vml) + 1}]", fields)
             if found is not None:
                 marks.append((length, f"anchor:{len(anchors)}"))
                 anchors.append(found)
+                continue
+            seen[name] = seen.get(name, 0) + 1
+            vml = read_vml(node, f"{path}/{'mc' if name == 'AlternateContent' else 'w'}:{name}[{seen[name]}]",
+                           lambda element, where: _text_box_story(element, where, fields)) \
+                if drawing_element(node) is None else None
+            if vml is not None:
+                # VML (:mod:`docx2svg.parse.vml`): a watermark's text path, an embedded
+                # object's picture, an older shape -- floating, or a character of its line.
+                kind, value = vml
+                if kind == "anchor":
+                    marks.append((length, f"anchor:{len(anchors)}"))
+                    anchors.append(value)
+                else:
+                    marks.append((length, value[0]))
+                    drawings.append(value[1])
                 continue
             mark = _object(node)
             marks.append((length, mark))

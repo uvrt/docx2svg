@@ -55,6 +55,7 @@ FALLBACK = {
     ("Courier New", "MS-Mincho"),  # an East Asian slot naming a non-East-Asian face
     (None, "TimesNewRoman"),  # complex-script theme reference without themeFontLang
     (None, "MS-Mincho"),  # East Asian theme reference with no face
+    ("MS Mincho", "MS-Mincho"),  # the same, now resolved to Word's fallback face (SLOT_FALLBACK)
 }
 MARGIN_PX = 300
 OBSERVATIONS = HERE.parent / "tests" / "fixtures" / "style-observations.json"

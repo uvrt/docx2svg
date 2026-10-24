@@ -31,6 +31,17 @@ sys.path.insert(0, str(REPO / "tools"))
 from oracle import ORACLE_DIR, SCRIPT, WordBusy, run  # noqa: E402
 
 
+@pytest.fixture
+def strict_layout(monkeypatch):
+    """Lay out as before round 16: stop at the first item the measured rules do not reach
+    (``docx2svg.paginate.CARRY_ON`` off).  For the probes scored against Word: their
+    recorded scores hold the measured rules, and where those stop is where the probe
+    measured nothing -- what carrying on draws there instead is approximate by design."""
+    from docx2svg import paginate
+
+    monkeypatch.setattr(paginate, "CARRY_ON", False)
+
+
 def pytest_addoption(parser) -> None:
     parser.addoption(
         "--run-slow",

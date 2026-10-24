@@ -22,6 +22,10 @@ sys.path.insert(0, str(REPO / "tools"))
 import read_autofit_width_probe as reader  # noqa: E402
 import render_record  # noqa: E402
 
+#: Scored as the measured rules lay these probes out: where they stop, they stop (round 16:
+#: what carrying on draws past it is approximate by design).
+pytestmark = pytest.mark.usefixtures("strict_layout")
+
 DATA = json.loads(reader.OBSERVATIONS.read_text(encoding="utf-8"))
 DOCUMENTS = [(name, data) for name, data in reader.documents() if name in DATA["documents"]]
 

@@ -6,6 +6,41 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **The layout carries on past what it cannot lay out** (round 16). No single unsupported
+  item stops the document or a header, footer or text box any more: each is laid out by an
+  approximate rule (`layout-approximate:<reason>`) or drawn as a placeholder -- a dashed grey
+  box of its stated or estimated height, `data-docx-placeholder="1"`, in the flow where it
+  stands (`layout-placeholder:<reason>`, page and element path, `Coverage.placeholders`) --
+  and everything after it is laid out. A table the measured rules refuse is laid out on its
+  `w:tblGrid`, a floating table nested in a cell against its cell (as Word draws one,
+  measured), one in columns in the flow, a frame as a
+  paragraph, a cell paragraph or nested table it still cannot lay out as a placeholder in
+  its cell; a row taller than the page is drawn whole and the table goes on. The table of
+  every stop path, before and after, is in ROADMAP.md ("Carrying on past what is not laid
+  out"). `paginate.CARRY_ON = False` stops as before. **Changes the output** of every
+  document that stopped: it now has all its pages. The probe scorers keep the measured
+  rules' scores (`strict_layout`); `tests/test_pages.py` likewise.
+- **An absent face is laid out with a default substitute** (round 16): the face pptx2svg
+  uses for it (`ooxml_common.text.fontmap.substitution_for`: Carlito for Calibri Light),
+  then that face's Office original (Calibri), else the first installed face of its class
+  (font table `w:family` / `w:pitch`, or its name), reported as approximate
+  (`font-substituted`, `Substitution.kind`). Substitutes named are followed through
+  (Calibri Light -> Calibri -> Carlito). A slot that names no face is Word's fallback (Times
+  New Roman for complex script, MS Mincho for East Asian, as measured); a character a face
+  lacks is measured in another face (`font-glyph-fallback`). None of these stops a
+  paragraph any more.
+- **VML is read** (round 16, `docx2svg.parse.vml`): a watermark's text path is drawn behind
+  the text on every page of its header (stretched to its box, its colour, opacity and
+  rotation; approximate), a header's other content goes on after it; an embedded object's
+  preview picture, VML rectangles, ovals and text boxes are drawn; positioned VML floats,
+  other VML is a character of its box, and VML stating no size is a placeholder.
+- **Cropped pictures** (`a:srcRect`, negative sides padding) are drawn cropped, floating
+  and inline, as pptx2svg crops (round 16). A floating one was drawn uncropped with
+  `drawing-not-drawn:cropped`; an inline one uncropped, silently.
+- **Footnotes on a page shared with columns** (round 16): the notes of a one-column section
+  after a continuous break -- a table cell's or a paragraph's -- were laid out but not drawn
+  on a page holding a section of several columns; they are drawn at the page's foot.
+  `make_columns_probe.py`'s `notesregion` scores rise (`columns-observations.json`).
 - **`SEQ` with its switches before the identifier** (round 16, F4; measured in Word 16.106):
   `SEQ \# "00" Item` counts `Item` and draws 01, 02, as Word does, where it was "names no
   sequence" (`fields.sequence_switches`, `fields.sequence_step`, which docx-agent's field
