@@ -365,9 +365,13 @@ def convert_docx(source, options: ConvertOptions | None = None) -> Conversion:
 
 
 def drawn_faces(layout) -> list[tuple[str, bool, bool]]:
-    """Every ``(face, bold, italic)`` a layout draws text in, sorted."""
-    return sorted({(span.face, span.bold, span.italic) for page in layout.pages for line in page.text_lines()
-                   for span in line.spans if span.chars})
+    """Every ``(face, bold, italic)`` a layout draws text in, sorted: its lines' and its
+    floating drawings' (a watermark's text path)."""
+    faces = {(span.face, span.bold, span.italic) for page in layout.pages for line in page.text_lines()
+             for span in line.spans if span.chars}
+    faces.update(primitive.face for page in layout.pages for placed in getattr(page, "floats", ())
+                 for primitive in getattr(placed, "primitives", None) or () if getattr(primitive, "face", None))
+    return sorted(faces)
 
 
 def convert_docx_to_png(source, options: ConvertOptions | None = None, *, backend: str = "auto",

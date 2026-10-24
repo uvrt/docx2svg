@@ -155,6 +155,35 @@ class Face(_office.Face):
             values["underline_position"], values["underline_thickness"] = struct.unpack_from(">hh", post, 8)
         return Decorations(self.units_per_em, hhea_ascent=ascender, hhea_descent=-descender, **values)
 
+    def ink(self, text: str) -> tuple[int, int, int, int] | None:
+        """``(x min, y min, x max, y max)``, font units, y up from the baseline: the box
+        round the outlines of ``text`` set at its advances (no kerning) from pen 0, from
+        each glyph's ``glyf`` bounding box -- what a VML text path that fits its shape is
+        stretched by (:func:`docx2svg.drawing.text_path_markup`).  ``None`` for a face
+        without ``glyf`` outlines (a CFF one), a character it lacks, or no outline at all."""
+        head, loca, glyf = self.table(b"head"), self.table(b"loca"), self.table(b"glyf")
+        if head is None or loca is None or glyf is None:
+            return None
+        long_offsets = struct.unpack_from(">h", head, 50)[0] == 1
+        size, scale = (4, 1) if long_offsets else (2, 2)
+        count = len(loca) // size - 1
+        box: list | None = None
+        pen = 0
+        for char in text:
+            glyph, advance = self.glyph(char), self.advance(char)
+            if glyph is None or advance is None:
+                return None
+            if glyph < count:
+                start, end = (scale * value for value in struct.unpack_from(
+                    ">II" if long_offsets else ">HH", loca, glyph * size))
+                if start + 10 <= end <= len(glyf):
+                    x_min, y_min, x_max, y_max = struct.unpack_from(">hhhh", glyf, start + 2)
+                    found = (pen + x_min, y_min, pen + x_max, y_max)
+                    box = list(found) if box is None else [min(box[0], found[0]), min(box[1], found[1]),
+                                                           max(box[2], found[2]), max(box[3], found[3])]
+            pen += advance
+        return tuple(box) if box is not None and box[2] > box[0] and box[3] > box[1] else None
+
 
 _read = _office.read_file
 
@@ -657,6 +686,13 @@ class InstalledFonts:
     def kern(self, family: str, bold: bool, italic: bool, left: str, right: str) -> int | None:
         face = self.face(family, bold, italic)
         return None if face is None else face.kern(left, right)
+
+    def ink(self, family: str, bold: bool, italic: bool, text: str) -> tuple | None:
+        """``(units per em, (x min, y min, x max, y max))`` of ``text``'s outlines in the
+        face it is drawn with (:meth:`drawing_face`, :meth:`Face.ink`), or ``None``."""
+        face = self.drawing_face(family, bold, italic, record=False)
+        box = face.ink(text) if isinstance(face, Face) else None
+        return None if box is None else (face.units_per_em, box)
 
 
 _STRETCH_CLASS = {name: index + 1 for index, name in enumerate(CSS_STRETCH)}

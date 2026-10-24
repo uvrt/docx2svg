@@ -377,9 +377,12 @@ def test_a_watermark_is_drawn_behind_the_text_on_every_page_and_its_header_goes_
         text = floats[0].find(f".//{SVG}text")
         assert text.text == "DRAFT" and text.get("fill") == "#C0C0C0" and text.get("fill-opacity") == "0.5"
         assert "rotate(315)" in floats[0].find(f"{SVG}g").get("transform")
-        assert text.get("lengthAdjust") == "spacingAndGlyphs"
+        # It fits its shape (its shape type's fitshape): stretched by its face's outlines
+        # where the face is at hand, else by its advances, reported.
+        fitted = (text.get("transform") or "").startswith("matrix(")
+        assert fitted or text.get("lengthAdjust") == "spacingAndGlyphs"
         assert any(g.get("data-docx-path") == "w:hdr/w:p[1]" for g in root.iter(f"{SVG}g"))
-    assert "layout-approximate:text-path" in [w.code for w in opts.warnings]
+    assert ("layout-approximate:text-path" in [w.code for w in opts.warnings]) is not fitted
 
 
 def test_the_watermark_s_path_finds_its_shape():
@@ -390,6 +393,115 @@ def test_the_watermark_s_path_finds_its_shape():
     placed = layout.pages[0].floats[0]
     element = resolve_path(ElementTree.fromstring(header), placed.path)
     assert element is not None and element.get("id") == "WaterMark1"
+
+
+#: A watermark as Word writes one, made up: no ``w:sdt`` round it, its shape type (``o:spt``
+#: 136, ``fitshape="t"``) beside it in its ``w:pict``, no ``v:fill``.
+FITTED_WATERMARK = (
+    '<w:p><w:r><w:pict><v:shapetype id="_x0000_t136" coordsize="21600,21600" o:spt="136" adj="10800">'
+    '<v:path textpathok="t"/><v:textpath on="t" fitshape="t"/></v:shapetype><v:shape id="Made1" '
+    'type="#_x0000_t136" style="position:absolute;margin-left:0;margin-top:0;width:420pt;height:180pt;'
+    'rotation:315;z-index:-251650000;mso-position-horizontal:center;mso-position-horizontal-relative:margin;'
+    'mso-position-vertical:center;mso-position-vertical-relative:margin" fillcolor="silver" stroked="f">'
+    '<v:textpath style="font-family:&quot;Calibri&quot;;font-size:1pt" string="SAMPLE"/></v:shape></w:pict>'
+    '</w:r></w:p>')
+
+
+def _text_path(xml: str):
+    from docx2svg.parse.vml import read_vml
+
+    pict = ElementTree.fromstring(f'<w:hdr {NS}>{xml}</w:hdr>').find(f".//{{{W}}}pict")
+    return read_vml(pict, "w:hdr/w:p[1]/w:r[1]")[1].graphic
+
+
+@pytest.mark.parametrize("own, kind, beside, fits", [
+    ("", "_x0000_t136", True, True),       # the shape type beside it says fitshape="t"
+    ("", "_x0000_t136", False, True),      # Word's watermark shape type, not at hand
+    (' fitshape="f"', "_x0000_t136", True, False),  # the shape's own textpath says not
+    ("", "_x0000_t999", False, False),     # another type: VML's default, not fitted
+])
+def test_a_text_path_fits_its_shape_as_its_textpath_or_shape_type_says(own, kind, beside, fits):
+    xml = FITTED_WATERMARK.replace('"#_x0000_t136"', f'"#{kind}"').replace(
+        'string="SAMPLE"', f'string="SAMPLE"{own}')
+    if not beside:
+        xml = xml[:xml.index("<v:shapetype")] + xml[xml.index("</v:shapetype>") + len("</v:shapetype>"):]
+    graphic = _text_path(xml)
+    assert graphic.kind == "textpath" and graphic.body["fit"] is fits
+
+
+def _matrix(text) -> list[float]:
+    found = text.get("transform")
+    assert found.startswith("matrix(")
+    return [float(v) for v in found[len("matrix("):-1].split()]
+
+
+def test_a_fitted_text_path_stretches_its_outlines_to_the_box_less_its_insets():
+    """Word's watermark (measured, ROADMAP.md): the outlines' box of the string, scaled on
+    each axis apart, fills the shape's box less 0.1 in left and right and 0.05 in top and
+    bottom, centred -- here from made-up outlines, so the numbers are exact."""
+    from docx2svg import drawing
+
+    body = dict(_text_path(FITTED_WATERMARK).body)
+    asked = []
+
+    def ink(face, bold, italic, text):
+        asked.append((face, bold, italic, text))
+        return 1000, (50, -20, 3050, 680)   # 3000 by 700 font units, its foot below the baseline
+
+    x, y, width, height = 100, 200, 1750, 750   # px: 420 pt by 180 pt at 300 dpi
+    drawn = drawing.draw(drawing.Graphic("textpath", body=body), x, y, width, height, "p", theme={},
+                         color_map={}, ink=ink)
+    assert asked == [("Calibri", False, False, "SAMPLE")]
+    assert drawn.warnings == []                       # fitted: not an approximation
+    (primitive,) = drawn.primitives
+    assert primitive.face == ("Calibri", False, False)
+    text = ElementTree.fromstring(f'<g xmlns="http://www.w3.org/2000/svg">{primitive.markup}</g>')[0]
+    sx, b, c, sy, tx, ty = _matrix(text)
+    assert (b, c) == (0, 0) and text.get("font-size") == "1000" and "font-kerning:none" in text.get("style")
+    inset_x, inset_y = drawing.TEXT_PATH_INSETS
+    left, right = tx + 50 * sx, tx + 3050 * sx
+    top, bottom = ty - 680 * sy, ty + 20 * sy   # y up in font units, down on the page
+    assert left == pytest.approx(x + inset_x, abs=0.01) and right == pytest.approx(x + width - inset_x, abs=0.5)
+    assert top == pytest.approx(y + inset_y, abs=0.01) and bottom == pytest.approx(y + height - inset_y, abs=0.5)
+    assert (top + bottom) / 2 == pytest.approx(y + height / 2, abs=0.5)
+    assert sy / sx == pytest.approx((720 / 700) / (1690 / 3000), rel=0.01)   # stretched taller than wide
+    assert text.get("textLength") is None
+
+
+def test_a_text_path_without_outlines_is_stretched_by_its_advances_and_reported():
+    from docx2svg import drawing
+
+    body = dict(_text_path(FITTED_WATERMARK).body)
+    for ink, fit in ((lambda *args: None, True), (None, True), (lambda *args: (1000, (0, 0, 10, 10)), False)):
+        drawn = drawing.draw(drawing.Graphic("textpath", body={**body, "fit": fit}), 0, 0, 1750, 750, "p",
+                             theme={}, color_map={}, ink=ink)
+        text = ElementTree.fromstring(f'<g xmlns="http://www.w3.org/2000/svg">{drawn.primitives[0].markup}</g>')[0]
+        assert text.get("lengthAdjust") == "spacingAndGlyphs" and text.get("transform") is None
+        assert drawn.warnings == ["drawing-approximate:text path"]
+
+
+def test_a_face_s_outlines_box_spans_its_glyphs_at_their_advances():
+    found = fonts.InstalledFonts().drawing_face("Calibri", record=False)
+    if found is None or found.ink("H") is None:
+        pytest.skip("no Calibri or Carlito with glyf outlines here")
+    word = found.ink("HxH")
+    h, x = found.ink("H"), found.ink("x")
+    assert word[0] == h[0] and word[1] == min(h[1], x[1]) and word[3] == max(h[3], x[3])
+    assert word[2] == found.advance("H") + found.advance("x") + h[2]
+    assert x[3] < h[3]          # an x-height below a cap height
+    assert found.ink("H\u0378") is None       # a character the face lacks
+
+
+def test_a_word_made_watermark_is_drawn_fitted_and_its_face_given_to_the_rasteriser():
+    header = f'<w:hdr {NS}>{FITTED_WATERMARK}{_p("Header text")}</w:hdr>'
+    opts = options()
+    layout = convert_docx_to_layout(_docx(_text(1), headers={"rIdh1": header}, final=_sect("rIdh1")), opts)
+    placed = layout.pages[0].floats[0]
+    assert placed.primitives[0].face == ("Calibri", False, False)
+    assert ("Calibri", False, False) in docx2svg.drawn_faces(layout)
+    if fonts.InstalledFonts().ink("Calibri", False, False, "SAMPLE") is not None:
+        assert "matrix(" in placed.primitives[0].markup
+        assert "layout-approximate:text-path" not in [w.code for w in opts.warnings]
 
 
 def test_an_inline_vml_picture_is_drawn_as_a_picture_of_its_size():

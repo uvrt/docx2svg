@@ -1742,7 +1742,8 @@ class _Placer:
         drawn = drawing.draw(graphic, x, y, width, height, path, theme=self.document.theme_colors,
                              color_map=self.document.color_map, formats=self.document.theme_formats,
                              defs=page.defs, frames=self.frames,
-                             part=placed.part or getattr(self, "story_part", None))
+                             part=placed.part or getattr(self, "story_part", None),
+                             ink=getattr(self.advances, "ink", None))
         for primitive in drawn.primitives:
             if primitive.path != path:
                 primitive.path = f"{paragraph_path}/{primitive.path}"

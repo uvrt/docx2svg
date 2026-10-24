@@ -22,8 +22,10 @@ documents.  A shape's CSS ``style`` says where it is and how large:
 What it shows: a picture (``v:imagedata/@r:id``: :class:`~docx2svg.model.Graphic`
 ``picture``), a text path (``v:textpath/@string``: ``textpath``, drawn by
 :mod:`docx2svg.drawing` as its text stretched to the box, in its fill colour and opacity
-and turned by ``rotation``), or anything else (``other``, drawn as a marked placeholder of
-its box).  Where Word draws a text path's glyphs inside its box is not measured.
+and turned by ``rotation``; ``body["fit"]`` whether it fits its shape, ``fitshape``), or
+anything else (``other``, drawn as a marked placeholder of its box).  Where Word draws a
+text path that fits its shape is measured (:data:`docx2svg.drawing.TEXT_PATH_INSETS`); one
+that does not is not.
 
 Standard library only.
 """
@@ -176,7 +178,26 @@ def _shape(shape: Element, preset: str, path: str, blocks, common: dict) -> Grap
                    extent=(0, 0), **common)
 
 
-def _graphic(shape: Element, path: str, blocks=None) -> Graphic:
+#: The shape type Word writes for a watermark's text (``o:spt`` 136, plain text): its
+#: ``v:shapetype`` states ``v:textpath fitshape="t"`` (Word for Mac 16.106's watermark,
+#: measured), which a shape of the type inherits where its own shape type is not at hand.
+_FITTED_TYPES = {"_x0000_t136"}
+
+
+def _fits(shape: Element, textpath: Element, types: dict) -> bool:
+    """Whether a text path is stretched to fill its shape (``fitshape``, ECMA-376 Part 4,
+    19.1.2.20): as its own ``v:textpath`` says, else its ``v:shapetype``'s, else whether
+    the type is :data:`_FITTED_TYPES`'s."""
+    own = attr(textpath, "fitshape")
+    kind = (attr(shape, "type") or "").lstrip("#")
+    if own is None and kind in types:
+        own = attr(child(types[kind], "textpath"), "fitshape")
+    if own is None:
+        return kind in _FITTED_TYPES
+    return own in ("t", "true", "1", "on")
+
+
+def _graphic(shape: Element, path: str, blocks=None, types: dict | None = None) -> Graphic:
     style = style_of(shape)
     rotation = 0
     try:
@@ -203,7 +224,8 @@ def _graphic(shape: Element, path: str, blocks=None) -> Graphic:
                 "fill": (colour(attr(shape, "fillcolor")) or "FFFFFF") if filled else None,
                 "opacity": fraction(attr(fill, "opacity")) if fill is not None else 1.0,
                 "stroke": colour(attr(shape, "strokecolor")) or "000000" if attr(shape, "stroked") not in (
-                    "f", "false") else None}
+                    "f", "false") else None,
+                "fit": _fits(shape, textpath, types or {})}
         return Graphic("textpath", body=body, **common)
     return Graphic("other", uri=f"vml:{local_name(shape.tag)}", path=path)
 
@@ -222,7 +244,9 @@ def read_vml(node: Element, path: str, blocks=None) -> tuple[str, object] | None
     width, height = length_emu(style.get("width")), length_emu(style.get("height"))
     if not width or not height or width < 0 or height < 0:
         return None
-    graphic = _graphic(shape, path, blocks)
+    types = {attr(element, "id"): element for element in children(node) if local_name(element.tag) == "shapetype"
+             and attr(element, "id")}
+    graphic = _graphic(shape, path, blocks, types)
     if style.get("position") != "absolute":
         shown = graphic.relationship if graphic.kind == "picture" else graphic if graphic.kind in (
             "shape", "textpath") else None
