@@ -414,15 +414,18 @@ def _text_path(xml: str):
     return read_vml(pict, "w:hdr/w:p[1]/w:r[1]")[1].graphic
 
 
-@pytest.mark.parametrize("own, kind, beside, fits", [
-    ("", "_x0000_t136", True, True),       # the shape type beside it says fitshape="t"
-    ("", "_x0000_t136", False, True),      # Word's watermark shape type, not at hand
-    (' fitshape="f"', "_x0000_t136", True, False),  # the shape's own textpath says not
-    ("", "_x0000_t999", False, False),     # another type: VML's default, not fitted
+@pytest.mark.parametrize("own, kind, beside, typed, fits", [
+    ("", "_x0000_t136", True, ' fitshape="t"', True),    # the shape type beside it says fitshape="t"
+    ("", "_x0000_t136", False, ' fitshape="t"', True),   # Word's watermark shape type, not at hand
+    (' fitshape="f"', "_x0000_t136", True, ' fitshape="t"', True),  # the shape's own: not read (measured)
+    (' fitshape="t"', "_x0000_t136", True, "", False),   # nor here: the type beside it does not fit
+    ("", "_x0000_t136", True, ' fitshape="f"', False),
+    ("", "_x0000_t999", False, ' fitshape="t"', None),   # another type, not at hand: not known
 ])
-def test_a_text_path_fits_its_shape_as_its_textpath_or_shape_type_says(own, kind, beside, fits):
+def test_a_text_path_fits_its_shape_as_its_shape_type_says(own, kind, beside, typed, fits):
     xml = FITTED_WATERMARK.replace('"#_x0000_t136"', f'"#{kind}"').replace(
-        'string="SAMPLE"', f'string="SAMPLE"{own}')
+        'string="SAMPLE"', f'string="SAMPLE"{own}').replace('<v:textpath on="t" fitshape="t"/>',
+                                                           f'<v:textpath on="t"{typed}/>')
     if not beside:
         xml = xml[:xml.index("<v:shapetype")] + xml[xml.index("</v:shapetype>") + len("</v:shapetype>"):]
     graphic = _text_path(xml)
@@ -444,14 +447,14 @@ def test_a_fitted_text_path_stretches_its_outlines_to_the_box_less_its_insets():
     body = dict(_text_path(FITTED_WATERMARK).body)
     asked = []
 
-    def ink(face, bold, italic, text):
-        asked.append((face, bold, italic, text))
+    def ink(face, bold, italic, text, oblique):
+        asked.append((face, bold, italic, text, oblique))
         return 1000, (50, -20, 3050, 680)   # 3000 by 700 font units, its foot below the baseline
 
     x, y, width, height = 100, 200, 1750, 750   # px: 420 pt by 180 pt at 300 dpi
     drawn = drawing.draw(drawing.Graphic("textpath", body=body), x, y, width, height, "p", theme={},
                          color_map={}, ink=ink)
-    assert asked == [("Calibri", False, False, "SAMPLE")]
+    assert asked == [("Calibri", False, False, "SAMPLE", drawing.TEXT_PATH_OBLIQUE)]
     assert drawn.warnings == []                       # fitted: not an approximation
     (primitive,) = drawn.primitives
     assert primitive.face == ("Calibri", False, False)
@@ -472,12 +475,73 @@ def test_a_text_path_without_outlines_is_stretched_by_its_advances_and_reported(
     from docx2svg import drawing
 
     body = dict(_text_path(FITTED_WATERMARK).body)
-    for ink, fit in ((lambda *args: None, True), (None, True), (lambda *args: (1000, (0, 0, 10, 10)), False)):
+    for ink, fit in ((lambda *args: None, True), (None, True), (lambda *args: (1000, (0, 0, 10, 10)), None)):
         drawn = drawing.draw(drawing.Graphic("textpath", body={**body, "fit": fit}), 0, 0, 1750, 750, "p",
                              theme={}, color_map={}, ink=ink)
         text = ElementTree.fromstring(f'<g xmlns="http://www.w3.org/2000/svg">{drawn.primitives[0].markup}</g>')[0]
         assert text.get("lengthAdjust") == "spacingAndGlyphs" and text.get("transform") is None
         assert drawn.warnings == ["drawing-approximate:text path"]
+
+
+def test_a_text_path_its_shape_type_does_not_fit_draws_nothing():
+    """Word draws no text for one (measured at 1 to 200 pt, ROADMAP.md): nor does docx2svg."""
+    from docx2svg import drawing
+
+    body = dict(_text_path(FITTED_WATERMARK).body)
+    drawn = drawing.draw(drawing.Graphic("textpath", body={**body, "fit": False}), 0, 0, 1750, 750, "p",
+                         theme={}, color_map={}, ink=lambda *args: (1000, (0, 0, 10, 10)))
+    assert drawn.primitives == [] and drawn.warnings == []
+
+
+def _fitted_text(body: dict, outlines: tuple):
+    from docx2svg import drawing
+
+    drawn = drawing.draw(drawing.Graphic("textpath", body=body), 100, 200, 1750, 750, "p", theme={}, color_map={},
+                         ink=lambda *args: outlines)
+    (primitive,) = drawn.primitives
+    return primitive, ElementTree.fromstring(f'<g xmlns="http://www.w3.org/2000/svg">{primitive.markup}</g>')[0]
+
+
+def test_a_fitted_text_path_sets_its_letters_at_their_kerned_pens():
+    """Word kerns a watermark's letters (measured: "AVATAR", "Tyre", "WAVE" and "LT" are
+    up to 25 pt off unkerned): the pens the face's kerning gives, one ``x`` per letter."""
+    body = dict(_text_path(FITTED_WATERMARK).body, string="AVA")
+    primitive, text = _fitted_text(body, (1000, (0, 0, 1700, 700), [0, 560, 1080], 0.0))
+    assert text.get("x") == "0 560 1080" and "font-kerning:none" in text.get("style")
+    assert text.get("font-style") is None and primitive.face == ("Calibri", False, False)
+
+
+def test_an_italic_text_path_in_a_face_without_italic_is_slanted_and_fitted_slanted():
+    """No italic face: the upright one slanted by TEXT_PATH_OBLIQUE in font units (measured),
+    the slanted outlines' box fitted -- and the rasteriser given the upright face."""
+    from docx2svg import drawing
+
+    body = dict(_text_path(FITTED_WATERMARK).body, italic=True)
+    primitive, text = _fitted_text(body, (1000, (0, -20, 3238, 680), [0, 600], drawing.TEXT_PATH_OBLIQUE))
+    sx, b, c, sy, tx, ty = _matrix(text)
+    assert b == 0 and c == pytest.approx(-drawing.TEXT_PATH_OBLIQUE * sx, rel=1e-4)
+    assert text.get("font-style") is None and primitive.face == ("Calibri", False, False)
+    primitive, text = _fitted_text(body, (1000, (0, -20, 3238, 680), [0, 600], 0.0))  # an italic face
+    assert _matrix(text)[2] == 0 and text.get("font-style") == "italic" and primitive.face[2] is True
+
+
+@pytest.mark.parametrize("font, minor, drawn", [
+    ("Times New Roman", "Georgia", "Georgia"), (None, "Georgia", "Georgia"), ("times new roman", "Aptos", "Aptos"),
+    ("Arial", "Georgia", "Arial"), ("Calibri", "Georgia", "Calibri"), ("Times New Roman", None, "Times New Roman"),
+    (None, None, "Calibri"),
+])
+def test_a_text_path_in_times_new_roman_or_no_face_is_drawn_in_the_minor_face(font, minor, drawn):
+    from docx2svg import drawing
+
+    assert drawing.text_path_face(font, minor) == drawn
+
+
+def test_a_watermark_in_times_new_roman_is_drawn_in_the_theme_s_minor_face():
+    xml = FITTED_WATERMARK.replace("&quot;Calibri&quot;", "&quot;Times New Roman&quot;")
+    header = f'<w:hdr {NS}>{xml}{_p("Header text")}</w:hdr>'
+    layout = convert_docx_to_layout(_docx(_text(1), headers={"rIdh1": header}, final=_sect("rIdh1"),
+                                          theme="Georgia"), options())
+    assert layout.pages[0].floats[0].primitives[0].face == ("Georgia", False, False)
 
 
 def test_a_face_s_outlines_box_spans_its_glyphs_at_their_advances():
@@ -490,6 +554,18 @@ def test_a_face_s_outlines_box_spans_its_glyphs_at_their_advances():
     assert word[2] == found.advance("H") + found.advance("x") + h[2]
     assert x[3] < h[3]          # an x-height below a cap height
     assert found.ink("H\u0378") is None       # a character the face lacks
+
+
+def test_a_face_s_kerned_pens_close_up_a_kerned_pair():
+    found = fonts.InstalledFonts().drawing_face("Calibri", record=False)
+    if found is None or found.ink("AV") is None or not found.pair_kern("A", "V"):
+        pytest.skip("no Calibri or Carlito that kerns A V here")
+    pens = found.pens("AVA", kerned=True)
+    assert pens[1] == found.advance("A") + found.pair_kern("A", "V")
+    assert found.pens("AVA") == [0, found.advance("A"), found.advance("A") + found.advance("V")]
+    assert found.ink("AVA", kerned=True)[2] < found.ink("AVA")[2]
+    slanted = found.ink("AVA", kerned=True, slant=0.34)
+    assert slanted[1] == found.ink("AVA", kerned=True)[1] and slanted[2] > found.ink("AVA", kerned=True)[2]
 
 
 def test_a_word_made_watermark_is_drawn_fitted_and_its_face_given_to_the_rasteriser():

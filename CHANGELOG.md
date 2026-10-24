@@ -29,6 +29,18 @@ snapshot commit; the development history before it is summarised here.
   New Roman for complex script, MS Mincho for East Asian, as measured); a character a face
   lacks is measured in another face (`font-glyph-fallback`). None of these stops a
   paragraph any more.
+- **A watermark's letters are kerned, its faces' outlines read, its fit and face as Word
+  decides them** (round 16, F5c; measured in Word 16.106's PDF, ROADMAP.md): a fitted text
+  path's letters are set at their advances with the face's pair kerning (`GPOS` `kern`, else
+  the legacy table), one SVG `x` per letter -- "AVATAR" in Calibri was up to 11.8 pt off
+  Word's glyphs, now 0.4. Outline boxes are exact and read from CFF faces too
+  (`docx2svg.outlines`, standard library): an OpenType CFF face is drawn fitted instead of
+  approximate. Italic in a face with no italic is the upright face slanted by 0.34 in font
+  units, fitted slanted. Whether a text path fits is its shape type's `fitshape` alone (Word
+  ignores the shape's own), and one whose type does not fit is **not drawn** (Word draws
+  nothing). "Times New Roman" or no `font-family` is drawn in the theme's minor face.
+  **Changes the output** of watermarks with kerned pairs, in CFF faces, in synthetic italic,
+  in Times New Roman or none, and of text paths that do not fit.
 - **A watermark's letters fill its shape, as Word draws them** (round 16, F5b; measured in
   Word 16.106's PDF of a watermark Word made): a text path that fits its shape (`fitshape`,
   from its own `v:textpath` or its `v:shapetype`, Word's `_x0000_t136` where that is not at

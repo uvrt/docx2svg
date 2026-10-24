@@ -364,12 +364,15 @@ def _draw(graphic, x, y, width, height, path, colours: Colours, defs, drawn: Dra
         _outline(graphic, x, y, width, height, path, colours, defs, drawn, here)
         return
     if graphic.kind == "textpath":
+        if graphic.body.get("fit") is False:
+            return  # Word draws no text where the shape type does not fit it (TEXT_PATH_EM)
         outlines = text_path_outlines(graphic.body, ink)
+        oblique = outlines is not None and len(outlines) > 3 and bool(outlines[3])
         drawn.primitives.append(Primitive("markup", path, x=x, y=y, width=width, height=height,
                                           markup=text_path_markup(graphic.body, x, y, width, height, outlines),
                                           transform=transform, face=(graphic.body.get("font") or "Calibri",
                                                                      bool(graphic.body.get("bold")),
-                                                                     bool(graphic.body.get("italic")))))
+                                                                     bool(graphic.body.get("italic")) and not oblique)))
         if outlines is None:
             warnings.append("drawing-approximate:text path")
         return
@@ -417,10 +420,15 @@ def _draw(graphic, x, y, width, height, path, colours: Colours, defs, drawn: Dra
         drawn.text_boxes.append((graphic, x, y, width, height))
 
 
-#: A VML text path's text as drawn in its box where it does not fit its shape, or its
-#: face's outlines are not at hand (:func:`text_path_markup`): the em at 1/1.2 of the
-#: box's height, the baseline 0.8 of an em below its top -- the line a face of Calibri's
-#: or Arial's ascent and descent fills.  Not measured.
+#: A VML text path's text as drawn in its box where its face's outlines are not at hand
+#: (:func:`text_path_markup`), or its shape type is not known to fit it: the em at 1/1.2
+#: of the box's height, the baseline 0.8 of an em below its top -- the line a face of
+#: Calibri's or Arial's ascent and descent fills.  An approximation, reported.  Where the
+#: shape type is at hand and does not fit its text (no ``fitshape="t"`` on its
+#: ``v:textpath``), Word draws no text at all, measured in Word for Mac 16.106's PDF at
+#: ``font-size`` 1, 36, 72 and 200 pt, the shape's own ``fitshape`` "t" or not: only the
+#: type's two zero-height path lines, which ink nothing -- so docx2svg draws nothing.  The
+#: ``font-size`` of one that fits is not read either: 1, 36 and 72 pt draw the same.
 TEXT_PATH_EM = Fraction(5, 6)
 TEXT_PATH_BASELINE = Fraction(4, 5)
 #: Where a text path that fits its shape (``fitshape``) puts its glyphs' outlines: their
@@ -430,17 +438,48 @@ TEXT_PATH_BASELINE = Fraction(4, 5)
 #: 194.6 pt, turned 315 degrees): the ink of "DRAFT" and of "Gyp" alike spans 430.5 pt by
 #: 187.0 pt, centred, and 430.3 pt by 90.2 pt at half the height.  The PDF is the
 #: reference: on screen Word draws a header's content lighter while the body is edited.
+#:
+#: The letters are set at their advances with their face's kerning
+#: (:meth:`docx2svg.fonts.Face.pair_kern`), all scaled by the one horizontal factor:
+#: measured from the outlines in Word's PDF, every glyph of "AVATAR", "Tyre", "WAVE",
+#: "LT", "iiWWii" and "DRAFT" in Calibri, "AVATAR" in Aptos and Minion Pro (``GPOS``
+#: only) is within 0.82 pt of that layout, and up to 25 pt from the unkerned one.  The
+#: insets hold for Arial, Aptos, Georgia, Courier New and Minion Pro (a CFF face), and for
+#: Calibri's bold, italic and bold italic (each its own face's outlines: an italic's
+#: slanted outlines' box is what fills the box).
 TEXT_PATH_INSETS = (Fraction(30), Fraction(15))
+#: The slant of a text path in italic whose face has no italic (``x + 0.34 y`` in font
+#: units, about 18.8 degrees, before the stretch): the slanted outlines' box is what fills
+#: the box.  Measured in Word for Mac 16.106's PDF with Minion Pro (no italic installed):
+#: "DRAFT" at the watermark's height and at half of it, and "AT", each best fitted at
+#: 0.338 to 0.340 (every glyph within 0.43 pt), the same in font units at both heights.
+TEXT_PATH_OBLIQUE = 0.34
+#: The faces Word draws a text path in its document's body face instead (the theme's minor
+#: face): measured in Word for Mac 16.106's PDF, a ``font-family`` of "Times New Roman"
+#: (quoted or not), or none, is drawn in Aptos with Aptos as the theme's minor face and in
+#: Georgia with Georgia; Calibri, Arial, Georgia, Aptos, Courier New and Minion Pro are
+#: drawn in themselves.
+TEXT_PATH_DEFAULT_FACES = {"", "times new roman"}
+
+
+def text_path_face(font: str | None, minor: str | None) -> str:
+    """The face Word draws a text path whose ``font-family`` is ``font`` in, the
+    document's minor (body) face being ``minor`` (:data:`TEXT_PATH_DEFAULT_FACES`)."""
+    if (font or "").strip().lower() in TEXT_PATH_DEFAULT_FACES and minor:
+        return minor
+    return font or "Calibri"
 
 
 def text_path_outlines(body: dict, ink) -> tuple | None:
-    """``(units per em, outlines' box)`` a text path that fits its shape is stretched by
-    (``ink(face, bold, italic, text)``: :meth:`docx2svg.fonts.InstalledFonts.ink`), or
-    ``None`` where it does not fit its shape or its face's outlines are not at hand."""
+    """``(units per em, outlines' box, pens, slant)`` a text path that fits its shape is
+    stretched by (``ink(face, bold, italic, text, oblique)``:
+    :meth:`docx2svg.fonts.InstalledFonts.ink`), or ``None`` where it does not fit its
+    shape or its face's outlines are not at hand."""
     string = body.get("string") or ""
     if ink is None or not body.get("fit") or not string:
         return None
-    return ink(body.get("font") or "Calibri", bool(body.get("bold")), bool(body.get("italic")), string)
+    return ink(body.get("font") or "Calibri", bool(body.get("bold")), bool(body.get("italic")), string,
+               TEXT_PATH_OBLIQUE)
 
 
 def text_path_markup(body: dict, x, y, width, height, outlines: tuple | None = None) -> str:
@@ -448,13 +487,14 @@ def text_path_markup(body: dict, x, y, width, height, outlines: tuple | None = N
     bold and italic, its fill colour at its ``v:fill`` opacity -- turned with the shape by
     the caller.
 
-    Given the outlines' box of a text path that fits its shape (:func:`text_path_outlines`:
-    ``units per em, (x min, y min, x max, y max)``), the glyphs are stretched
-    on both axes until that box fills the shape's box less :data:`TEXT_PATH_INSETS`, as
-    Word draws a watermark: a ``scale`` from the text's own font units.  Otherwise its
-    advances are stretched to the box's width (``textLength``, the glyphs with it), its
-    size from the box's height (:data:`TEXT_PATH_EM`): an approximation, reported
-    (``drawing-approximate:text path``)."""
+    Given the outlines of a text path that fits its shape (:func:`text_path_outlines`:
+    ``units per em, (x min, y min, x max, y max)``, and optionally each character's pen
+    and a slant), the glyphs are set at those pens (``x``, kerned) and stretched on both
+    axes until that box fills the shape's box less :data:`TEXT_PATH_INSETS`, as Word draws
+    a watermark: a ``matrix`` from the text's own font units, slanted where the face has no
+    italic (:data:`TEXT_PATH_OBLIQUE`).  Otherwise its advances are stretched to the box's
+    width (``textLength``, the glyphs with it), its size from the box's height
+    (:data:`TEXT_PATH_EM`): an approximation, reported (``drawing-approximate:text path``)."""
     from xml.sax.saxutils import escape, quoteattr
 
     fill = body.get("fill")
@@ -465,10 +505,12 @@ def text_path_markup(body: dict, x, y, width, height, outlines: tuple | None = N
     face = body.get("font") or "Calibri"
     bold, italic = bool(body.get("bold")), bool(body.get("italic"))
     weight = ' font-weight="bold"' if bold else ""
-    style = ' font-style="italic"' if italic else ""
     string = body.get("string") or ""
     if outlines is not None:
-        units, (x_min, y_min, x_max, y_max) = outlines
+        units, (x_min, y_min, x_max, y_max), *rest = outlines
+        pens = rest[0] if rest else None
+        slant = rest[1] if len(rest) > 1 else 0.0
+        style = ' font-style="italic"' if italic and not slant else ""
         inset_x, inset_y = TEXT_PATH_INSETS
         inner_w, inner_h = max(width - 2 * inset_x, Fraction(1)), max(height - 2 * inset_y, Fraction(1))
         sx, sy = inner_w / (x_max - x_min), inner_h / (y_max - y_min)
@@ -476,11 +518,16 @@ def text_path_markup(body: dict, x, y, width, height, outlines: tuple | None = N
             # 1/200 of the box's height, as unfitted, in the text's own (scaled) units.
             paint += f' stroke="#{body["stroke"]}" stroke-width="{num(float(height / 200 / sy))}"'
         tx, ty = x + inset_x - x_min * sx, y + inset_y + y_max * sy
+        # A slant moves x by ``slant`` per unit up: y runs down in the text's own units.
+        skew = -float(slant) * float(sx)
+        at = " ".join(str(pen) for pen in pens) if pens else "0"
         # The scales to six significant digits: three decimals would move the far end of a
         # watermark's text by a third of a point.
-        return (f'<text x="0" y="0" transform="matrix({float(sx):.6g} 0 0 {float(sy):.6g} {num(float(tx))} '
-                f'{num(float(ty))})" font-family={quoteattr(face + ", sans-serif")} font-size="{units}"'
-                f' style="font-kerning:none"{weight}{style} {paint}>{escape(string)}</text>')
+        return (f'<text x="{at}" y="0" transform="matrix({float(sx):.6g} 0 {skew:.6g} {float(sy):.6g} '
+                f'{num(float(tx))} {num(float(ty))})" font-family={quoteattr(face + ", sans-serif")} '
+                f'font-size="{units}" style="font-kerning:none;font-variant-ligatures:none"{weight}{style} '
+                f'{paint}>{escape(string)}</text>')
+    style = ' font-style="italic"' if italic else ""
     em = height * TEXT_PATH_EM
     if body.get("stroke"):
         paint += f' stroke="#{body["stroke"]}" stroke-width="{num(float(height) / 200)}"'
