@@ -564,8 +564,8 @@ def test_a_face_s_kerned_pens_close_up_a_kerned_pair():
     assert pens[1] == found.advance("A") + found.pair_kern("A", "V")
     assert found.pens("AVA") == [0, found.advance("A"), found.advance("A") + found.advance("V")]
     assert found.ink("AVA", kerned=True)[2] < found.ink("AVA")[2]
-    slanted = found.ink("AVA", kerned=True, slant=0.34)
-    assert slanted[1] == found.ink("AVA", kerned=True)[1] and slanted[2] > found.ink("AVA", kerned=True)[2]
+    slanted, upright = found.ink("V", slant=0.34), found.ink("V")
+    assert slanted[1] == upright[1] and slanted[2] > upright[2]   # its top right, at the cap height, moved
 
 
 def test_a_word_made_watermark_is_drawn_fitted_and_its_face_given_to_the_rasteriser():
