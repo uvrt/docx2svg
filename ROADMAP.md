@@ -7228,12 +7228,20 @@ text where none is stated) -- and anything else as a character of its box. It sh
 picture (`v:imagedata`: an embedded object's preview is drawn), a rectangle, rounded
 rectangle, oval or text box as the DrawingML preset with its fill (`fillcolor`, `v:fill
 opacity`), outline (`strokecolor`, `strokeweight`) and text (`v:textbox/w:txbxContent`, laid
-out as a text box), or a **text path** (`v:textpath/@string`: a watermark), drawn as its
-string stretched to the box (`textLength`, the glyphs with it), its em 5/6 of the box's
-height, in its face, bold or italic, in its fill colour at its opacity, turned by `rotation`
--- behind the body's text on every page of its header, the header's own text going on.
-Anything else is a placeholder of its box. **Not measured**: where Word draws a text path's
-glyphs inside its box (`layout-approximate:text-path`), Word's own rendering of VML shapes.
+out as a text box), or a **text path** (`v:textpath/@string`: a watermark), in its face,
+bold or italic, in its fill colour at its opacity, turned by `rotation` -- behind the body's
+text on every page of its header, the header's own text going on. One that **fits its
+shape** (`fitshape`: its own `v:textpath`'s, else its `v:shapetype`'s in the same object,
+else Word's watermark type `_x0000_t136`'s, which says `t`) is drawn as Word draws it
+(measured, below): the box round its glyphs' outlines at their advances (each glyph's `glyf`
+box, `fonts.Face.ink`, in the face it is drawn with; no kerning) scaled on each axis apart to
+the shape's box less 0.1 in left and right and 0.05 in top and bottom
+(`drawing.TEXT_PATH_INSETS`). One that does not, or whose face has no `glyf` outlines here,
+is drawn as its string stretched to the box (`textLength`, the glyphs with it), its em 5/6
+of the box's height, reported (`layout-approximate:text-path`). Anything else is a
+placeholder of its box. **Not measured**: a text path that does not fit its shape, the
+spacing between a fitted text path's letters (drawn unkerned), Word's own rendering of VML
+shapes.
 
 ### A picture's crop (round 16)
 
@@ -7288,6 +7296,23 @@ margins 1,417 twips, mode 15.
   the page but the text. Word's window could not be captured (ScreenCaptureKit returned no
   display with the screen locked), so what Word shows on screen is not measured; it is drawn
   as described above and reported approximate.
+* **A watermark Word made** (Design > Watermark, "DRAFT", Calibri, size Auto, silver,
+  diagonal): `v:shape` of type `_x0000_t136` (its `v:shapetype` beside it, `v:textpath
+  fitshape="t"`), 444.8 x 194.6 pt, rotation 315, centred on the margins, its `v:textpath`
+  `font-size:1pt`, no `w:sdt` round it, no `v:fill`. Word's PDF (pdfium at 4x, the rotation
+  undone, pt about the shape's centre) draws its ink 430.5 pt along by 187.0 across, centred
+  (-215.3..215.2, -93.4..93.6): its letters **stretched to the box's height** as well as its
+  width. The same with the string "Gyp" (a descender, a round letter): 430.5 by 187.0; and at
+  half the height (97.3 pt): 430.3 by 90.2, both strings. So the outlines' box fills the
+  shape's box less 7.2 pt (0.1 in) each side along and 3.6 pt (0.05 in) each side across --
+  a text box's default insets. Before: 431.9 by 116.1 (-212.2..219.7, -67.4..48.7), the
+  face's proportions kept and drawn in a fallback face by the PNG; after: 430.4 by 187.4
+  (-215.2..215.1, -93.7..93.6), and for the other three 430.4 by 187.4, 430.4 by 90.1, 430.4
+  by 90.1; ink overlap with Word's (intersection over union) 0.27 before, 0.96 after ("Gyp":
+  0.91 -- the spacing between letters is not measured). Colour: silver, 192 in the PDF; at
+  `v:fill opacity="20971f"` (0.32) 234, which `fill-opacity` 0.32 over white is. On screen
+  Word draws a header's content lighter while the body is edited (black header text as 128):
+  the PDF is the reference for this.
 
 ---
 

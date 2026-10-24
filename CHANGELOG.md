@@ -29,6 +29,16 @@ snapshot commit; the development history before it is summarised here.
   New Roman for complex script, MS Mincho for East Asian, as measured); a character a face
   lacks is measured in another face (`font-glyph-fallback`). None of these stops a
   paragraph any more.
+- **A watermark's letters fill its shape, as Word draws them** (round 16, F5b; measured in
+  Word 16.106's PDF of a watermark Word made): a text path that fits its shape (`fitshape`,
+  from its own `v:textpath` or its `v:shapetype`, Word's `_x0000_t136` where that is not at
+  hand) is stretched on both axes until its glyphs' outlines (`glyf` boxes,
+  `fonts.Face.ink`) fill the shape's box less 0.1 in left and right and 0.05 in top and
+  bottom, centred. It kept the face's proportions, so the letters were 116 pt tall in a
+  194.6 pt box and 9 pt off centre; now 187.4 pt, centred, where Word draws 187.0 (along:
+  430.4 pt, Word 430.5). No longer reported approximate where the face's outlines are at
+  hand. The PNG is now also given the watermark's face (`drawn_faces`), which it drew in a
+  fallback face before. **Changes the output** of every document with such a watermark.
 - **VML is read** (round 16, `docx2svg.parse.vml`): a watermark's text path is drawn behind
   the text on every page of its header (stretched to its box, its colour, opacity and
   rotation; approximate), a header's other content goes on after it; an embedded object's

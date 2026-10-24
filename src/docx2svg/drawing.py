@@ -75,6 +75,9 @@ class Primitive:
     markup: str = ""
     #: An image's crop (:attr:`docx2svg.model.Graphic.crop`).
     crop: tuple | None = None
+    #: ``(face, bold, italic)`` markup draws text in (a text path's): a face the
+    #: rasteriser is given (:func:`docx2svg.drawn_faces`).
+    face: tuple | None = None
 
 
 @dataclass
@@ -315,21 +318,22 @@ _RECTANGULAR = {"rect", "flowChartProcess"}
 
 def draw(graphic: Graphic | None, x: Fraction, y: Fraction, width: Fraction, height: Fraction, path: str, *,
          theme: dict, color_map: dict, formats=None, defs=None, drawn: Drawn | None = None, frames=None,
-         part: str | None = None) -> Drawn:
+         part: str | None = None, ink=None) -> Drawn:
     """What ``graphic`` paints in the box ``x, y, width, height`` (px).  ``defs`` is where
     gradients, patterns and filters go (an ``ooxml_common.drawingml.svg.SvgDefs``: the
     page's); ``formats`` the theme's format scheme; ``frames`` draws a chart or a
     SmartArt diagram (:class:`docx2svg.chart.Frames`), related from ``part`` (the
-    document's main part where ``None``)."""
+    document's main part where ``None``); ``ink(face, bold, italic, text)`` the outlines'
+    box a fitted text path is stretched by (:meth:`docx2svg.fonts.InstalledFonts.ink`)."""
     drawn = drawn if drawn is not None else Drawn()
     colours = Colours(theme, color_map, formats, drawn.warnings)
     _draw(graphic, x, y, width, height, path, colours, defs if defs is not None else Defs(), drawn, None, None, (),
-          (frames, part))
+          (frames, part), ink)
     return drawn
 
 
 def _draw(graphic, x, y, width, height, path, colours: Colours, defs, drawn: Drawn, group_fill, group_box,
-          turns: tuple, frames: tuple = (None, None)) -> None:
+          turns: tuple, frames: tuple = (None, None), ink=None) -> None:
     warnings = drawn.warnings
     if graphic is not None and graphic.kind in ("chart", "diagram") and frames[0] is not None:
         # Drawn upright in its box -- a chart's or a diagram's frame states no rotation --
@@ -360,10 +364,14 @@ def _draw(graphic, x, y, width, height, path, colours: Colours, defs, drawn: Dra
         _outline(graphic, x, y, width, height, path, colours, defs, drawn, here)
         return
     if graphic.kind == "textpath":
+        outlines = text_path_outlines(graphic.body, ink)
         drawn.primitives.append(Primitive("markup", path, x=x, y=y, width=width, height=height,
-                                          markup=text_path_markup(graphic.body, x, y, width, height),
-                                          transform=transform))
-        warnings.append("drawing-approximate:text path")
+                                          markup=text_path_markup(graphic.body, x, y, width, height, outlines),
+                                          transform=transform, face=(graphic.body.get("font") or "Calibri",
+                                                                     bool(graphic.body.get("bold")),
+                                                                     bool(graphic.body.get("italic")))))
+        if outlines is None:
+            warnings.append("drawing-approximate:text path")
         return
     if graphic.kind == "group":
         cw, ch = graphic.child_extent
@@ -381,7 +389,7 @@ def _draw(graphic, x, y, width, height, path, colours: Colours, defs, drawn: Dra
             mx, my = member.offset
             mw, mh = member.extent
             _draw(member, x + (mx - ox) * sx, y + (my - oy) * sy, mw * sx, mh * sy, member.path or path,
-                  colours, defs, drawn, group_fill, group_box, here, frames)
+                  colours, defs, drawn, group_fill, group_box, here, frames, ink)
         _wrap(drawn, begin, colours.effects(graphic.effects), defs, path)
         return
     # A shape: its fill, then its outline, in a group carrying its effects.
@@ -409,37 +417,77 @@ def _draw(graphic, x, y, width, height, path, colours: Colours, defs, drawn: Dra
         drawn.text_boxes.append((graphic, x, y, width, height))
 
 
-#: A VML text path's text as drawn in its box (:func:`text_path_markup`): the em at
-#: 1/1.2 of the box's height, the baseline 0.8 of an em below its top -- the line a face
-#: of Calibri's or Arial's ascent and descent fills.  Not measured.
+#: A VML text path's text as drawn in its box where it does not fit its shape, or its
+#: face's outlines are not at hand (:func:`text_path_markup`): the em at 1/1.2 of the
+#: box's height, the baseline 0.8 of an em below its top -- the line a face of Calibri's
+#: or Arial's ascent and descent fills.  Not measured.
 TEXT_PATH_EM = Fraction(5, 6)
 TEXT_PATH_BASELINE = Fraction(4, 5)
+#: Where a text path that fits its shape (``fitshape``) puts its glyphs' outlines: their
+#: box stretched, on both axes, to the shape's box less 0.1 in left and right and 0.05 in
+#: top and bottom (px) -- a text box's default insets (ECMA-376 Part 4, 19.1.2.22).
+#: Measured in Word for Mac 16.106's PDF of the watermark it makes (Calibri, 444.8 pt by
+#: 194.6 pt, turned 315 degrees): the ink of "DRAFT" and of "Gyp" alike spans 430.5 pt by
+#: 187.0 pt, centred, and 430.3 pt by 90.2 pt at half the height.  The PDF is the
+#: reference: on screen Word draws a header's content lighter while the body is edited.
+TEXT_PATH_INSETS = (Fraction(30), Fraction(15))
 
 
-def text_path_markup(body: dict, x, y, width, height) -> str:
-    """A VML text path (:mod:`docx2svg.parse.vml`: a watermark) as SVG text: its string
-    stretched to the box's width (``textLength``, the glyphs with it: ``fitshape``), its
-    size from the box's height (:data:`TEXT_PATH_EM`), in its face, bold and italic, its
-    fill colour at its ``v:fill`` opacity -- turned with the shape by the caller.  Where
-    Word draws the glyphs inside the box is not measured: an approximation, reported
+def text_path_outlines(body: dict, ink) -> tuple | None:
+    """``(units per em, outlines' box)`` a text path that fits its shape is stretched by
+    (``ink(face, bold, italic, text)``: :meth:`docx2svg.fonts.InstalledFonts.ink`), or
+    ``None`` where it does not fit its shape or its face's outlines are not at hand."""
+    string = body.get("string") or ""
+    if ink is None or not body.get("fit") or not string:
+        return None
+    return ink(body.get("font") or "Calibri", bool(body.get("bold")), bool(body.get("italic")), string)
+
+
+def text_path_markup(body: dict, x, y, width, height, outlines: tuple | None = None) -> str:
+    """A VML text path (:mod:`docx2svg.parse.vml`: a watermark) as SVG text, in its face,
+    bold and italic, its fill colour at its ``v:fill`` opacity -- turned with the shape by
+    the caller.
+
+    Given the outlines' box of a text path that fits its shape (:func:`text_path_outlines`:
+    ``units per em, (x min, y min, x max, y max)``), the glyphs are stretched
+    on both axes until that box fills the shape's box less :data:`TEXT_PATH_INSETS`, as
+    Word draws a watermark: a ``scale`` from the text's own font units.  Otherwise its
+    advances are stretched to the box's width (``textLength``, the glyphs with it), its
+    size from the box's height (:data:`TEXT_PATH_EM`): an approximation, reported
     (``drawing-approximate:text path``)."""
     from xml.sax.saxutils import escape, quoteattr
 
-    em = height * TEXT_PATH_EM
     fill = body.get("fill")
     paint = f'fill="#{fill}"' if fill else 'fill="none"'
     opacity = body.get("opacity", 1.0)
     if fill and opacity < 1:
         paint += f' fill-opacity="{num(opacity)}"'
+    face = body.get("font") or "Calibri"
+    bold, italic = bool(body.get("bold")), bool(body.get("italic"))
+    weight = ' font-weight="bold"' if bold else ""
+    style = ' font-style="italic"' if italic else ""
+    string = body.get("string") or ""
+    if outlines is not None:
+        units, (x_min, y_min, x_max, y_max) = outlines
+        inset_x, inset_y = TEXT_PATH_INSETS
+        inner_w, inner_h = max(width - 2 * inset_x, Fraction(1)), max(height - 2 * inset_y, Fraction(1))
+        sx, sy = inner_w / (x_max - x_min), inner_h / (y_max - y_min)
+        if body.get("stroke"):
+            # 1/200 of the box's height, as unfitted, in the text's own (scaled) units.
+            paint += f' stroke="#{body["stroke"]}" stroke-width="{num(float(height / 200 / sy))}"'
+        tx, ty = x + inset_x - x_min * sx, y + inset_y + y_max * sy
+        # The scales to six significant digits: three decimals would move the far end of a
+        # watermark's text by a third of a point.
+        return (f'<text x="0" y="0" transform="matrix({float(sx):.6g} 0 0 {float(sy):.6g} {num(float(tx))} '
+                f'{num(float(ty))})" font-family={quoteattr(face + ", sans-serif")} font-size="{units}"'
+                f' style="font-kerning:none"{weight}{style} {paint}>{escape(string)}</text>')
+    em = height * TEXT_PATH_EM
     if body.get("stroke"):
         paint += f' stroke="#{body["stroke"]}" stroke-width="{num(float(height) / 200)}"'
-    face = body.get("font") or "Calibri"
-    weight = ' font-weight="bold"' if body.get("bold") else ""
-    style = ' font-style="italic"' if body.get("italic") else ""
     return (f'<text x="{num(float(x))}" y="{num(float(y + em * TEXT_PATH_BASELINE + (height - em) / 2))}"'
             f' font-family={quoteattr(face + ", sans-serif")} font-size="{num(float(em))}"{weight}{style}'
             f' textLength="{num(float(width))}" lengthAdjust="spacingAndGlyphs" {paint}>'
-            f'{escape(body.get("string") or "")}</text>')
+            f'{escape(string)}</text>')
 
 
 def _fill_attrs(fill, defs, box, turns: tuple, geometry) -> str:
