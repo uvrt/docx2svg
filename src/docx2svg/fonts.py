@@ -155,33 +155,102 @@ class Face(_office.Face):
             values["underline_position"], values["underline_thickness"] = struct.unpack_from(">hh", post, 8)
         return Decorations(self.units_per_em, hhea_ascent=ascender, hhea_descent=-descender, **values)
 
-    def ink(self, text: str) -> tuple[int, int, int, int] | None:
-        """``(x min, y min, x max, y max)``, font units, y up from the baseline: the box
-        round the outlines of ``text`` set at its advances (no kerning) from pen 0, from
-        each glyph's ``glyf`` bounding box -- what a VML text path that fits its shape is
-        stretched by (:func:`docx2svg.drawing.text_path_markup`).  ``None`` for a face
-        without ``glyf`` outlines (a CFF one), a character it lacks, or no outline at all."""
-        head, loca, glyf = self.table(b"head"), self.table(b"loca"), self.table(b"glyf")
-        if head is None or loca is None or glyf is None:
-            return None
-        long_offsets = struct.unpack_from(">h", head, 50)[0] == 1
-        size, scale = (4, 1) if long_offsets else (2, 2)
-        count = len(loca) // size - 1
-        box: list | None = None
-        pen = 0
-        for char in text:
-            glyph, advance = self.glyph(char), self.advance(char)
-            if glyph is None or advance is None:
+    @functools.cached_property
+    def _gpos_kerning(self):
+        from .outlines import PairKerning
+
+        table = self.table(b"GPOS")
+        try:
+            found = PairKerning(table) if table else None
+        except (struct.error, IndexError):
+            found = None
+        return found if found is not None and found.subtables else None
+
+    def pair_kern(self, left: str, right: str) -> int:
+        """The kerning between two characters a watermark's letters are set with, font
+        units: the ``GPOS`` ``kern`` feature's pair adjustment where the face has one, else
+        its legacy ``kern`` table's (:meth:`kern`) -- both measured in Word's watermarks
+        (:data:`docx2svg.drawing.TEXT_PATH_INSETS`: Calibri's, Arial's and Aptos's agree;
+        Minion Pro, CFF, has only ``GPOS``)."""
+        gpos = self._gpos_kerning
+        if gpos is None:
+            return self.kern(left, right)
+        a, b = self.glyph(left), self.glyph(right)
+        return 0 if a is None or b is None else gpos.pair(a, b)
+
+    def pens(self, text: str, *, kerned: bool = False) -> list[int] | None:
+        """Where each character of ``text`` is set from pen 0, font units: at its advances,
+        with :meth:`pair_kern` between neighbours when ``kerned``; ``None`` for a character
+        the face lacks."""
+        pens, pen = [], 0
+        for i, char in enumerate(text):
+            advance = self.advance(char)
+            if advance is None or self.glyph(char) is None:
                 return None
-            if glyph < count:
-                start, end = (scale * value for value in struct.unpack_from(
-                    ">II" if long_offsets else ">HH", loca, glyph * size))
-                if start + 10 <= end <= len(glyf):
-                    x_min, y_min, x_max, y_max = struct.unpack_from(">hhhh", glyf, start + 2)
-                    found = (pen + x_min, y_min, pen + x_max, y_max)
-                    box = list(found) if box is None else [min(box[0], found[0]), min(box[1], found[1]),
-                                                           max(box[2], found[2]), max(box[3], found[3])]
-            pen += advance
+            pens.append(pen)
+            pen += advance + (self.pair_kern(char, text[i + 1]) if kerned and i + 1 < len(text) else 0)
+        return pens
+
+    @functools.cached_property
+    def _cff(self):
+        from .outlines import CFF
+
+        table = self.table(b"CFF ")
+        try:
+            return CFF(table) if table else None
+        except (struct.error, IndexError, ValueError, KeyError):
+            return None
+
+    def glyph_box(self, glyph: int, slant: float = 0.0) -> tuple | None:
+        """The box round glyph ``glyph``'s outline (:mod:`docx2svg.outlines`), font units, y
+        up, slanted by ``slant`` (``x + slant * y``); ``()`` for an empty glyph, ``None`` for
+        an outline not read (or a face with neither ``glyf`` nor ``CFF ``).  An upright
+        ``glyf`` glyph's box is its header's."""
+        from . import outlines
+
+        cache = self.__dict__.setdefault("_glyph_boxes", {})
+        key = (glyph, slant)
+        if key in cache:
+            return cache[key]
+        found = None
+        head, loca, glyf = self.table(b"head"), self.table(b"loca"), self.table(b"glyf")
+        if head is not None and loca is not None and glyf is not None:
+            long_offsets = struct.unpack_from(">h", head, 50)[0] == 1
+            if slant:
+                found = outlines.glyf_box(glyf, loca, long_offsets, glyph, slant)
+            else:
+                span = outlines.glyph_range(loca, long_offsets, glyph)
+                if span is not None and span[0] == span[1]:
+                    found = ()
+                elif span is not None and span[0] + 10 <= span[1] <= len(glyf):
+                    found = struct.unpack_from(">hhhh", glyf, span[0] + 2)
+        elif self._cff is not None:
+            found = self._cff.box(glyph, slant)
+        cache[key] = found
+        return found
+
+    def ink(self, text: str, *, kerned: bool = False, slant: float = 0.0,
+            pens: list | None = None) -> tuple | None:
+        """``(x min, y min, x max, y max)``, font units, y up from the baseline: the box
+        round the outlines of ``text`` set at :meth:`pens` (or the ``pens`` given) from pen
+        0, each glyph's outline box (:meth:`glyph_box`, slanted by ``slant``) -- what a VML
+        text path that fits its shape is stretched by (:func:`docx2svg.drawing.text_path_markup`).
+        ``None`` for a character the face lacks, an outline not read, or no outline at all."""
+        if pens is None:
+            pens = self.pens(text, kerned=kerned)
+        if pens is None:
+            return None
+        box: list | None = None
+        for char, pen in zip(text, pens):
+            glyph = self.glyph(char)
+            found = self.glyph_box(glyph, slant)
+            if found is None:
+                return None
+            if not found:
+                continue  # an empty glyph (a space)
+            found = (pen + found[0], found[1], pen + found[2], found[3])
+            box = list(found) if box is None else [min(box[0], found[0]), min(box[1], found[1]),
+                                                   max(box[2], found[2]), max(box[3], found[3])]
         return tuple(box) if box is not None and box[2] > box[0] and box[3] > box[1] else None
 
 
@@ -687,12 +756,19 @@ class InstalledFonts:
         face = self.face(family, bold, italic)
         return None if face is None else face.kern(left, right)
 
-    def ink(self, family: str, bold: bool, italic: bool, text: str) -> tuple | None:
-        """``(units per em, (x min, y min, x max, y max))`` of ``text``'s outlines in the
-        face it is drawn with (:meth:`drawing_face`, :meth:`Face.ink`), or ``None``."""
+    def ink(self, family: str, bold: bool, italic: bool, text: str, oblique: float = 0.0) -> tuple | None:
+        """``(units per em, (x min, y min, x max, y max), pens, slant)`` of ``text``'s
+        outlines in the face it is drawn with (:meth:`drawing_face`, :meth:`Face.ink`),
+        kerned (:meth:`Face.pair_kern`) -- a watermark's letters, as Word sets them -- or
+        ``None``.  ``slant`` is ``oblique`` where italic is asked of a family with no italic
+        face (the upright one is slanted), else 0."""
         face = self.drawing_face(family, bold, italic, record=False)
-        box = face.ink(text) if isinstance(face, Face) else None
-        return None if box is None else (face.units_per_em, box)
+        if not isinstance(face, Face):
+            return None
+        slant = oblique if italic and not face.style[1] else 0.0
+        pens = face.pens(text, kerned=True)
+        box = face.ink(text, slant=slant, pens=pens) if pens is not None else None
+        return None if box is None else (face.units_per_em, box, pens, slant)
 
 
 _STRETCH_CLASS = {name: index + 1 for index, name in enumerate(CSS_STRETCH)}

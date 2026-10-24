@@ -1735,6 +1735,11 @@ class _Placer:
         from . import drawing
 
         x, y, width, height = placed.x, placed.y, placed.width, placed.height
+        if graphic is not None and graphic.kind == "textpath":
+            scheme = getattr(self.document, "font_scheme", None)
+            minor = scheme.minor.latin or None if scheme is not None else None
+            graphic = dataclasses.replace(graphic, body={**graphic.body, "font": drawing.text_path_face(
+                graphic.body.get("font"), minor)})
         if page.defs is None:
             from ooxml_common.drawingml.svg import Defs
 

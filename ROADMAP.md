@@ -7230,18 +7230,26 @@ rectangle, oval or text box as the DrawingML preset with its fill (`fillcolor`, 
 opacity`), outline (`strokecolor`, `strokeweight`) and text (`v:textbox/w:txbxContent`, laid
 out as a text box), or a **text path** (`v:textpath/@string`: a watermark), in its face,
 bold or italic, in its fill colour at its opacity, turned by `rotation` -- behind the body's
-text on every page of its header, the header's own text going on. One that **fits its
-shape** (`fitshape`: its own `v:textpath`'s, else its `v:shapetype`'s in the same object,
-else Word's watermark type `_x0000_t136`'s, which says `t`) is drawn as Word draws it
-(measured, below): the box round its glyphs' outlines at their advances (each glyph's `glyf`
-box, `fonts.Face.ink`, in the face it is drawn with; no kerning) scaled on each axis apart to
-the shape's box less 0.1 in left and right and 0.05 in top and bottom
-(`drawing.TEXT_PATH_INSETS`). One that does not, or whose face has no `glyf` outlines here,
-is drawn as its string stretched to the box (`textLength`, the glyphs with it), its em 5/6
-of the box's height, reported (`layout-approximate:text-path`). Anything else is a
-placeholder of its box. **Not measured**: a text path that does not fit its shape, the
-spacing between a fitted text path's letters (drawn unkerned), Word's own rendering of VML
-shapes.
+text on every page of its header, the header's own text going on. Whether it **fits its
+shape** (`fitshape`) is its `v:shapetype`'s in the same object -- the shape's own
+`v:textpath fitshape` is not read, as Word does not (measured) -- else, where the type is
+not at hand, `t` for Word's watermark type `_x0000_t136` (measured). One that fits is drawn
+as Word draws it (measured, below): its letters set at their advances **with the face's
+kerning** (`fonts.Face.pair_kern`: the `GPOS` `kern` feature's pair adjustments, else the
+legacy `kern` table), the box round their outlines -- exact, the curves' extremes, from
+`glyf` or CFF charstrings (`docx2svg.outlines`), in the face it is drawn with -- scaled on
+each axis apart to the shape's box less 0.1 in left and right and 0.05 in top and bottom
+(`drawing.TEXT_PATH_INSETS`); its `font-size` is not read (Word's is not). In italic in a face
+with no italic, the upright outlines slanted by 0.34 in font units
+(`drawing.TEXT_PATH_OBLIQUE`), the slanted box fitted. `font-family` "Times New Roman", or
+none, is drawn in the theme's minor face (`drawing.text_path_face`). One whose shape type is
+at hand and does **not** fit it is not drawn: Word draws no text for it. One whose face's
+outlines are not read (a character it lacks, a CID-keyed CFF), or whose type is neither at
+hand nor `_x0000_t136`, is drawn as its string stretched to the box (`textLength`, the
+glyphs with it), its em 5/6 of the box's height, reported (`layout-approximate:text-path`).
+Anything else is a placeholder of its box. **Not measured**: shape types other than
+`_x0000_t136`, a face that is not installed (Word drew "Made Up Sans" in what matches Cambria;
+docx2svg's substitute is another face), synthetic bold, Word's own rendering of VML shapes.
 
 ### A picture's crop (round 16)
 
@@ -7313,6 +7321,32 @@ margins 1,417 twips, mode 15.
   `v:fill opacity="20971f"` (0.32) 234, which `fill-opacity` 0.32 over white is. On screen
   Word draws a header's content lighter while the body is edited (black header text as 128):
   the PDF is the reference for this.
+* **That watermark's other aspects** (round 16, F5c; made-up variants of its structure,
+  unturned unless said, the outlines read from Word's PDF path in pt in the shape's frame and
+  compared glyph by glyph, `probe/f5c` in the work folder): **kerned** -- every glyph of
+  "AVATAR", "Tyre", "WAVE", "LT", "iiWWii", "DRAFT" (also turned) in Calibri, and "AVATAR" in
+  Aptos and in Minion Pro (CFF, `GPOS` kerning only), is within 0.85 pt of its advances plus
+  the face's pair kerning scaled by the one horizontal factor; unkerned they are up to 24.7 pt
+  off ("LT"); docx2svg before: 11.8 ("AVATAR"), 7.6, 6.5, 24.7; after: 0.41, 0.30, 0.47, 0.16
+  (0.57 and 0.85 for "DRAFT" and "iiWWii", which have no kerned pair; no rounding grid of the
+  pens explains that remainder). **Fit**: the shape's own `fitshape="f"` under a type that
+  fits is drawn fitted, as is `font-size` 36 or 72 pt (Word resaves 72 pt as `1in`); a type
+  whose `v:textpath` says `fitshape="f"` or nothing draws **no text** at 1, 36, 72 and 200 pt,
+  in Calibri or Arial, the shape's own `fitshape="t"` or not (only the type's two zero-height
+  lines, inking nothing); the type taken out, it is drawn fitted. docx2svg before drew the
+  first fitted case unfitted and the unfitted ones stretched (ink-overlap 0.21 and 0.00);
+  after: 0.98, and nothing. **Faces**: the 0.1 in / 0.05 in insets hold in Arial, Aptos,
+  Georgia, Courier New and Minion Pro (ink box -215.1..215.2 by -93.6..93.6 in each); Minion
+  Pro was drawn approximate before (no `glyf`: overlap 0.28), 0.98 after, every glyph within
+  0.43 pt. "Times New Roman", quoted or not, and no `font-family` are drawn in Aptos, the
+  theme's minor face -- in Georgia with Georgia as the minor face -- (before: overlap 0.45,
+  after 0.98). **Bold and italic** as Word resaves them (`font-weight:bold`,
+  `font-style:italic` in the `v:textpath` style): Calibri's bold, italic and bold italic are
+  its own faces' outlines, the italic's slanted outlines' box fitted (each glyph within 0.64
+  pt, before and after); Minion Pro italic, with no italic face, is the upright outlines
+  slanted by 0.338 to 0.340 in font units at the full and the half height and in "AT" (0.34
+  taken), the slanted box fitting the inner box (before: approximate, overlap 0.11; after
+  0.97 to 0.98, every glyph within 0.43 pt).
 
 ---
 

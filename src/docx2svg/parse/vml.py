@@ -24,8 +24,9 @@ What it shows: a picture (``v:imagedata/@r:id``: :class:`~docx2svg.model.Graphic
 :mod:`docx2svg.drawing` as its text stretched to the box, in its fill colour and opacity
 and turned by ``rotation``; ``body["fit"]`` whether it fits its shape, ``fitshape``), or
 anything else (``other``, drawn as a marked placeholder of its box).  Where Word draws a
-text path that fits its shape is measured (:data:`docx2svg.drawing.TEXT_PATH_INSETS`); one
-that does not is not.
+text path that fits its shape is measured (:data:`docx2svg.drawing.TEXT_PATH_INSETS`), and
+that it draws no text for one whose shape type does not fit it
+(:data:`docx2svg.drawing.TEXT_PATH_EM`).
 
 Standard library only.
 """
@@ -180,21 +181,22 @@ def _shape(shape: Element, preset: str, path: str, blocks, common: dict) -> Grap
 
 #: The shape type Word writes for a watermark's text (``o:spt`` 136, plain text): its
 #: ``v:shapetype`` states ``v:textpath fitshape="t"`` (Word for Mac 16.106's watermark,
-#: measured), which a shape of the type inherits where its own shape type is not at hand.
+#: measured), and a shape of the type whose shape type is not in the part is drawn fitted
+#: too (measured: the watermark with its ``v:shapetype`` taken out).
 _FITTED_TYPES = {"_x0000_t136"}
 
 
-def _fits(shape: Element, textpath: Element, types: dict) -> bool:
+def _fits(shape: Element, textpath: Element, types: dict) -> bool | None:
     """Whether a text path is stretched to fill its shape (``fitshape``, ECMA-376 Part 4,
-    19.1.2.20): as its own ``v:textpath`` says, else its ``v:shapetype``'s, else whether
-    the type is :data:`_FITTED_TYPES`'s."""
-    own = attr(textpath, "fitshape")
+    19.1.2.20), as Word decides it: by its ``v:shapetype``'s ``v:textpath`` alone -- the
+    shape's own ``fitshape`` is not read, measured in Word for Mac 16.106 (``"f"`` under a
+    type that fits is drawn fitted, ``"t"`` under one that does not draws nothing) -- and
+    where the type is not at hand, by whether it is one of :data:`_FITTED_TYPES`: ``None``
+    (not known) for another."""
     kind = (attr(shape, "type") or "").lstrip("#")
-    if own is None and kind in types:
-        own = attr(child(types[kind], "textpath"), "fitshape")
-    if own is None:
-        return kind in _FITTED_TYPES
-    return own in ("t", "true", "1", "on")
+    if kind in types:
+        return attr(child(types[kind], "textpath"), "fitshape") in ("t", "true", "1", "on")
+    return True if kind in _FITTED_TYPES else None
 
 
 def _graphic(shape: Element, path: str, blocks=None, types: dict | None = None) -> Graphic:
@@ -218,7 +220,7 @@ def _graphic(shape: Element, path: str, blocks=None, types: dict | None = None) 
         fill = child(shape, "fill")
         filled = attr(shape, "filled") not in ("f", "false")
         body = {"string": attr(textpath, "string"),
-                "font": text_style.get("font-family") or "Calibri",
+                "font": text_style.get("font-family") or None,
                 "bold": text_style.get("font-weight") in ("bold", "700", "800", "900"),
                 "italic": text_style.get("font-style") == "italic",
                 "fill": (colour(attr(shape, "fillcolor")) or "FFFFFF") if filled else None,
