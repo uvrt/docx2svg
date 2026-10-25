@@ -263,7 +263,7 @@ def lay_out_docx(source, options: ConvertOptions | None = None) -> tuple:
     return layout, data, fonts
 
 
-#: The name the agents called :func:`lay_out_docx` by; kept.
+#: The old name of :func:`lay_out_docx`, kept for docx-agent's tests until they move.
 _lay_out = lay_out_docx
 
 

@@ -674,7 +674,7 @@ def _table(element: Element, path: str = "", fields: _Fields | None = None) -> T
     rows, row_properties, cell_properties, conditions = [], [], [], []
     for k, (i, row) in enumerate(row_elements):
         cells = list(_row_level(row, "tc"))
-        row_conditions = tuple(_conditions(look, k, j, len(row_elements), len(cells)) for j in range(len(cells)))
+        row_conditions = tuple(cell_conditions(look, k, j, len(row_elements), len(cells)) for j in range(len(cells)))
         rows.append(tuple(
             tuple(_blocks(cell, style, row_conditions[j], f"{path}/w:tr[{i + 1}]/w:tc[{j + 1}]", fields))
             for j, cell in enumerate(cells)
@@ -711,7 +711,7 @@ def _table_look(element: Element | None) -> dict[str, bool]:
     return look
 
 
-def _conditions(look: dict[str, bool], row: int, column: int, rows: int, columns: int) -> tuple[str, ...]:
+def cell_conditions(look: dict[str, bool], row: int, column: int, rows: int, columns: int) -> tuple[str, ...]:
     """The conditional formats for cell (row, column), in ECMA-376 17.7.6's order.
 
     Whole table first, then banding, then first/last column, then first/last row, then
@@ -736,6 +736,10 @@ def _conditions(look: dict[str, bool], row: int, column: int, rows: int, columns
         out.append(("nw" if first_row else "sw") + "Cell" if first_col
                    else ("ne" if first_row else "se") + "Cell")
     return tuple(out)
+
+
+#: The old name, kept for docx-agent until it moves.
+_conditions = cell_conditions
 
 
 def _page_size(section_properties: Element) -> PageSize:
@@ -950,9 +954,9 @@ def parse_notes(notes_xml: bytes, kind: str) -> tuple[dict[int, list], dict[str,
 def image_pixels(data: bytes) -> tuple[int, int] | None:
     """A picture's width and height in pixels (PNG, JPEG, GIF, BMP), or ``None`` for a
     format not read (``ooxml_common.imagemeta`` reads the headers)."""
-    from ooxml_common.imagemeta import _pixels_and_density
+    from ooxml_common.imagemeta import pixels_and_density
 
-    found = _pixels_and_density(data)
+    found = pixels_and_density(data)
     return (found[0], found[1]) if found else None
 
 

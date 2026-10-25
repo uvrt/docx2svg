@@ -32,3 +32,12 @@ More in [docs/development.md](docs/development.md).
 Open pull requests against `main`. CI runs the suite on Linux, macOS and Windows,
 Python 3.10 to 3.15, and checks that the generated fixture is current
 (`python tools/make_layout_sweep.py` leaves `tests/fixtures/` unchanged).
+
+## Names docx-agent imports
+
+`tests/test_public_api.py` imports every name docx-agent imports from here, and
+[docs/api.md](docs/api.md), "Used by docx-agent", lists the same names, so renaming or
+removing one fails this repository's CI instead of docx-agent's. To rename one, keep the
+old name as an alias for one release, with a comment saying who it is kept for, and move
+docx-agent over; a name docx-agent starts importing is added to both. docx-agent imports
+no name that starts with an underscore: give it a public name first.

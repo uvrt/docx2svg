@@ -115,3 +115,26 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   settings name the notes part's own, the paths are that note's
   (`w:footnote[@w:id=-1]/w:p[1]`). It is not a paragraph of the text.
 
+## Used by docx-agent
+
+docx-agent imports these names from docx2svg, in its `src`, `tests` and `tools`, beyond the
+functions above. They are docx2svg's surface across repositories: docx-agent's CI installs
+docx2svg from `main`, so renaming or removing one breaks it at its next run.
+`tests/test_public_api.py` lists the same names and fails when one is gone, or when this
+list and that one disagree. To rename one, keep the old name as an alias for one release,
+with a comment saying who it is kept for, and move docx-agent to the new name.
+
+- `docx2svg` -- docx-agent: `ConvertOptions`, `available_backends`, `convert_docx`, `convert_docx_to_layout`, `convert_docx_to_png`, `convert_docx_to_svg`, `drawn_faces`, `lay_out_docx`, `page_svgs`, `user_font_dirs`
+- `docx2svg.coverage` -- docx-agent: `Coverage`
+- `docx2svg.fields` -- docx-agent: `Uncomputable`, `field_text`, `sequence_step`, `sequence_switches`
+- `docx2svg.fonts` -- docx-agent: `InstalledFonts`, `cloud_font_dirs`, `default_font_dirs`, `installed_index`, `rasteriser_files`
+- `docx2svg.linebreak` -- docx-agent: `ListCounters`
+- `docx2svg.model` -- docx-agent: `Paragraph`, `ParagraphProperties`, `Run`, `RunProperties`, `Table`
+- `docx2svg.paginate` -- docx-agent: `CARRY_ON`
+- `docx2svg.parse.document` -- docx-agent: `cell_conditions`, `parse_package`
+- `docx2svg.parse.properties` -- docx-agent: `read_paragraph_properties`, `read_run_properties`
+- `docx2svg.parse.styles` -- docx-agent: `Numbering`, `parse_numbering`, `parse_styles`
+- `docx2svg.paths` -- docx-agent: `path_part`, `resolve_path`
+- `docx2svg.png` -- docx-agent: `svg_to_png`
+- `docx2svg.resolve` -- docx-agent: `character_format`, `resolve_paragraph`, `resolve_run`
+- `docx2svg.table` -- docx-agent: `edge_winner`, `outer_part`, `resolve_table`, `table_style_id`
