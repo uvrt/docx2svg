@@ -1,10 +1,18 @@
 # Changelog
 
-docx2svg has not been released to PyPI. The public repository starts from a single
+docx2svg has not been released to PyPI. Each version that reaches `main` is tagged
+`v<version>`, from 0.2.0, the first tagged. The public repository starts from a single
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
-## Unreleased
+## 0.2.0 -- 2026-10-25
+
+- **Versions that mean something** (review, N3): this is 0.2.0, the first version tagged
+  (`v0.2.0`), and docx-agent now asks for `docx2svg>=0.2.0`. Each version that reaches
+  `main` is tagged by the new tag workflow, and CI's `build` job checks that
+  `pyproject.toml`'s version is the one this file's top version section names
+  (`tools/check_version.py`). The dependency notes moved from `pyproject.toml` to
+  CONTRIBUTING.md, "Dependencies". No code change.
 
 - **The names docx-agent imports are declared and held** (review, N2): docs/api.md, "Used
   by docx-agent", lists the 44 names docx-agent's `src`, `tests` and `tools` import from

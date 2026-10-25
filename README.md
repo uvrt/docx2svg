@@ -158,7 +158,7 @@ summary of how much was laid out:
 
 ## Status
 
-Pre-alpha (0.1.0). Line breaking, pagination, columns, revisions and output are
+Pre-alpha (0.2.0). Line breaking, pagination, columns, revisions and output are
 measured against Word; see the status table in [docs/supported.md](docs/supported.md)
 and the full record in [`ROADMAP.md`](ROADMAP.md), which says what has been measured,
 what has been refuted and where the difficulty is.

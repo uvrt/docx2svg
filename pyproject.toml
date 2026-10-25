@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docx2svg"
-version = "0.1.0"
+version = "0.2.0"
 description = "Render Word (.docx) documents to SVG in pure Python"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -27,34 +27,8 @@ classifiers = [
   "Topic :: Office/Business :: Office Suites",
   "Typing :: Typed",
 ]
-# Standard-library only at runtime, and this list is the statement of that: its one entry,
-# ooxml-common, is itself standard-library only.  It is load-bearing rather than
-# aesthetic: a renderer that is a dependency of something else should not drag a
-# rasteriser, a font library and a C toolchain in with it.  Capability arrives through the
-# extras below and degrades with a named warning when an extra is absent -- never silently.
-#
-# ooxml-common is the format-neutral half of pptx2svg -- OPC, units, DrawingML data, the
-# font modules and every measured text metric -- extracted with its history (ROADMAP.md,
-# "Phase 1").  The first import is Phase 3's: docx2svg.measure.TableAdvances answers
-# advance widths from its tables for the faces checked against Word (ROADMAP.md, "Phase 3
-# -- measured").  A version, never a URL: PyPI refuses to publish a distribution with a
-# direct-URL dependency.  It is not on PyPI yet, so CI installs it from its git URL first,
-# as pptx2svg's CI does; locally, `pip install -e ../ooxml-common`.
-#
-# 0.3 is the first that carries DrawingML's reader and the renderers' Word rules, which
-# docx2svg.drawing draws every shape with (ROADMAP.md, F.12); 0.3.1 the presets' text
-# rectangles, which a text box's text is laid out in (F.13); 0.4.1 the chart layout and
-# scene renderers with Word's chart and text rules, which charts and SmartArt are drawn
-# with (F.20, F.21); 0.4.4 Word's chart titles, axis titles and short plots (F.23); 0.7
-# chart text in its `c:txPr` colour, number formats' text and a radar's category labels
-# where Word puts them (F.20, "Chart labels, measured later").
-# 0.8 an application's own font folders, `font_dirs` or `OOXML_FONT_DIRS`
-# (`office.user_font_dirs`; tests/test_font_dirs.py).
-# 0.9 the symbol faces' recorded metrics and Unicode tables (`text.recorded_symbol_faces`,
-# `text.symbol_fonts`), which docx2svg.recorded now re-exports, and a data label's own text.
-# 0.15 the shared regional settings (`ooxml_common.locales.Locale`), `ConvertOptions.locale`:
-# a decimal tab stop's separator and `ChartBuilder(locale=...)` (tests/test_locale.py).
-# 0.28 the public names of what was private here (`imagemeta.pixels_and_density`).
+# Standard-library only at runtime; why ooxml-common is a dependency, and why at this
+# version: CONTRIBUTING.md, "Dependencies".
 dependencies = ["ooxml-common>=0.28.0"]
 
 [project.optional-dependencies]
