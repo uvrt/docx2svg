@@ -6,6 +6,9 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **CI runs nightly** (02:47 UTC) and on demand, so a change in ooxml-common that breaks
+  this suite shows the next morning; ooxml-common's own CI now runs this suite on its
+  pull requests too. No code change.
 - **The layout carries on past what it cannot lay out** (round 16). No single unsupported
   item stops the document or a header, footer or text box any more: each is laid out by an
   approximate rule (`layout-approximate:<reason>`) or drawn as a placeholder -- a dashed grey
