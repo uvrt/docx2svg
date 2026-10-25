@@ -50,7 +50,7 @@ def record() -> dict:
     import face_advances
     from fontTools.ttLib import TTFont
     import face_metrics
-    from ooxml_common.text.measure import _font_kern_units
+    from ooxml_common.text.measure import font_kern_units
 
     out = {}
     for face in FACES:
@@ -66,7 +66,7 @@ def record() -> dict:
                 index = face_metrics._index()[(face.lower(), False, False)]
                 font = TTFont(index[0], fontNumber=index[1], lazy=True)
                 entry["gpos"] = {a + b: v for a in KERN_CHARS for b in KERN_CHARS
-                                 if (v := _font_kern_units(font, a, b))}
+                                 if (v := font_kern_units(font, a, b))}
             out[key(face, bold, italic)] = entry
     return out
 

@@ -6,6 +6,15 @@ snapshot commit; the development history before it is summarised here.
 
 ## Unreleased
 
+- **The names docx-agent imports are declared and held** (review, N2): docs/api.md, "Used
+  by docx-agent", lists the 44 names docx-agent's `src`, `tests` and `tools` import from
+  here, and `tests/test_public_api.py` imports each one, so a rename fails this
+  repository's CI rather than docx-agent's next run; the test holds the section and its
+  list to the same names. `parse.document.cell_conditions` is the public name of
+  `_conditions`, which stays as an alias for one release, as `_lay_out` does for
+  `lay_out_docx`. docx2svg now uses ooxml-common 0.28.0's public
+  `imagemeta.pixels_and_density` (the dependency is raised to it), and its tests and
+  tools `fonts.sfnt.read_tables` and `text.measure.font_kern_units`. No behaviour change.
 - **CI runs nightly** (02:47 UTC) and on demand, so a change in ooxml-common that breaks
   this suite shows the next morning; ooxml-common's own CI now runs this suite on its
   pull requests too. No code change.
