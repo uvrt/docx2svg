@@ -33,6 +33,32 @@ Open pull requests against `main`. CI runs the suite on Linux, macOS and Windows
 Python 3.10 to 3.15, and checks that the generated fixture is current
 (`python tools/make_layout_sweep.py` leaves `tests/fixtures/` unchanged).
 
+## Versions
+
+`pyproject.toml`'s version is the one [CHANGELOG.md](CHANGELOG.md)'s top version section
+names, and `docx2svg.__version__` the same; CI's `build` job checks it
+(`tools/check_version.py`). Each version that reaches `main` is tagged `v<version>` on that
+commit by the tag workflow (`.github/workflows/tag.yml`), so a sibling's floor on this
+package can be checked against a tag. Raise the version with its CHANGELOG section;
+changes since the last one go under an `Unreleased` heading above it.
+
+## Dependencies
+
+Standard-library only at runtime, and `pyproject.toml`'s dependency list is the statement
+of that: its one entry, **ooxml-common**, is itself standard-library only. A renderer that
+is a dependency of something else should not bring a rasteriser, a font library and a C
+toolchain with it; capability arrives through the extras and degrades with a named
+warning when one is absent, never silently. ooxml-common is the format-neutral half shared
+with pptx2svg (OPC, units, DrawingML, the font modules and every measured text metric),
+extracted with its history (ROADMAP.md, "Phase 1"). It is not on PyPI yet, so it is
+installed first, from a sibling checkout or, as CI does, from its repository;
+`pyproject.toml` names a version, never a URL, since PyPI refuses a distribution whose
+dependencies name one.
+
+- `ooxml-common>=0.28.0`: `imagemeta.pixels_and_density`, the public name of what docx2svg
+  imported private before (review, N2). What each earlier version added is in
+  ooxml-common's CHANGELOG.
+
 ## Names docx-agent imports
 
 `tests/test_public_api.py` imports every name docx-agent imports from here, and

@@ -63,7 +63,7 @@ from .paths import resolve_path
 from .png import RasterizerNotAvailable, available_backends, svg_to_png
 from ooxml_common.locales import EN_US, Locale
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "Conversion",
