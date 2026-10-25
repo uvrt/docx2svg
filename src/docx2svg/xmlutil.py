@@ -1,4 +1,4 @@
-"""Namespace-blind XML helpers.
+"""Namespace-blind XML helpers: :mod:`ooxml_common.xmlutil`'s, and the two Word adds.
 
 OOXML namespaces are declared per part and the *prefixes* are not stable -- Word writes
 ``w:``, LibreOffice writes ``w:`` too, and a generator may write anything.  What is
@@ -10,29 +10,29 @@ The cost is that two elements with the same local name in different namespaces b
 indistinguishable.  In WordprocessingML that is not a live risk for the parts this
 project reads; if it becomes one, :func:`qualified_name` is here to disambiguate at the
 one site that needs it rather than everywhere.
+
+The generic helpers are :mod:`ooxml_common.xmlutil`'s, which the rest of docx2svg imports
+directly; ``children`` and ``child`` are its ``element_children`` and ``element_child``,
+which step over comments and processing instructions, since docx-agent hands this project
+lxml trees that keep them.  What stays here is WordprocessingML's: :func:`attr_int` (an
+integer attribute, a measurement such as ``12pt`` falling back) and :func:`attr_bool`
+(``ST_OnOff``, where an absent attribute means true).  The generic names are re-exported
+so that ``docx2svg.xmlutil`` keeps working; :func:`descendants` is now ooxml-common's,
+which leaves out the element it starts from.
 """
 
 from __future__ import annotations
 
-import functools
+from xml.etree.ElementTree import Element
 
-from typing import Iterator
-from xml.etree.ElementTree import Element, fromstring
+from ooxml_common.xmlutil import attr, descendants, local_name, parse_xml
+from ooxml_common.xmlutil import element_child as child
+from ooxml_common.xmlutil import element_children as children
 
-
-def parse_xml(data: bytes | str) -> Element:
-    if isinstance(data, str):
-        data = data.encode("utf-8")
-    return fromstring(data)
-
-
-@functools.lru_cache(maxsize=4096)
-def local_name(tag: str) -> str:
-    """``{ns}w:body`` or ``{ns}body`` -> ``body``.  Cached: a document has a few hundred
-    distinct tags and attribute names, and parsing asks for them millions of times."""
-    if tag.startswith("{"):
-        tag = tag.split("}", 1)[1]
-    return tag.rsplit(":", 1)[-1]
+__all__ = [
+    "attr", "attr_bool", "attr_int", "child", "children", "descendants", "local_name", "parse_xml",
+    "qualified_name",
+]
 
 
 def qualified_name(tag: str) -> tuple[str, str]:
@@ -41,49 +41,6 @@ def qualified_name(tag: str) -> tuple[str, str]:
         namespace, _, rest = tag[1:].partition("}")
         return namespace, local_name(rest)
     return "", local_name(tag)
-
-
-def children(element: Element | None, name: str | None = None) -> Iterator[Element]:
-    if element is None:
-        return
-    for child in element:
-        if not isinstance(child.tag, str):  # comments, processing instructions
-            continue
-        if name is None or local_name(child.tag) == name:
-            yield child
-
-
-def child(element: Element | None, name: str) -> Element | None:
-    for found in children(element, name):
-        return found
-    return None
-
-
-def descendants(element: Element | None, name: str) -> Iterator[Element]:
-    if element is None:
-        return
-    for node in element.iter():
-        if isinstance(node.tag, str) and local_name(node.tag) == name:
-            yield node
-
-
-def attr(element: Element | None, name: str, default: str | None = None) -> str | None:
-    """Attribute by local name.
-
-    Attributes carry the namespace of their *declaration*, not of their element, so
-    ``w:val`` on a ``w:sz`` is ``{...wordprocessingml...}val`` while ``val`` on an
-    unqualified element is bare.  Both spellings occur; matching on the local name
-    covers both.
-    """
-    if element is None:
-        return default
-    value = element.get(name)
-    if value is not None:
-        return value
-    for key, candidate in element.attrib.items():
-        if local_name(key) == name:
-            return candidate
-    return default
 
 
 def attr_int(element: Element | None, name: str, default: int | None = None) -> int | None:

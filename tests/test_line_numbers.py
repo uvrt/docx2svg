@@ -55,7 +55,7 @@ def test_line_numbers_are_spans_of_their_own_with_the_section_s_path():
     from docx2svg import convert_docx_to_layout
 
     from docx2svg.paths import resolve_path
-    from docx2svg.xmlutil import parse_xml
+    from ooxml_common.xmlutil import parse_xml
     import zipfile, io
 
     data = DOCUMENTS[0][1]

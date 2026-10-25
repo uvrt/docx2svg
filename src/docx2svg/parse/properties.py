@@ -66,9 +66,12 @@ from dataclasses import dataclass
 from xml.etree.ElementTree import Element
 
 from ooxml_common.drawingml import read
+from ooxml_common.xmlutil import attr, local_name
+from ooxml_common.xmlutil import element_child as child
+from ooxml_common.xmlutil import element_children as children
 
 from ..model import TabStop
-from ..xmlutil import attr, attr_bool, attr_int, child, children, local_name
+from ..xmlutil import attr_bool, attr_int
 
 #: ECMA-376 Part 1, 17.7.3: the run properties the spec calls *toggle properties*.
 #: How Word combines them across the style hierarchy is measured, not taken from the

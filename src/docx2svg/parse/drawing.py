@@ -21,9 +21,12 @@ from typing import Callable
 from xml.etree.ElementTree import Element
 
 from ooxml_common.drawingml import read
+from ooxml_common.xmlutil import attr, local_name
+from ooxml_common.xmlutil import element_child as child
+from ooxml_common.xmlutil import element_children as children
 
 from ..model import Anchor, AnchorPosition, Graphic
-from ..xmlutil import attr, attr_int, child, children, local_name
+from ..xmlutil import attr_int
 
 _R = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
 _R_EMBED = _R + "embed"

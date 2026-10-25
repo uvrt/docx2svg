@@ -5,6 +5,36 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.3.0 -- unreleased
+
+- **Packages and XML are read through ooxml-common** (review, S6): `docx2svg/opc.py` and
+  `docx2svg/xmlutil.py` were copies of `ooxml_common.opc` and `ooxml_common.xmlutil` with
+  other contracts (a missing part raised in one and was `None` in the other; `children`
+  was an iterator in one and a list in the other). The ZIP, content types and
+  relationships are now `ooxml_common.opc.OpcPackage`'s, and the XML helpers
+  `ooxml_common.xmlutil`'s, with `children` and `child` its new `element_children` and
+  `element_child` (ooxml-common 0.32.0, the dependency is raised to it), which step over
+  comments and processing instructions as docx2svg's own did: docx-agent hands
+  `paths.resolve_path` and the property readers lxml trees, which keep them. Where the
+  shared reader answers otherwise, docx2svg says what it read before, in `docx2svg.opc`:
+  `main_part` (the root relationship's office document, else `word/document.xml`),
+  `read_part` (a missing part raises `KeyError`) and `content_type` (`""` where
+  `[Content_Types].xml` says nothing, so a picture whose type the package does not state
+  is still not drawn). `docx2svg.opc` keeps the Word relationship types;
+  `docx2svg.xmlutil` keeps `attr_int` and `attr_bool` and re-exports the shared helpers.
+  `paths.path_part` takes an `OpcPackage` or, as before, anything with
+  `main_document_part` and `related`. Rendering output is byte-identical (the VRT
+  snapshots, and 236 documents rendered before and after).
+- **Kept for one release:** `docx2svg.Package` (`docx2svg.opc.Package`), now an
+  `OpcPackage` with the old names on it (`main_document_part`, `read` raising, `exists`,
+  `related`, `part_by_id`, `resolve`, `rels_part_for`, `content_type` giving `""`). Its
+  relationships are ooxml-common's (`target_part`, `is_external`, where the old ones had
+  `target_mode` and `external`), and it no longer holds the ZIP open (`archive` is gone).
+  `docx2svg.xmlutil.descendants` is ooxml-common's, which leaves out the element it starts
+  from; nothing here used it. An `OpcPackage` reads every part when it opens, where the old
+  reader read each on first use: the 40-page timing document lays out and draws in the
+  same time.
+
 ## 0.2.0 -- 2026-10-25
 
 - **Versions that mean something** (review, N3): this is 0.2.0, the first version tagged

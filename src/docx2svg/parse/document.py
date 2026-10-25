@@ -31,6 +31,11 @@ from dataclasses import dataclass, field
 from typing import BinaryIO
 from xml.etree.ElementTree import Element
 
+from ooxml_common.opc import OpcPackage
+from ooxml_common.xmlutil import attr, local_name, parse_xml
+from ooxml_common.xmlutil import element_child as child
+from ooxml_common.xmlutil import element_children as children
+
 from ..model import (
     Anchor,
     Document,
@@ -48,9 +53,9 @@ from ..model import (
     Spacing,
     TabStop,
 )
-from ..opc import REL_ENDNOTES, REL_FOOTNOTES, REL_NUMBERING, REL_SETTINGS, REL_STYLES, REL_THEME, Package
+from ..opc import REL_ENDNOTES, REL_FOOTNOTES, REL_NUMBERING, REL_SETTINGS, REL_STYLES, REL_THEME, main_part, read_part
 from ..paths import Steps, row_level
-from ..xmlutil import attr, attr_bool, attr_int, child, children, local_name, parse_xml
+from ..xmlutil import attr_bool, attr_int
 from .drawing import PictureRef, drawing_element, picture_crop, read_anchor, read_graphic_data
 from .vml import read_vml
 from .properties import read_paragraph_properties, read_run_properties, read_table_properties
@@ -962,51 +967,51 @@ def image_pixels(data: bytes) -> tuple[int, int] | None:
 
 def parse_package(source: str | bytes | BinaryIO) -> Document:
     """Open a ``.docx`` and parse its main document part."""
-    package = Package.open(source)
-    main = package.main_document_part
-    styles_parts = package.related(main, REL_STYLES)
-    styles_xml = package.read(styles_parts[0]) if styles_parts else None
-    document = parse_document(package.read(main), styles_xml)
+    package = OpcPackage.open(source)
+    main = main_part(package)
+    styles_parts = package.related_parts_of_type(main, REL_STYLES)
+    styles_xml = read_part(package, styles_parts[0]) if styles_parts else None
+    document = parse_document(read_part(package, main), styles_xml)
     if not styles_parts:
         document.warnings.append("styles-part-missing")
-    theme_parts = package.related(main, REL_THEME)
+    theme_parts = package.related_parts_of_type(main, REL_THEME)
     if theme_parts:
-        theme_xml = package.read(theme_parts[0])
+        theme_xml = read_part(package, theme_parts[0])
         document.font_scheme = parse_theme(theme_xml)
         document.theme_colors = parse_theme_colors(theme_xml)
         document.theme_formats = parse_theme_formats(theme_xml)
-    numbering_parts = package.related(main, REL_NUMBERING)
+    numbering_parts = package.related_parts_of_type(main, REL_NUMBERING)
     if numbering_parts:
-        numbering_xml = package.read(numbering_parts[0])
+        numbering_xml = read_part(package, numbering_parts[0])
         numbering = parse_numbering(numbering_xml, document.styles)
         document.numbering = numbering.levels
         document.numbering_lists = numbering.lists
         document.numbering_restarts = numbering.restarts
         for identifier, relationship in parse_picture_bullets(numbering_xml).items():
-            image = package.part_by_id(numbering_parts[0], relationship) if relationship else None
-            pixels = image_pixels(package.read(image)) if image and package.exists(image) else None
+            image = package.related_part(numbering_parts[0], relationship) if relationship else None
+            pixels = image_pixels(read_part(package, image)) if image and package.has_part(image) else None
             document.picture_bullets[identifier] = PictureBullet(relationship, numbering_parts[0], pixels)
     for section in document.sections:
         for _, relationship_id in section.headers + section.footers:
             if relationship_id not in document.stories:
-                part = package.part_by_id(main, relationship_id)
-                if part is not None and package.exists(part):
-                    root = parse_xml(package.read(part))
+                part = package.related_part(main, relationship_id)
+                if part is not None and package.has_part(part):
+                    root = parse_xml(read_part(package, part))
                     # Paragraphs and tables, with the fields open across them.
                     document.stories[relationship_id] = _story(root, path=local_name(root.tag).join(("w:", "")),
                                                                 fields=_Fields(document.cached_fields))
                     document.story_parts[relationship_id] = part
-    footnote_parts = package.related(main, REL_FOOTNOTES)
+    footnote_parts = package.related_parts_of_type(main, REL_FOOTNOTES)
     if footnote_parts:
         document.footnotes, document.footnote_separators, document.footnote_separator_ids = parse_footnotes(
-            package.read(footnote_parts[0]))
-    endnote_parts = package.related(main, REL_ENDNOTES)
+            read_part(package, footnote_parts[0]))
+    endnote_parts = package.related_parts_of_type(main, REL_ENDNOTES)
     if endnote_parts:
         document.endnotes, document.endnote_separators, document.endnote_separator_ids = parse_notes(
-            package.read(endnote_parts[0]), "endnote")
-    settings_parts = package.related(main, REL_SETTINGS)
+            read_part(package, endnote_parts[0]), "endnote")
+    settings_parts = package.related_parts_of_type(main, REL_SETTINGS)
     if settings_parts:
-        settings_xml = package.read(settings_parts[0])
+        settings_xml = read_part(package, settings_parts[0])
         document.theme_font_lang = parse_settings(settings_xml)
         document.compatibility_mode = parse_compatibility_mode(settings_xml)
         document.compat_options = parse_compat_options(settings_xml)

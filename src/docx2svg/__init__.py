@@ -62,8 +62,9 @@ from .parse import parse_document, parse_package
 from .paths import resolve_path
 from .png import RasterizerNotAvailable, available_backends, svg_to_png
 from ooxml_common.locales import EN_US, Locale
+from ooxml_common.opc import OpcPackage
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "Conversion",
@@ -276,14 +277,17 @@ def _selected(options: ConvertOptions, count: int) -> list[int]:
 def _images(data: bytes):
     """``(relationship id, the part it is the part's own) -> (content type, bytes)`` for
     the pictures of the main document (part ``None``) and of its headers and footers."""
-    package = Package.open(data)
-    main = package.main_document_part
+    from .opc import content_type, main_part
+
+    package = OpcPackage.open(data)
+    main = main_part(package)
 
     def images(relationship: str, source: str | None = None):
-        part = package.part_by_id(source or main, relationship)
-        if part is None or not package.exists(part):
+        part = package.related_part(source or main, relationship)
+        found = package.read(part) if part is not None else None
+        if found is None:
             return None
-        return package.content_type(part), package.read(part)
+        return content_type(package, part), found
 
     return images
 

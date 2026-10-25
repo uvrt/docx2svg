@@ -11,8 +11,12 @@ from __future__ import annotations
 import dataclasses
 from dataclasses import dataclass, field
 
+from ooxml_common.xmlutil import attr, local_name, parse_xml
+from ooxml_common.xmlutil import element_child as child
+from ooxml_common.xmlutil import element_children as children
+
 from ..model import FontScheme, NumberingLevel, Style, StyleSheet, ThemeFonts
-from ..xmlutil import attr, attr_bool, attr_int, child, children, local_name, parse_xml
+from ..xmlutil import attr_bool, attr_int
 from .properties import _on, read_paragraph_properties, read_run_properties, read_table_properties
 
 
