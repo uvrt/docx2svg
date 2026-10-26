@@ -634,9 +634,11 @@ def _font_name(path: str, directory: str | None) -> str:
 def our_components(svg: str, files: list[str], directory: str | None = None) -> dict:
     """Every input that decides our raster's pixels: the SVG's bytes; the font files resvg
     is handed, in order, each by name and *content*; the options; the code that turns them
-    into resvg's call (``docx2svg/png.py``); resvg and Pillow; the resolution and
+    into resvg's call (``docx2svg/png.py`` and ``ooxml_common/raster.py``); resvg and Pillow; the resolution and
     :data:`HARNESS_VERSION`."""
     import raster_cache
+
+    import ooxml_common.raster
 
     import docx2svg.png
 
@@ -646,6 +648,7 @@ def our_components(svg: str, files: list[str], directory: str | None = None) -> 
         "options": dict(sorted(OUR_RASTER_OPTIONS.items())),
         "font_files": [[_font_name(path, directory), content_digest(path)] for path in files],
         "png_py": content_digest(docx2svg.png.__file__),
+        "raster_py": content_digest(ooxml_common.raster.__file__),
         **_rasteriser_versions(),
     }
 
