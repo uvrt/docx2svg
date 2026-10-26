@@ -215,7 +215,6 @@ def read(pdf_path: Path | str) -> list[Page]:
 
 def _interpret(stream: bytes, fonts: dict[str, Font], page: int, height_pt: float) -> list[TextRun]:
     runs: list[TextRun] = []
-    stack: list[float] = []
     operands: list = []
     ctm = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
     saved: list[list[float]] = []

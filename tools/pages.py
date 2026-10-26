@@ -99,7 +99,6 @@ def score(name: str, document, data: bytes, drawn, advances, metrics, rules=None
     items = paginate.flow(document, advances, metrics,
                           features=baselines.paragraph_features(data) if features else None)
     result = paginate.paginate(document, items, rules)
-    block_of = {i: item.block for i, item in enumerate(items)}
     model = paginate.drawn_pages(items, result)
     out = Score(name)
     if result.stopped is not None:

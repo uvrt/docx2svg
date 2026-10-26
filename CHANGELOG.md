@@ -5,6 +5,16 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.4.1 -- unreleased
+
+- **A linter, and `py.typed`** (review, S8): ruff checks pyflakes and a few bug-finding rules
+  (`[tool.ruff]` in pyproject.toml; no formatter, no import sorting), as a step of CI's build
+  job, pinned in the dev extra. What it found is fixed: unused imports and locals (in
+  `layout.py`, `lines.py`, `fonts.py`'s second `import os`, the tests and the tools) and
+  f-strings without a placeholder. `units.emu_to_twips`, which nothing called, is gone. The
+  wheel and sdist now carry `py.typed`, so a caller's type checker reads the annotations.
+  mypy is not run here yet. Rendering is unchanged.
+
 ## 0.4.0 -- unreleased
 
 - **One raster backend for both renderers** (review, S7): `png.py` was written after

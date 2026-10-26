@@ -21,7 +21,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from fractions import Fraction
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent

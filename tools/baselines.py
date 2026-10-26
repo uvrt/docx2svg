@@ -46,14 +46,13 @@ from fractions import Fraction
 
 from docx2svg.model import Document, Paragraph, Table
 from docx2svg.resolve import (
-    autospaced, character_format, resolve_mark, resolve_paragraph, resolve_run, script_half_points,
+    autospaced, character_format, resolve_paragraph, resolve_run, script_half_points,
 )
 from docx2svg import linebreak, vertical
 from docx2svg.lines import height_key as _height_key, label_format as _label_format  # noqa: F401
 from docx2svg.lines import line_items, model_line_shares  # noqa: F401
-from docx2svg.resolve.cascade import Resolved
 from docx2svg.vertical import (
-    PX_PER_PT, LineBox, autospace_kept, baseline_in_box, border_px, keeps_space_before_at_page_top,
+    PX_PER_PT, LineBox, autospace_kept, baseline_in_box, keeps_space_before_at_page_top,
     line_extent, mixed_line_pitch, natural_height_px, page_top_gap_px, paragraph_gap_px,
     tallest_natural, twips_to_px,
 )

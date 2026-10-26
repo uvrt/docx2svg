@@ -129,7 +129,6 @@ def main(argv: list[str]) -> int:
     observed = {setting: observe(lines) for setting, lines in documents.items()}
     report(observed, "-v" in argv[1:])
     import face_advances
-    import pages
 
     faces: dict = {}
     advance_faces: dict = {}
