@@ -282,7 +282,7 @@ def installed_index(dirs: tuple[Path, ...] = FONT_DIRS, *,
                 try:
                     bold, italic = face.style
                     families = face.families()
-                except (struct.error, TypeError):
+                except (struct.error, TypeError, FontError):
                     continue
                 for family in families:
                     key = (family.lower(), bold, italic)
