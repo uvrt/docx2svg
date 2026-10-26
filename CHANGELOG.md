@@ -5,6 +5,15 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.4.2 -- unreleased
+
+- **A font scan skips a file without a `head` table again** (hotfix after S8): since
+  ooxml-common 0.33.1 its `Face` raises `FontError`, not `TypeError`, for a font that lacks
+  `head`, `hhea` or `hmtx`. `fonts.installed_index` skipped only `struct.error` and
+  `TypeError`, so macOS's `Supplemental/NISC18030.ttf` (no `head`) stopped the whole scan on
+  macOS. It now skips `FontError` too, as the other scans here already did; a test builds
+  such a font in memory. Rendering is unchanged.
+
 ## 0.4.1 -- unreleased
 
 - **A linter, and `py.typed`** (review, S8): ruff checks pyflakes and a few bug-finding rules
