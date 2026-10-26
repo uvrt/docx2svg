@@ -324,9 +324,9 @@ def _br_cases() -> list[Case]:
     face, hp = "Calibri", 23
     for marker in ("<br>", "<cr>"):
         out.append(Case("br", f"{marker} mid-line", face, hp,
-                        ((f"aaaa bbbb", {}), (marker, {}), (f"cccc{TAIL}", {})), 3000))
+                        (("aaaa bbbb", {}), (marker, {}), (f"cccc{TAIL}", {})), 3000))
         out.append(Case("br", f"{marker} then spaces", face, hp,
-                        ((f"aaaa", {}), (marker, {}), (f"   cccc{TAIL}", {})), 3000))
+                        (("aaaa", {}), (marker, {}), (f"   cccc{TAIL}", {})), 3000))
     filler, ind_right = place(face, hp, width(face, "aaaa", hp), -5)
     out.append(Case("br", "text before the break does not fit", face, hp,
                     ((f"{filler} aaaa", {}), ("<br>", {}), (f"cccc{TAIL}", {})), ind_right))
@@ -409,7 +409,7 @@ def _run_cases() -> list[Case]:
                          ("bold", {"b": True})):
         filler, ind_right = place(face, hp, width(face, "aaaa", hp), int(width(face, "b", hp) / 3))
         out.append(Case("run", f"run boundary inside a word ({label})", face, hp,
-                        ((f"{filler} aaaa", {}), (f"bbbb", props), (TAIL, {})), ind_right))
+                        ((f"{filler} aaaa", {}), ("bbbb", props), (TAIL, {})), ind_right))
     filler, ind_right = place(face, hp, width(face, "aaaa", hp), int(width(face, "b", hp) / 3))
     out.append(Case("run", "run boundary after a space", face, hp,
                     ((f"{filler} ", {}), ("aaaabbbb", {"color": "C00000"}), (TAIL, {})), ind_right))
@@ -434,7 +434,6 @@ def _format_cases() -> list[Case]:
     out.append(Case("format", "caps: AAAA fits, B does not", face, hp,
                     ((f"{filler} ", {}), ("aaaab", {"caps": True}), (TAIL, {})), ind_right))
     track = 40  # twips per glyph
-    extra = 5 * (track * 1024 // 5)
     filler, ind_right = place(face, hp, width(face, "aaaa", hp) + 4 * (track * 1024 // 5), int(width(face, "b", hp) / 3))
     out.append(Case("format", "tracking 40 twips: aaaa fits, b does not", face, hp,
                     ((f"{filler} ", {}), ("aaaab", {"spacing": track}), (TAIL, {})), ind_right))

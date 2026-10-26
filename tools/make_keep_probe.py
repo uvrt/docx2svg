@@ -45,7 +45,7 @@ one with no styles part at all (widow ``default`` cases only).
 from __future__ import annotations
 
 import functools
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import probe_docx
 import wml

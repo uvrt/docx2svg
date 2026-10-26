@@ -63,7 +63,6 @@ def visibility():
 
     probe = ('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100" viewBox="0 0 200 100">\n'
              '<text data-docx-path="probe" x="10" y="70" font-family="sans-serif" font-size="60">Ink</text>\n</svg>\n')
-    import numpy
 
     if not (visibility._raster(probe, 200, 100) < 200).any():
         pytest.skip("the rasteriser has no face to draw text with on this host")

@@ -64,7 +64,7 @@ from .png import RasterizerNotAvailable, available_backends, svg_to_png
 from ooxml_common.locales import EN_US, Locale
 from ooxml_common.opc import OpcPackage
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 __all__ = [
     "Conversion",

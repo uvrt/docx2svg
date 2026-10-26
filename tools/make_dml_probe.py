@@ -40,7 +40,7 @@ from dataclasses import dataclass
 import make_anchor_probe as anchor_probe
 import make_drawing_probe as drawing_probe
 import wml
-from make_anchor_probe import A_NS, Anchor
+from make_anchor_probe import Anchor
 from make_drawing_probe import NO_LINE, custom, graphic, group, preset, scheme, shape, solid, srgb
 
 W14_NS = "http://schemas.microsoft.com/office/word/2010/wordml"

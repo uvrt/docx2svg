@@ -45,10 +45,6 @@ def emu_to_pt(emu: float) -> float:
     return emu / EMU_PER_POINT
 
 
-def emu_to_twips(emu: float) -> float:
-    return emu / EMU_PER_TWIP
-
-
 def device_page_extent_pt(twips: float, dpi: int = DEVICE_DPI) -> float:
     """The page extent Word's PDF export *actually* writes, for an authored ``w:pgSz``.
 

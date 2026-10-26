@@ -3127,7 +3127,7 @@ def _keeps(items: list, start: Position, overflow: Position, rules: Rules,
 
 
 def paginate(document: Document, items: list, rules: Rules | None = None, *,
-             start: Position = Position(0)) -> Pagination:
+             start: Position = Position(0)) -> Pagination:  # noqa: B008 -- Position is frozen
     """Every page of ``items`` (:func:`flow`) from ``start``, until the end or an obstacle."""
     rules = rules or Rules()
     out = Pagination()

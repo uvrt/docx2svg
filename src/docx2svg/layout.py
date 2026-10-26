@@ -34,7 +34,6 @@ from types import SimpleNamespace
 from ooxml_common.locales import Locale
 
 from . import linebreak, paginate, vertical
-from .lines import label_format
 from .model import Document, Paragraph, Table
 from .resolve import (
     character_format, resolve_mark, resolve_paragraph, resolve_run, script_half_points, script_raise_half_points,
@@ -753,7 +752,7 @@ class _Placer:
         if not any(section.line_numbering for section in sections):
             return
         from .model import Run, RunProperties
-        from .resolve import character_format, resolve_paragraph, resolve_run
+        from .resolve import resolve_paragraph, resolve_run
 
         section_of: dict[str, int] = {}
         suppressed: set[str] = set()

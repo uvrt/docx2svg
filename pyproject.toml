@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docx2svg"
-version = "0.4.0"
+version = "0.4.1"
 description = "Render Word (.docx) documents to SVG in pure Python"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -53,6 +53,8 @@ dev = [
   "pypdfium2>=4",
   "fonttools>=4.40",
   "resvg-py>=0.5",
+  # The linter (CI's build job runs it, at the same pin; [tool.ruff] below).
+  "ruff==0.17.2",
 ]
 # The fidelity instrument's converter (tools/pdf_svg.py): Word's PDF page to SVG, so that
 # resvg rasterises both sides of the score.  Development only, and deliberately not in
@@ -81,9 +83,20 @@ Roadmap = "https://github.com/uvrt/docx2svg/blob/main/ROADMAP.md"
 [tool.setuptools.packages.find]
 where = ["src"]
 
-# The hyphenation patterns (docx2svg.hyphenate) and their sources and licences.
+# The hyphenation patterns (docx2svg.hyphenate) and their sources and licences; py.typed,
+# so a caller's type checker reads the package's annotations (PEP 561).
 [tool.setuptools.package-data]
-docx2svg = ["patterns/*.txt", "patterns/*.txt.gz"]
+docx2svg = ["patterns/*.txt", "patterns/*.txt.gz", "py.typed"]
+
+# A small set of bug-finding rules, not a style: pyflakes (F), syntax errors (E9),
+# mutable or called defaults (B006, B008), return in finally (B012), comparisons that do
+# nothing (B015) and pylint's errors (PLE).  No formatter and no import sorting.
+[tool.ruff]
+target-version = "py310"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["F", "E9", "B006", "B008", "B012", "B015", "PLE"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

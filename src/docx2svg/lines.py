@@ -191,7 +191,7 @@ def object_line_height(document: Document, paragraph: Paragraph, pp: Resolved, c
     ``make_picture_run_probe.py``: pictures of 33, 49 and 66 px in runs of 8-30 pt under
     marks of 11 and 20 pt, 48 / 48 lines; below mode 15 the run's size does not count).
     """
-    from .vertical import FaceMetrics, natural_height_px, quantise, twips_to_px
+    from .vertical import natural_height_px, quantise, twips_to_px
 
     picture = twips_to_px(max(objects))
     mark = resolve_mark(document, paragraph)

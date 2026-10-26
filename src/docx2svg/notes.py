@@ -383,7 +383,7 @@ def with_footnotes(document: Document, pages: dict | None = None) -> Document:
 
     body = [numbered(item) for item in document.body]
     paragraphs = [item for item in body if not isinstance(item, Table)]
-    footnotes = {note_id: [_number_runs(block, "footnoteRef", lambda _mark, text=by_note.get(note_id, ""): text)
+    footnotes = {note_id: [_number_runs(block, "footnoteRef", lambda _mark, text=by_note.get(note_id, ""): text)  # noqa: B008 -- binds this note's text now, on purpose
                            if isinstance(block, Paragraph) else block for block in blocks]
                  for note_id, blocks in document.footnotes.items()}
     return dataclasses.replace(document, body=body, paragraphs=paragraphs, footnotes=footnotes)

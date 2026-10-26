@@ -847,7 +847,6 @@ def rasteriser_files(fonts: "InstalledFonts", faces, directory: str | None = Non
     another face there answers the same family, stretch, style and weight (Avenir's Book
     and Roman are both 400) -- the rasteriser draws one of the two.
     """
-    import os
 
     files: list[str] = []
     missing: list[str] = []
