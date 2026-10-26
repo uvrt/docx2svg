@@ -5,6 +5,25 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.4.0 -- unreleased
+
+- **One raster backend for both renderers** (review, S7): `png.py` was written after
+  pptx2svg's and copied its mechanism. Finding the backends, calling resvg-py and cairosvg
+  with their options, `RasterizerNotAvailable`, and drawing a page in passes
+  (`pass_svg`) are now `ooxml_common.raster`, which pptx2svg uses too. `png.py` keeps what is
+  Word's: the plan of which text goes in which pass (`fonts.drawing_plan`), and the
+  generic `sans-serif` named for the placeholders' labels. Every public name stays, with
+  what it raises. `RasterizerNotAvailable` is now ooxml-common's class, so it is pptx2svg's
+  as well. Two things are now as pptx2svg had them. `backend="auto"` stops probing at the
+  first backend that imports, instead of importing cairosvg too. A pass leaves out the
+  texts it draws nothing of (`ooxml_common.raster.without_undrawn_text`), which resvg would
+  lay out and not draw. PNGs are byte for byte what they were, per backend: every fixture
+  document at 500 px, plus a small SVG with each size, scale, background and
+  `sans_serif_family` option, through resvg and through cairosvg (118 images), and five
+  pages drawn in two passes (a heading face filed under the body face's name), through resvg.
+  `tools/fidelity.py` adds `ooxml_common/raster.py`'s source to the cache key of our raster.
+  The ooxml-common floor is raised to 0.33.0.
+
 ## 0.3.0 -- unreleased
 
 - **Packages and XML are read through ooxml-common** (review, S6): `docx2svg/opc.py` and
