@@ -16,8 +16,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 
 from docx2svg import parse_package  # noqa: E402
-from docx2svg.opc import Package  # noqa: E402
+from docx2svg.opc import REL_STYLES, Package, content_type, main_part, read_part  # noqa: E402
 from docx2svg.parse import parse_document  # noqa: E402
+from ooxml_common.opc import OpcPackage  # noqa: E402
 
 import make_layout_sweep as sweep  # noqa: E402
 
@@ -152,10 +153,76 @@ def test_an_absent_val_on_a_toggle_means_true():
 
 
 def test_the_main_part_comes_from_the_relationship_not_a_hard_coded_path(layout_sweep_path):
-    package = Package.open(layout_sweep_path)
-    assert package.main_document_part == "word/document.xml"
-    assert package.related("word/document.xml", "http://schemas.openxmlformats.org"
-                           "/officeDocument/2006/relationships/styles") == ["word/styles.xml"]
+    package = OpcPackage.open(layout_sweep_path)
+    assert main_part(package) == "word/document.xml"
+    assert package.related_parts_of_type("word/document.xml", "http://schemas.openxmlformats.org"
+                                         "/officeDocument/2006/relationships/styles") == ["word/styles.xml"]
+
+
+def _zip(parts: dict[str, str]) -> bytes:
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, text in parts.items():
+            archive.writestr(name, text)
+    return buffer.getvalue()
+
+
+RELS = "http://schemas.openxmlformats.org/package/2006/relationships"
+OFFICE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+TYPES = "http://schemas.openxmlformats.org/package/2006/content-types"
+
+
+def _renamed_package() -> bytes:
+    return _zip({
+        "[Content_Types].xml": f'<Types xmlns="{TYPES}"><Default Extension="xml" ContentType="application/xml"/>'
+                               '<Override PartName="/doc/main.xml" ContentType="main"/></Types>',
+        "_rels/.rels": f'<Relationships xmlns="{RELS}"><Relationship Id="rId1" Type="{OFFICE}/officeDocument" '
+                       'Target="doc/main.xml"/></Relationships>',
+        "doc/main.xml": "<document/>",
+        "doc/_rels/main.xml.rels": f'<Relationships xmlns="{RELS}"><Relationship Id="rIdS" Type="{REL_STYLES}" '
+                                   f'Target="../shared/styles.xml"/><Relationship Id="rIdL" Type="{OFFICE}/hyperlink" '
+                                   'Target="https://example.com/" TargetMode="External"/></Relationships>',
+        "media/picture.png": "not a picture",
+    })
+
+
+def test_word_s_readings_of_a_package():
+    """What docx2svg.opc reads where OpcPackage answers otherwise: no root relationship
+    means ``word/document.xml``, a missing part raises, and a type the package does not
+    state is ``""`` (OpcPackage would guess ``image/png`` from the extension)."""
+    package = OpcPackage.open(_renamed_package())
+    assert main_part(package) == "doc/main.xml"
+    assert main_part(OpcPackage(parts={})) == "word/document.xml"
+    assert package.related_parts_of_type("doc/main.xml", REL_STYLES) == ["shared/styles.xml"]
+    assert read_part(package, "/doc/main.xml") == b"<document/>"
+    with pytest.raises(KeyError, match="shared/styles.xml"):
+        read_part(package, "shared/styles.xml")
+    assert content_type(package, "doc/main.xml") == "main"
+    assert content_type(package, "doc/other.xml") == "application/xml"
+    assert content_type(package, "media/picture.png") == ""
+    assert package.content_type("media/picture.png") == "image/png"
+
+
+def test_the_old_reader_s_names_are_kept_for_a_release():
+    package = Package.open(_renamed_package())
+    assert isinstance(package, OpcPackage)
+    assert package.main_document_part == "doc/main.xml"
+    assert package.related("doc/main.xml", REL_STYLES) == ["shared/styles.xml"]
+    assert package.part_by_id("doc/main.xml", "rIdS") == "shared/styles.xml"
+    assert package.part_by_id("doc/main.xml", "rIdL") is None
+    assert package.exists("doc/main.xml") and not package.exists("shared/styles.xml")
+    assert package.read("doc/main.xml") == b"<document/>"
+    with pytest.raises(KeyError):
+        package.read("shared/styles.xml")
+    assert package.content_type("media/picture.png") == ""
+    assert Package.rels_part_for("doc/main.xml") == "doc/_rels/main.xml.rels"
+    assert Package.rels_part_for("") == "_rels/.rels"
+    relationships = package.relationships("doc/main.xml")
+    assert package.resolve("doc/main.xml", relationships["rIdS"]) == "shared/styles.xml"
+    assert package.resolve("doc/main.xml", relationships["rIdL"]) == "https://example.com/"
 
 
 def test_the_compatibility_mode_is_read_and_unstated_stays_unstated():

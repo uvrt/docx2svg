@@ -22,10 +22,12 @@ sys.path.insert(0, str(REPO / "tools"))
 import render_record  # noqa: E402
 
 from docx2svg import convert_docx, convert_docx_to_layout, resolve_path  # noqa: E402
-from docx2svg.opc import Package  # noqa: E402
+from docx2svg.opc import main_part  # noqa: E402
 from docx2svg.paths import locate, path_part, split_path  # noqa: E402
-from docx2svg.xmlutil import local_name, parse_xml  # noqa: E402
+from ooxml_common.opc import OpcPackage  # noqa: E402
+from ooxml_common.xmlutil import local_name, parse_xml  # noqa: E402
 
+W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 W14_PARA_ID = "{http://schemas.microsoft.com/office/word/2010/wordml}paraId"
 COMMITTED = (
     "layout-sweep.docx", "style-document.docx",
@@ -81,12 +83,12 @@ def test_every_drawn_path_names_the_element_it_was_drawn_from(source):
     checked = 0
     for name, data, faces in _documents(source):
         layout = convert_docx_to_layout(data, render_record.options(render_record.RecordedFonts(faces)))
-        package = Package.open(data)
+        package = OpcPackage.open(data)
         trees: dict = {}
         for what, path, part, para_id in _drawn(layout):
             where = path_part(package, path, part)
             if where not in trees:
-                trees[where] = parse_xml(package.read(where)) if where and package.exists(where) else None
+                trees[where] = parse_xml(package.read(where)) if where and package.has_part(where) else None
             element = resolve_path(trees[where], path)
             if path.startswith(("w:footnotes/", "w:endnotes/")):
                 assert element is None, (name, path)
@@ -129,7 +131,8 @@ _CONTROLS = (
 
 
 def _text(element) -> str:
-    return "".join(node.text or "" for node in element.iter() if local_name(node.tag) == "t")
+    return "".join(node.text or "" for node in element.iter()
+                   if isinstance(node.tag, str) and local_name(node.tag) == "t")
 
 
 @pytest.mark.parametrize("parser", ["etree", "lxml"])
@@ -165,10 +168,42 @@ def test_locate_finds_the_part_and_the_element():
     part, element = locate(data, "w:body/w:p[1]/w:r[1]")
     assert part == "word/document.xml" and local_name(element.tag) == "r"
     assert locate(data, "w:hdr/w:p[1]", "word/header1.xml")[0] == "word/header1.xml"
-    package = Package.open(data)
-    assert path_part(package, "w:footnote[@w:id=2]/w:p[1]") in (None, *package.related(
-        package.main_document_part, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes"))
+    package = OpcPackage.open(data)
+    assert path_part(package, "w:footnote[@w:id=2]/w:p[1]") in (None, *package.related_parts_of_type(
+        main_part(package), "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes"))
 
+
+
+@pytest.mark.parametrize("parser", ["etree", "lxml"])
+def test_comments_and_processing_instructions_are_stepped_over(parser):
+    """A tree that keeps comments and processing instructions (lxml's, as docx-agent's
+    package parses a part, or ElementTree's with them asked for) resolves as one without."""
+    xml = (f'<w:document xmlns:w="{W}"><w:body><!-- a --><w:p><?mark x?><w:r><!-- b --><w:t>one</w:t></w:r>'
+           '</w:p><!-- c --><w:p><w:r><w:t>two</w:t></w:r></w:p></w:body></w:document>').encode()
+    if parser == "lxml":
+        etree = pytest.importorskip("lxml.etree")
+        root = etree.fromstring(xml)
+    else:
+        root = ElementTree.fromstring(xml, ElementTree.XMLParser(
+            target=ElementTree.TreeBuilder(insert_comments=True, insert_pis=True)))
+    assert _text(resolve_path(root, "w:body/w:p[1]/w:r[1]")) == "one"
+    assert _text(resolve_path(root, "w:body/w:p[2]")) == "two"
+    assert resolve_path(root, "w:body/w:p[3]") is None
+
+
+def test_path_part_takes_the_old_reader_s_names_too():
+    """docx-agent's adapter over its own package speaks the reader docx2svg had:
+    ``main_document_part`` and ``related``."""
+    class Old:
+        main_document_part = "word/document.xml"
+
+        def related(self, part, relationship):
+            return ["word/footnotes.xml"] if relationship.endswith("/footnotes") else []
+
+    assert path_part(Old(), "w:body/w:p[1]") == "word/document.xml"
+    assert path_part(Old(), "w:footnote[@w:id=2]/w:p[1]") == "word/footnotes.xml"
+    assert path_part(Old(), "w:endnote[@w:id=2]/w:p[1]") is None
+    assert path_part(Old(), "w:hdr/w:p[1]", "word/header1.xml") == "word/header1.xml"
 
 def test_the_svg_carries_the_layout_s_paths():
     """``data-docx-path`` is the layout object's path: the SVG's paragraph groups name

@@ -55,9 +55,11 @@ installed first, from a sibling checkout or, as CI does, from its repository;
 `pyproject.toml` names a version, never a URL, since PyPI refuses a distribution whose
 dependencies name one.
 
-- `ooxml-common>=0.28.0`: `imagemeta.pixels_and_density`, the public name of what docx2svg
-  imported private before (review, N2). What each earlier version added is in
-  ooxml-common's CHANGELOG.
+- `ooxml-common>=0.32.0`: `xmlutil.element_children` and `xmlutil.element_child`, which
+  step over comments and processing instructions, now that docx2svg reads packages and
+  XML through ooxml-common's `opc` and `xmlutil` (review, S6). 0.28.0 brought
+  `imagemeta.pixels_and_density`, the public name of what docx2svg imported private before
+  (review, N2). What each earlier version added is in ooxml-common's CHANGELOG.
 
 ## Names docx-agent imports
 

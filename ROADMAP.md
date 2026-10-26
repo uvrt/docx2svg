@@ -533,6 +533,14 @@ comes first. Its duplicates of the shared modules -- `docx2svg.opc`, `xmlutil`, 
 -- stay until then too: each carries Word-specific constants, and folding them into the
 shared ones is a change to be made with the suite watching, not as part of a move.
 
+*Done for `opc` and `xmlutil` (review, S6):* docx2svg reads packages with
+`ooxml_common.opc.OpcPackage` and XML with `ooxml_common.xmlutil`. `docx2svg.opc` keeps the
+Word relationship types and three readings that differ from the shared reader's (the main
+part's fallback, a missing part raising, an unstated content type being `""`), plus the old
+`Package` as names over `OpcPackage` for one release; `docx2svg.xmlutil` keeps `attr_int`
+and `attr_bool` (`ST_OnOff`) and re-exports the rest. Output byte-identical. `units` is
+still its own.
+
 
 This is the architecture question, and it is assessed here rather than assumed.
 

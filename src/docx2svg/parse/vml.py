@@ -36,8 +36,11 @@ from __future__ import annotations
 import re
 from xml.etree.ElementTree import Element
 
+from ooxml_common.xmlutil import attr, local_name
+from ooxml_common.xmlutil import element_child as child
+from ooxml_common.xmlutil import element_children as children
+
 from ..model import Anchor, AnchorPosition, Graphic
-from ..xmlutil import attr, child, children, local_name
 
 _VML = "urn:schemas-microsoft-com:vml"
 _R_ID = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"

@@ -43,7 +43,9 @@ from __future__ import annotations
 import re
 from typing import Iterator
 
-from .xmlutil import attr, child, children, local_name
+from ooxml_common.xmlutil import attr, local_name
+from ooxml_common.xmlutil import element_child as child
+from ooxml_common.xmlutil import element_children as children
 
 __all__ = ["Steps", "locate", "path_part", "resolve_path", "row_level", "split_path"]
 
@@ -199,32 +201,40 @@ def resolve_path(root, path: str):
 def path_part(package, path: str, part: str | None = None) -> str | None:
     """The part a path is in: ``part`` when the drawn object says (a header's or footer's
     line, :attr:`Line.part <docx2svg.layout.Line.part>`), the footnotes or endnotes part
-    for a note's path, else the main document part.  ``package`` is a
-    :class:`docx2svg.opc.Package`."""
-    from .opc import REL_ENDNOTES, REL_FOOTNOTES
+    for a note's path, else the main document part.  ``package`` is an
+    :class:`ooxml_common.opc.OpcPackage`, or anything with a ``main_document_part`` and a
+    ``related(part, relationship type)`` (the reader docx2svg had, which docx-agent's
+    adapter over its own package still speaks)."""
+    from ooxml_common.opc import OpcPackage
+
+    from .opc import REL_ENDNOTES, REL_FOOTNOTES, main_part
 
     if part:
         return part
-    main = package.main_document_part
+    if isinstance(package, OpcPackage):
+        main, related = main_part(package), package.related_parts_of_type
+    else:
+        main, related = package.main_document_part, package.related
     first = path.split("/", 1)[0]
     for prefix, relationship in (("w:footnote", REL_FOOTNOTES), ("w:endnote", REL_ENDNOTES)):
         if first == f"{prefix}s" or first.startswith(f"{prefix}["):
-            related = package.related(main, relationship)
-            return related[0] if related else None
+            found = related(main, relationship)
+            return found[0] if found else None
     return main
 
 
 def locate(source, path: str, part: str | None = None):
     """``(part, element)`` for a drawn object's path, ``element`` parsed by the standard
-    library from ``source`` (a :class:`docx2svg.opc.Package`, the ``.docx``'s bytes or a
-    file name); ``element`` is ``None`` where the path names nothing in the part.
+    library from ``source`` (an :class:`ooxml_common.opc.OpcPackage`, the ``.docx``'s bytes
+    or a file name); ``element`` is ``None`` where the path names nothing in the part.
 
     For many lookups, parse each part once and call :func:`resolve_path`."""
-    from .opc import Package
-    from .xmlutil import parse_xml
+    from ooxml_common.opc import OpcPackage
+    from ooxml_common.xmlutil import parse_xml
 
-    package = source if isinstance(source, Package) else Package.open(source)
+    package = source if isinstance(source, OpcPackage) else OpcPackage.open(source)
     where = path_part(package, path, part)
-    if where is None or not package.exists(where):
+    data = package.read(where) if where is not None else None
+    if data is None:
         return where, None
-    return where, resolve_path(parse_xml(package.read(where)), path)
+    return where, resolve_path(parse_xml(data), path)
