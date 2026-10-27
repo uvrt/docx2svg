@@ -176,8 +176,8 @@ def _skip_where_faces_are_absent(request, monkeypatch):
 
     lay_out = docx2svg.lay_out_docx
 
-    def checked(source, options=None):
-        result = lay_out(source, options)
+    def checked(source, options=None, **keywords):
+        result = lay_out(source, options, **keywords)
         for code, message, *_ in result[0].warnings:
             if code in _FACE_ABSENT or (code.startswith("layout-stopped:") and "cannot be measured" in message):
                 pytest.skip(f"a face this document is laid out in is not installed here: [{code}] {message}")

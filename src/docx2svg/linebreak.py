@@ -34,7 +34,7 @@ Standard library only; widths come from an :class:`~docx2svg.measure.Advances`.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import NamedTuple
 from fractions import Fraction
 
@@ -118,6 +118,15 @@ class Piece:
     #: index where that run starts.  Word takes the hyphen only when the line runs past the
     #: edge before it (``make_hyphen_probe.py``, ``noproof``).
     proof_end: int | None = None
+
+    def __reduce__(self):
+        # Pickled as its fields alone, in order: a layout keeps what its flow measured to
+        # lay the next version out from (:mod:`docx2svg.relayout`), every piece of every
+        # paragraph -- a hundred thousand in a long report.
+        return (Piece, tuple(getattr(self, name) for name in _PIECE_FIELDS))
+
+
+_PIECE_FIELDS = tuple(f.name for f in fields(Piece))
 
 
 @dataclass(frozen=True)

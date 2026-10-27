@@ -34,14 +34,17 @@ WORDS = ("river stone lantern orchard meadow harbour quiet copper window garden 
 @dataclass(frozen=True)
 class Block:
     """One body block: ``kind`` is ``heading``, ``para``, ``bullet``, ``table``, ``panel``
-    (a paragraph anchoring a side text box) or ``break`` (a paragraph holding a page break);
-    ``text`` its words (a table's: ``rows`` of cells)."""
+    (a paragraph anchoring a side text box), ``break`` (a paragraph holding a page break),
+    ``noted`` (a paragraph with a footnote, whose text is ``note``) or ``raw`` (``text`` is
+    the block's XML, written as it is); ``text`` its words (a table's: ``rows`` of cells)."""
 
     kind: str
     text: str = ""
     rows: tuple = ()
     #: ``w14:paraId`` of a paragraph, as Word stamps it.
     para_id: str = ""
+    #: A ``noted`` paragraph's footnote.
+    note: str = ""
 
 
 def _words(rng: random.Random, n: int) -> str:
@@ -53,9 +56,19 @@ def _sentences(rng: random.Random, low: int, high: int) -> str:
     return " ".join(_words(rng, rng.randint(6, 14)) for _ in range(rng.randint(low, high)))
 
 
-def report(pages: int, seed: int = 0) -> list[Block]:
+#: A paragraph ending a section: the next starts on a new page (``nextPage``) or on this one.
+def section_break(kind: str = "nextPage") -> Block:
+    return Block("raw", f'<w:p><w:pPr><w:sectPr><w:type w:val="{kind}"/><w:pgSz w:w="11906" w:h="16838"/>'
+                        '<w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417" w:header="708" '
+                        'w:footer="708" w:gutter="0"/></w:sectPr></w:pPr></w:p>')
+
+
+def report(pages: int, seed: int = 0, *, notes: bool = False, sections: bool = False) -> list[Block]:
     """A made-up report of about ``pages`` A4 pages: per part a heading, paragraphs, a
-    bulleted list, a side panel, and every other part a table."""
+    bulleted list, a side panel, and every other part a table; every sixth part starts a
+    page (a paragraph holding a page break before its heading).  ``notes``: every third
+    part has a paragraph with a footnote too; ``sections``: every seventh part ends a
+    section, the next starting on a new page, or (every other one) on the same page."""
     rng = random.Random(seed)
     blocks: list[Block] = []
     serial = 0
@@ -65,12 +78,17 @@ def report(pages: int, seed: int = 0) -> list[Block]:
         serial += 1
         return f"{0x10000000 + serial * 7919:08X}"
 
-    for part in range(pages * 19 // 10):
+    for part in range(pages * 8 // 5):
+        if part % 6 == 5:
+            # A chapter starts a page.
+            blocks.append(Block("break", para_id=pid()))
         blocks.append(Block("heading", f"Part {part + 1}: " + _words(rng, 3)[:-1], para_id=pid()))
         for _ in range(rng.randint(2, 4)):
             blocks.append(Block("para", _sentences(rng, 2, 6), para_id=pid()))
         if part % 3 == 1:
             blocks.append(Block("panel", _sentences(rng, 3, 5), para_id=pid()))
+        if notes and part % 3 == 2:
+            blocks.append(Block("noted", _sentences(rng, 1, 3), para_id=pid(), note=_sentences(rng, 1, 2)))
         for _ in range(rng.randint(0, 3)):
             blocks.append(Block("bullet", _words(rng, rng.randint(4, 12)), para_id=pid()))
         if part % 2 == 0:
@@ -78,6 +96,8 @@ def report(pages: int, seed: int = 0) -> list[Block]:
                          for r in range(rng.randint(3, 7)))
             blocks.append(Block("table", rows=rows))
         blocks.append(Block("para", _sentences(rng, 1, 4), para_id=pid()))
+        if sections and part % 7 == 6:
+            blocks.append(section_break("nextPage" if part % 14 == 6 else "continuous"))
     return blocks
 
 
@@ -93,7 +113,7 @@ def edit(blocks: list[Block], rng: random.Random) -> tuple[list[Block], str]:
         kind = rng.choice(kinds)
         k = rng.randrange(len(blocks))
         block = blocks[k]
-        if kind in ("text", "grow") and block.kind in ("heading", "para", "bullet", "panel"):
+        if kind in ("text", "grow") and block.kind in ("heading", "para", "bullet", "panel", "noted"):
             text = _words(rng, rng.randint(3, 10)) if kind == "text" and rng.random() < 0.5 else (
                 block.text + " " + _sentences(rng, 1, 3 if kind == "grow" else 1))
             blocks[k] = replace(block, text=text)
@@ -187,6 +207,7 @@ def _table(rows: tuple) -> str:
 def body_xml(blocks: list[Block]) -> str:
     out = ""
     panels = 0
+    notes = 0
     for block in blocks:
         if block.kind == "heading":
             out += _para(block.text, "Heading1", block.para_id)
@@ -201,7 +222,28 @@ def body_xml(blocks: list[Block]) -> str:
             out += _para("", None, block.para_id, runs='<w:r><w:br w:type="page"/></w:r>')
         elif block.kind == "table":
             out += _table(block.rows)
+        elif block.kind == "noted":
+            notes += 1
+            out += _para("", None, block.para_id, runs=_run(block.text) + (
+                '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr>'
+                f'<w:footnoteReference w:id="{notes}"/></w:r>'))
+        elif block.kind == "raw":
+            out += block.text
     return out
+
+
+def footnotes_xml(blocks: list[Block]) -> str | None:
+    """The footnotes of ``blocks``' ``noted`` paragraphs, numbered 1, 2... in order."""
+    noted = [block for block in blocks if block.kind == "noted"]
+    if not noted:
+        return None
+    return (f'<w:footnotes xmlns:w="{W_NS}"><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/>'
+            '</w:r></w:p></w:footnote><w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r>'
+            '<w:continuationSeparator/></w:r></w:p></w:footnote>'
+            + "".join(f'<w:footnote w:id="{k}">' + _para("", "FootnoteText", runs=(
+                '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r>'
+                + _run(" " + block.note))) + "</w:footnote>" for k, block in enumerate(noted, start=1))
+            + "</w:footnotes>")
 
 
 def _field(instruction: str, result: str) -> str:
@@ -234,6 +276,10 @@ STYLES = (
              '<w:sz w:val="20"/><w:szCs w:val="20"/>')
     + _style("paragraph", "Panel", "Panel", '<w:spacing w:after="60" w:line="240" w:lineRule="auto"/>',
              '<w:color w:val="1F3864"/><w:sz w:val="18"/><w:szCs w:val="18"/>')
+    + _style("paragraph", "FootnoteText", "footnote text", '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/>',
+             '<w:sz w:val="18"/><w:szCs w:val="18"/>')
+    + '<w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="footnote reference"/>'
+      '<w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>'
     + _style("paragraph", "Header", "header",
              '<w:tabs><w:tab w:val="center" w:pos="4513"/><w:tab w:val="right" w:pos="9026"/></w:tabs>'
              '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/>')
@@ -249,18 +295,28 @@ NUMBERING = (
     '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>')
 
 
-def package(blocks: list[Block], *, title: str = "Made-up quarterly report", header: str | None = None) -> bytes:
+def package(blocks: list[Block], *, title: str = "Made-up quarterly report", header: str | None = None,
+            styles: str = "", even_odd: bool = False, title_page: bool = False) -> bytes:
     """``blocks`` as a ``.docx``: A4, 2.5 cm margins, a header (``title``) and a footer
-    (``Page N of M``)."""
+    (``Page N of M``), the footnotes of its ``noted`` paragraphs; ``styles``: more style
+    definitions.  ``even_odd``: even pages have a header of their own
+    (``w:evenAndOddHeaders``); ``title_page``: the first page has a header and a footer of its
+    own, with no page number (``w:titlePg``)."""
     header = header if header is not None else title
-    sect = ('<w:sectPr><w:headerReference w:type="default" r:id="rIdH"/>'
+    references = '<w:headerReference w:type="default" r:id="rIdH"/>'
+    if even_odd:
+        references += '<w:headerReference w:type="even" r:id="rIdHe"/>'
+    if title_page:
+        references += '<w:headerReference w:type="first" r:id="rIdHf"/><w:footerReference w:type="first" r:id="rIdFf"/>'
+    sect = (f'<w:sectPr>{references}'
             '<w:footerReference w:type="default" r:id="rIdF"/><w:pgSz w:w="11906" w:h="16838"/>'
             '<w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417" w:header="708" w:footer="708" '
-            'w:gutter="0"/><w:cols w:space="708"/><w:docGrid w:linePitch="360"/></w:sectPr>')
+            'w:gutter="0"/><w:cols w:space="708"/>' + ("<w:titlePg/>" if title_page else "")
+            + '<w:docGrid w:linePitch="360"/></w:sectPr>')
     ns = f'xmlns:w="{W_NS}" xmlns:r="{R_NS}" xmlns:w14="{W14_NS}"'
     parts = {
         "word/document.xml": f'<w:document {ns}><w:body>{body_xml(blocks)}{sect}</w:body></w:document>',
-        "word/styles.xml": STYLES,
+        "word/styles.xml": STYLES.replace("</w:styles>", styles + "</w:styles>"),
         "word/numbering.xml": NUMBERING,
         "word/header1.xml": f'<w:hdr {ns}>{_para(header, "Header")}</w:hdr>',
         "word/footer1.xml": (f'<w:ftr {ns}>' + _para("", "Footer", runs=(
@@ -272,6 +328,21 @@ def package(blocks: list[Block], *, title: str = "Made-up quarterly report", hea
     types = [("/word/document.xml", CT + "document.main+xml"), ("/word/styles.xml", CT + "styles+xml"),
              ("/word/numbering.xml", CT + "numbering+xml"), ("/word/header1.xml", CT + "header+xml"),
              ("/word/footer1.xml", CT + "footer+xml")]
+    if even_odd:
+        parts["word/header2.xml"] = f'<w:hdr {ns}>{_para("Even pages: " + header, "Header")}</w:hdr>'
+        parts["word/settings.xml"] = f'<w:settings xmlns:w="{W_NS}"><w:evenAndOddHeaders/></w:settings>'
+        rels += [("rIdHe", "header", "header2.xml"), ("rIdSt", "settings", "settings.xml")]
+        types += [("/word/header2.xml", CT + "header+xml"), ("/word/settings.xml", CT + "settings+xml")]
+    if title_page:
+        parts["word/header3.xml"] = f'<w:hdr {ns}>{_para(title.upper(), "Header")}</w:hdr>'
+        parts["word/footer2.xml"] = f'<w:ftr {ns}>{_para("A made-up report", "Footer")}</w:ftr>'
+        rels += [("rIdHf", "header", "header3.xml"), ("rIdFf", "footer", "footer2.xml")]
+        types += [("/word/header3.xml", CT + "header+xml"), ("/word/footer2.xml", CT + "footer+xml")]
+    notes = footnotes_xml(blocks)
+    if notes is not None:
+        parts["word/footnotes.xml"] = notes
+        rels.append(("rIdFn", "footnotes", "footnotes.xml"))
+        types.append(("/word/footnotes.xml", CT + "footnotes+xml"))
     parts["word/_rels/document.xml.rels"] = (
         '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
         + "".join(f'<Relationship Id="{rid}" Type="{R_NS}/{kind}" Target="{target}"/>' for rid, kind, target in rels)

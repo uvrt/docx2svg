@@ -386,6 +386,8 @@ class Layout:
         return list(index.get(key, []))
 
     def warn(self, code: str, message: str, page: int | None = None) -> None:
+        if self.log is not None:
+            self.log.append(("warn", code, message, page))
         entry = (code, message, page)
         if entry not in self.warnings:
             self.warnings.append(entry)
@@ -394,8 +396,33 @@ class Layout:
     #: layout carried on past what it cannot lay out (``layout-placeholder:<reason>``).
     placeholders: list[tuple[str, str, int | None, str | None]] = field(default_factory=list)
 
+    #: Laid out again from a previous layout (:func:`docx2svg.lay_out_docx`'s ``previous``):
+    #: the 1-based pages whose drawing differs from the previous layout's page of the same
+    #: number, and every page it did not have -- the pages to draw and send again
+    #: (:mod:`docx2svg.relayout`).  ``None`` for a layout made without one.
+    changed_pages: list | None = None
+    #: Laid out again from a previous layout: ``None`` where only the pages an edit
+    #: reaches were laid out again, else why the whole document was (``styles``,
+    #: ``numbering``, ``sections``, ``headers-footers``, ``page-count``...).  ``None`` for a
+    #: layout made without one.
+    relaid: str | None = None
+    #: What a layout of this document from this one needs (:class:`docx2svg.relayout.State`):
+    #: kept with the layout, so that it can be handed back as ``previous``.
+    state: object = field(default=None, repr=False, compare=False)
+    #: While placing pages: the warnings, approximations and placeholders recorded, in
+    #: order, as ``(kind, ...arguments)``, so a page placed once is warned of again when it
+    #: is kept (:mod:`docx2svg.relayout`).  ``None`` otherwise.
+    log: list | None = field(default=None, repr=False, compare=False)
+
+    def replay(self, log: list) -> None:
+        """Record again what :attr:`log` recorded: the same warnings, in the same order."""
+        for kind, *args in log:
+            getattr(self, kind)(*args)
+
     def approximate(self, reason: str, message: str, page: int | None, path: str | None) -> None:
         """Record an approximation (:attr:`approximations`), and warn of it."""
+        if self.log is not None:
+            self.log.append(("approximate", reason, message, page, path))
         entry = (f"layout-approximate:{reason}", message, page, path)
         if entry not in self.approximations:
             self.approximations.append(entry)
@@ -403,6 +430,8 @@ class Layout:
 
     def placeholder(self, reason: str, message: str, page: int | None, path: str | None) -> None:
         """Record a placeholder (:attr:`placeholders`), and warn of it."""
+        if self.log is not None:
+            self.log.append(("placeholder", reason, message, page, path))
         entry = (f"layout-placeholder:{reason}", message, page, path)
         if entry not in self.placeholders:
             self.placeholders.append(entry)
@@ -642,6 +671,52 @@ def _shading(value) -> str | None:
     return _color(fill)
 
 
+def _marks(page: Page, log: list) -> tuple:
+    """How long ``page``'s lists and its warnings ``log`` are: what a header or footer
+    drawn next adds is what comes after (:mod:`docx2svg.relayout` draws them again on a
+    page kept from a previous layout whose number or page count changed)."""
+    return (len(page.lines), len(page.rules), len(page.pictures), len(page.floats), len(page.boxes), len(log),
+            None if page.defs is None else (len(page.defs.defs), page.defs._next_id))
+
+
+class _Lazy(dict):
+    """A dict whose entries are found when first asked for: ``find(key)``, ``None`` for a
+    key it has none for (:meth:`_Placer._details` with ``lazy``)."""
+
+    find = None
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.data: dict = {}
+        self.tried: set = set()
+
+    def _look(self, key):
+        if key not in self.tried:
+            self.tried.add(key)
+            if self.find is not None:
+                value = self.find(key)
+                if value is not None:
+                    dict.__setitem__(self, key, value)
+        return dict.get(self, key)
+
+    def __setitem__(self, key, value) -> None:
+        self.data[key] = value
+        dict.__setitem__(self, key, value)
+
+    def __getitem__(self, key):
+        found = self._look(key)
+        if found is None and not dict.__contains__(self, key):
+            raise KeyError(key)
+        return found
+
+    def get(self, key, default=None):
+        found = self._look(key)
+        return default if found is None and not dict.__contains__(self, key) else found
+
+    def __contains__(self, key) -> bool:
+        return self._look(key) is not None or dict.__contains__(self, key)
+
+
 class _Placer:
     def __init__(self, document: Document, package: bytes | None, advances, metrics, decorations) -> None:
         self.document = document
@@ -650,6 +725,19 @@ class _Placer:
         self.decorations = decorations
         self.layout = Layout(pages=[])
         self.run_cache: dict[int, Resolved] = {}
+        #: What the flow measured, kept to lay the document out again
+        #: (:class:`docx2svg.relayout.Measures`); ``None``: nothing kept.
+        self.memo = None
+        #: Per pagination iteration placed: :meth:`place_pages`.
+        self.placed: list = []
+        #: The body's elements' digests by element key (:func:`docx2svg.relayout.body_digests`),
+        #: what :attr:`memo` keys the flow's blocks by; and the elements
+        #: (:func:`docx2svg.relayout.segments`).
+        self.digests: dict = {}
+        self.segments = None
+        self.features_used: list = []
+        self.approximated: list = []
+        self.field_values: dict = {}
         from .scope import paragraph_features
 
         self.features = paragraph_features(package) if package is not None else None
@@ -696,8 +784,78 @@ class _Placer:
                 top_level += 1
         return out
 
-    def run(self) -> Layout:
-        from .notes import footnote_references, with_endnotes, with_footnotes
+    def run(self, again=None) -> Layout:
+        """Lay the document out: every page.  ``again`` (:class:`docx2svg.relayout.Again`)
+        lays it out again from a previous layout instead, from the page an edit reaches
+        until the pages line up with that layout's (:mod:`docx2svg.relayout`)."""
+        source, original, features, by_page = self._prepare()
+        self.prepared = (source, original, features, by_page)
+        if again is not None:
+            return again.run(self, source, original, features, by_page)
+        return self.run_full(source, original, features, by_page)
+
+    def run_full(self, source: Document, original: Document, features: list, by_page: bool) -> Layout:
+        """:meth:`run`: every page, from what :meth:`_prepare` found."""
+        from .notes import with_footnotes
+
+        self.features_used = features
+        footnote_pages: dict | None = None
+        document = with_footnotes(original)
+        values: dict = {}
+        for attempt in range(4):
+            # Measurements are kept by what a block's XML says; a later pass sets the
+            # values of the page-number fields and notes found (:func:`substitute_document`):
+            # it measures afresh.
+            memo = self.memo if attempt == 0 else None
+            if memo is not None:
+                memo.bind(document, self.digests)
+            items = paginate.flow(document, self.advances, self.metrics, features=features, memo=memo)
+            result = paginate.paginate(document, items)
+            self.document, self.items = document, items
+            found = self._body_field_values(items, result)
+            pages = _footnote_pages(items, result) if by_page else None
+            if found == values and pages == footnote_pages:
+                break
+            # A computed field's value moves what it is measured in (a wider page number
+            # can break its line elsewhere): lay the body out again with the values found,
+            # until they are the ones it was laid out with.  So does a note's number.
+            values, footnote_pages = found, pages
+            document = substitute_document(with_footnotes(original, footnote_pages), values)
+        else:
+            self.layout.warn("field-layout-unsettled", "the body's page-number fields did not settle on one "
+                             "layout in four passes; the last is drawn")
+        self.field_values, self.footnote_pages = values, footnote_pages
+        self.references = paginate.story_references(document)
+        self.approximated = list(getattr(items, "approximated", ()))
+        for message in self.approximated:
+            self.layout.approximate("pagination", message, None, None)
+        self._notes(items)
+        details = self._details(items)
+        self.result = result
+        self.place_pages(items, details, result, range(len(result.starts)), 0)
+        if not result.starts and result.stopped is not None:
+            self.layout.pages.append(self._page(items, details, paginate.Position(0), paginate.Position(0), 0,
+                                                result.stopped))
+        if not self.layout.pages and document.sections:
+            # A body with nothing in it is still a page (Word exports one), and shows its
+            # section's first page's stories.
+            start = document.sections[0].page_number_start
+            number = 1 if start is None else start
+            info = paginate.PageInfo(number, 0, True, paginate.story_kind(document, 0, section_first=True,
+                                                                          number=number))
+            page = self._new_page(0, 0, info.story)
+            page.info = info
+            self._draw_stories(page, info)
+            self.layout.pages.append(page)
+        self._line_numbers(source)
+        return self.layout
+
+    def _prepare(self) -> tuple:
+        """What every layout of the document starts from: ``(source, original, features,
+        by_page)`` -- the document as parsed, with its endnotes placed in the flow and its
+        ``SEQ`` and ``REF`` fields computed, the paragraphs the flow cannot model, and
+        whether footnote numbers restart on each page -- and its warnings."""
+        from .notes import footnote_references, with_endnotes
 
         source = self.document
         # The endnotes, numbered and placed in the flow as paragraphs of it.
@@ -731,36 +889,26 @@ class _Placer:
             self.layout.warn("footnotes-not-drawn", "a footnote referenced in a table cell in a section of several "
                              "text columns takes no room at the page foot and is not drawn (its reference's "
                              "number is)")
-        footnote_pages: dict | None = None
-        document = with_footnotes(original)
-        values: dict = {}
-        for _attempt in range(4):
-            items = paginate.flow(document, self.advances, self.metrics, features=features)
-            result = paginate.paginate(document, items)
-            self.document, self.items = document, items
-            found = self._body_field_values(items, result)
-            pages = _footnote_pages(items, result) if by_page else None
-            if found == values and pages == footnote_pages:
-                break
-            # A computed field's value moves what it is measured in (a wider page number
-            # can break its line elsewhere): lay the body out again with the values found,
-            # until they are the ones it was laid out with.  So does a note's number.
-            values, footnote_pages = found, pages
-            document = substitute_document(with_footnotes(original, footnote_pages), values)
-        else:
-            self.layout.warn("field-layout-unsettled", "the body's page-number fields did not settle on one "
-                             "layout in four passes; the last is drawn")
-        self.references = paginate.story_references(document)
-        for message in getattr(items, "approximated", ()):
-            self.layout.approximate("pagination", message, None, None)
-        self._notes(items)
-        details = self._details(items)
+        return source, original, features, by_page
+
+    def place_pages(self, items, details, result, iterations, page_number: int) -> int:
+        """Place the pages the pagination ``result`` laid out at ``iterations`` (indexes
+        into its :attr:`~paginate.Pagination.starts`, in order), the blank pages Word
+        inserts before each with them, from the 0-based page ``page_number`` on; returns
+        the page after the last.  What each placed is kept in :attr:`placed`, one entry per
+        iteration -- ``(iteration, first page, end page, warnings, floats before, marks)``, the
+        warnings as :attr:`Layout.log` has them -- and where the page's header and footer
+        start and end in its lists (:func:`_marks`, before and after them), for
+        :mod:`docx2svg.relayout`."""
         ends = result.starts[1:] + [paginate.Position(result.stopped, result.stopped_line)
                                     if result.stopped is not None else paginate.Position(len(items))]
-        self.result = result
-        page_number = 0
         drawn_pages = [page for page in sorted(result.info) if not result.info[page].blank]
-        for index, (start, end) in enumerate(zip(result.starts, ends)):
+        outer = self.layout.log
+        for index in iterations:
+            start, end = result.starts[index], ends[index]
+            first = page_number
+            floats = self.__dict__.setdefault("_float_count", [0])[0]
+            self.layout.log = log = []
             number = drawn_pages[index] if index < len(drawn_pages) else paginate._page_number(result, index)
             # Blank pages Word inserts (an ``oddPage`` / ``evenPage`` section on the wrong
             # parity, a footnote continuation page) have no lines, and no header or footer
@@ -778,26 +926,17 @@ class _Placer:
             page = self._page(items, details, start, end, number, stopped, result.stopped_line, info)
             self._bands = []
             self._wraps = []
+            before = _marks(page, log)
             self._draw_stories(page, info)
+            after = _marks(page, log)
             self._footnotes(page, number)
             self.layout.pages.append(page)
             page_number = number + 1
-        if not result.starts and result.stopped is not None:
-            self.layout.pages.append(self._page(items, details, paginate.Position(0), paginate.Position(0), 0,
-                                                result.stopped))
-        if not self.layout.pages and document.sections:
-            # A body with nothing in it is still a page (Word exports one), and shows its
-            # section's first page's stories.
-            start = document.sections[0].page_number_start
-            number = 1 if start is None else start
-            info = paginate.PageInfo(number, 0, True, paginate.story_kind(document, 0, section_first=True,
-                                                                          number=number))
-            page = self._new_page(0, 0, info.story)
-            page.info = info
-            self._draw_stories(page, info)
-            self.layout.pages.append(page)
-        self._line_numbers(source)
-        return self.layout
+            self.placed.append((index, first, page_number, log, floats, (before, after)))
+            if outer is not None:
+                outer.extend(log)
+        self.layout.log = outer
+        return page_number
 
     def _line_numbers(self, source: Document) -> None:
         """Line numbers (``w:lnNumType``) beside the body's lines, as Word draws them
@@ -1294,9 +1433,11 @@ class _Placer:
         finally:
             page.column = saved
 
-    def _details(self, items) -> dict[int, _Paragraph]:
+    def _details(self, items, *, lazy: bool = False) -> dict[int, _Paragraph]:
         """Flow index -> the paragraph's pieces and lines, broken again exactly as the flow
-        broke them (the same breaker, the same label)."""
+        broke them (the same breaker, the same label).  ``lazy``: each found when first
+        asked for -- a layout made again from a previous one places only some pages
+        (:mod:`docx2svg.relayout`) -- and :attr:`memo`'s lines taken where it has them."""
         document = self.document
         counters = linebreak.ListCounters()
         labels: dict[int, str | None] = {}
@@ -1317,7 +1458,6 @@ class _Placer:
 
         for item in document.body:
             walk(item)
-        out: dict[int, _Paragraph] = {}
         by_block = {}
         index = 0
 
@@ -1337,33 +1477,66 @@ class _Placer:
         # Whether each flow paragraph's neighbours in the body share its border box (a
         # table between them parts them), as ``paginate.flow`` decides its border heights.
         body = list(self.document.body)
-        resolved_body = [resolve_paragraph(document, b) if not isinstance(b, Table) else None for b in body]
+        resolved: dict[int, object] = {}
+
+        def resolved_body(k: int):
+            if k not in resolved:
+                resolved[k] = resolve_paragraph(document, body[k]) if not isinstance(body[k], Table) else None
+            return resolved[k]
+
+        if not lazy:
+            for k in range(len(body)):
+                resolved_body(k)
         position_of = {id(b): k for k, b in enumerate(body)}
-        self.box_neighbours: dict[int, tuple[bool, bool]] = {}
-        for flow_index, item in enumerate(items):
+        memo = self.memo if lazy else None
+        neighbours = self.box_neighbours = _Lazy() if lazy else {}
+
+        def one(flow_index: int) -> _Paragraph | None:
+            item = items[flow_index] if 0 <= flow_index < len(items) else None
             if not isinstance(item, paginate.Para) or item.placeholder is not None:
-                continue
+                return None
             paragraph = by_block[item.block]
             k = position_of.get(id(paragraph))
-            if k is not None and resolved_body[k] is not None:
-                box = vertical.border_box(resolved_body[k])
+            if k is not None and resolved_body(k) is not None:
+                box = vertical.border_box(resolved_body(k))
                 drawn = any(vertical._drawn(side) for side in box[0])
-                before = resolved_body[k - 1] if k > 0 else None
-                after = resolved_body[k + 1] if k + 1 < len(body) else None
-                self.box_neighbours[flow_index] = (
+                before = resolved_body(k - 1) if k > 0 else None
+                after = resolved_body(k + 1) if k + 1 < len(body) else None
+                neighbours[flow_index] = (
                     drawn and before is not None and vertical.border_box(before) == box,
                     drawn and after is not None and vertical.border_box(after) == box)
             section = document.sections[item.section]
             pp = resolve_paragraph(document, paragraph)
-            pieces, lines = linebreak.break_paragraph(document, paragraph, section, self.advances, self.metrics,
-                                                      labels.get(item.block))
-            out[flow_index] = _Paragraph(paragraph, pp, pieces, lines,
-                                         linebreak.geometry(document, paragraph, section, pp), labels.get(item.block))
+            if item.source is not None and lazy:
+                # Beside a drawing text wraps around, the lines as the paginator placed them.
+                return _Paragraph(paragraph, pp, item.source.pieces, list(item.lines), item.source.geometry,
+                                  labels.get(item.block))
+            key = memo.paragraph_key(paragraph, item.section, labels.get(item.block)) if memo is not None else None
+            measured = memo.get(key) if key is not None else None
+            if measured is not None:
+                pieces, lines = measured[0], list(measured[1])
+            else:
+                pieces, lines = linebreak.break_paragraph(document, paragraph, section, self.advances, self.metrics,
+                                                          labels.get(item.block))
+            found = _Paragraph(paragraph, pp, pieces, lines, linebreak.geometry(document, paragraph, section, pp),
+                               labels.get(item.block))
             if item.source is not None:
                 # Beside a drawing text wraps around, the lines as the paginator placed them.
-                out[flow_index] = _Paragraph(paragraph, pp, item.source.pieces, list(item.lines),
-                                             item.source.geometry, labels.get(item.block))
-        return out
+                found = _Paragraph(paragraph, pp, item.source.pieces, list(item.lines), item.source.geometry,
+                                   labels.get(item.block))
+            return found
+
+        if lazy:
+            out = _Lazy()
+            out.find = one
+            neighbours.find = lambda flow_index: (out.get(flow_index), neighbours.data.get(flow_index))[1]
+            return out
+        found: dict[int, _Paragraph] = {}
+        for flow_index in range(len(items)):
+            detail = one(flow_index)
+            if detail is not None:
+                found[flow_index] = detail
+        return found
 
     # -- one page ---------------------------------------------------------------------------
 
@@ -3071,10 +3244,14 @@ def substitute_document(document: Document, values: dict) -> Document:
 
 
 def lay_out(document: Document, advances, metrics, *, package: bytes | None = None, decorations=None,
-            locale: Locale | None = None) -> Layout:
+            locale: Locale | None = None, placer: "_Placer | None" = None, again=None) -> Layout:
     """Every page of ``document``, placed: see the module docstring.  ``locale``, when
     given, is the conversion's (:attr:`Document.locale <docx2svg.model.Document.locale>`):
-    what a decimal tab stop aligns on and a chart's numbers are printed with."""
+    what a decimal tab stop aligns on and a chart's numbers are printed with.  ``placer``:
+    the :class:`_Placer` of ``document`` to lay it out with (:func:`docx2svg.lay_out_docx`
+    keeps what it measured); ``again``: from a previous layout (:mod:`docx2svg.relayout`)."""
     if locale is not None:
         document.locale = locale
-    return _Placer(document, package, advances, metrics, decorations).run()
+    if placer is None:
+        placer = _Placer(document, package, advances, metrics, decorations)
+    return placer.run(again)

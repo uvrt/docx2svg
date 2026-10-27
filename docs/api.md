@@ -46,6 +46,32 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   300 dpi when no size is asked, as `convert_docx_to_png` rasterises). `user_font_dirs(options)`
   is the application's font folders the rasteriser is handed after the faces the SVG
   names. A render tool drawing a few pages per call lays a version out once this way.
+- <a id="relayout"></a>**Laying out again from a previous layout** (round 19, R1). After a
+  small edit, `lay_out_docx(new_bytes, options, previous=layout)` lays out only what the edit
+  reaches -- the page holding the first changed block (or the one before, where its end may
+  depend on it) until the pages line up with `layout`'s again -- and keeps the rest of
+  `layout`'s pages, renumbered, moved on and with their headers and footers drawn again where
+  that is all that changed for them. The result is what a layout of `new_bytes` alone is,
+  every page's SVG byte for byte, and says what to draw again:
+
+  ```python
+  layout0, data0, fonts0 = lay_out_docx(data0)
+  layout1, data1, fonts1 = lay_out_docx(data1, previous=layout0)
+  layout1.changed_pages        # [17]: only the page the edit is on; [17, 18, 19] if it pushes text on
+  layout1.relaid               # None; or why the whole document was laid out again ("styles", ...)
+  svgs = page_svgs(layout1, data1, ConvertOptions(pages=layout1.changed_pages), fonts=fonts1)
+  ```
+
+  `changed_pages` is the pages whose drawing differs from `previous`'s page of the same
+  number (a page whose only change is its elements' `data-docx-path` is not one) and the
+  pages `previous` did not have. The changed blocks are found by comparing the bytes;
+  `changed_blocks=[...]` (paths or paraIds) is accepted as a hint only. The whole document is
+  laid out again -- the unchanged blocks' measurements still reused where the styles and
+  settings are the same -- where an edit cannot be scoped: `docx2svg.relayout.FALLBACKS`
+  lists each reason `relaid` gives. `previous` must be a layout this function made, with
+  the same options; one of another docx2svg, of other options, or made with `keep=False`
+  (which keeps nothing for later: `layout.state` is `None`) is laid out whole. The state a
+  layout keeps (`layout.state`) is picklable with it, so a worker process can hand it back.
 - <a id="warm"></a>**A worker's one-time work, done at its start**: a process's first
   layout pays for what later ones reuse -- the modules, the font folders' index (which
   faces each installed file holds), and each face it uses read from its file.
