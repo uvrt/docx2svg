@@ -193,10 +193,31 @@ class CharacterFormat:
 
 
 def character_format(resolved: Resolved, char: str, document: Document) -> CharacterFormat:
-    """Face, size, bold and italic for ``char`` in a run whose properties are ``resolved``."""
+    """Face, size, bold and italic for ``char`` in a run whose properties are ``resolved``.
+
+    Everything but the slot is the run's, so a run's characters of one slot share one
+    format: it is made once per slot, and found once per character, and kept on
+    ``resolved`` (whose values nothing changes once it is made) -- the layout asks for
+    every character, several times."""
+    kept = resolved.__dict__.get("_formats")
+    if kept is None:
+        kept = ({}, {})
+        object.__setattr__(resolved, "_formats", kept)
+    by_char, by_slot = kept
+    found = by_char.get(char)
+    if found is not None and found[0] is document:
+        return found[1]
     complex_script = bool(resolved.get("cs") or resolved.get("rtl"))
     slot = slot_for(char, complex_script=complex_script, hint=resolved.get("rFonts.hint"),
                     east_asian_language=resolved.get("lang.eastAsia"))
+    found = by_slot.get(slot)
+    if found is None or found[0] is not document:
+        found = by_slot[slot] = (document, _character_format(resolved, slot, complex_script, document))
+    by_char[char] = found
+    return found[1]
+
+
+def _character_format(resolved: Resolved, slot: str, complex_script: bool, document: Document) -> CharacterFormat:
     face, face_origins = slot_face(resolved, slot, document)
     if face is None:
         # The slot names no face (a theme reference Word does not follow, an empty theme
