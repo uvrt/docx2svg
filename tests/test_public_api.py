@@ -35,6 +35,7 @@ USED_BY: dict[str, dict[str, str]] = {
         "lay_out_docx": "docx-agent",
         "page_svgs": "docx-agent",
         "user_font_dirs": "docx-agent",
+        "warm": "docx-agent",
     },
     "docx2svg.coverage": {
         "Coverage": "docx-agent",

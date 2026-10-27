@@ -265,6 +265,198 @@ def _faces_in(path: Path) -> list[tuple[int, Face]]:
         return []
 
 
+#: The tables a folder scan reads of each face: its names, its style and its CSS keys
+#: (:meth:`Face.families`, :attr:`Face.style`, :attr:`Face.css`,
+#: :attr:`Face.rasteriser_families`).
+_SCAN_TABLES = (b"name", b"OS/2", b"head")
+
+
+class _ScannedFace(Face):
+    """A face read for a folder scan: its table directory and :data:`_SCAN_TABLES` only,
+    read from the file at their offsets -- a few kilobytes -- not the whole file.  Any other
+    table is read from the file when first asked for; :attr:`data` reads the whole file.
+    The same answers as a :class:`Face` over the file's bytes: a table past the file's end
+    is cut short in both."""
+
+    def __init__(self, path: str, offset: int, tables: dict, read: dict) -> None:
+        self.source = path
+        self.offset = offset
+        self._tables = tables
+        self._read = read
+
+    @property
+    def data(self) -> bytes:
+        return _read(self.source)
+
+    def table(self, tag: bytes) -> bytes | None:
+        found = self._tables.get(tag)
+        if found is None:
+            return None
+        if tag not in self._read:
+            with open(self.source, "rb") as handle:
+                self._read[tag] = _read_at(handle, *found)
+        return self._read[tag]
+
+
+def _read_at(handle, offset: int, length: int) -> bytes:
+    handle.seek(offset)
+    return handle.read(length)
+
+
+def _scanned_faces(path: Path) -> list[tuple[int, Face]]:
+    """:func:`_faces_in` for a folder scan: the same faces in the same order, failing the
+    same way (none, for a file whose header or a face's table directory cannot be read),
+    from each face's directory and :data:`_SCAN_TABLES` alone.  Reading every installed
+    file whole -- 1.4 GB on a Mac with Office -- was most of a process's first layout, and
+    kept the bytes in memory (:func:`ooxml_common.fonts.office.read_file` caches them)."""
+    source = str(path)
+    try:
+        with open(source, "rb") as handle:
+            head = handle.read(12)
+            if head[:4] == b"ttcf":
+                count = struct.unpack_from(">I", head, 8)[0]
+                offsets = list(struct.unpack_from(f">{count}I", head + handle.read(4 * count), 12))
+            else:
+                offsets = [0]
+            faces = []
+            for number, offset in enumerate(offsets):
+                header = _read_at(handle, offset, 12)
+                if len(header) < 12:
+                    raise FontError("too short for an offset table")
+                tables_count = struct.unpack_from(">H", header, 4)[0]
+                directory = _read_at(handle, offset + 12, 16 * tables_count)
+                tables: dict[bytes, tuple[int, int]] = {}
+                for i in range(tables_count):
+                    tables[directory[16 * i:16 * i + 4]] = struct.unpack_from(">II", directory, 16 * i + 8)
+                read = {tag: _read_at(handle, *tables[tag]) for tag in _SCAN_TABLES if tag in tables}
+                faces.append((number, _ScannedFace(source, offset, tables, read)))
+            return faces
+    except (OSError, struct.error, FontError):
+        return []
+
+
+#: :func:`_scanned_entries`' answers, by path, with the file's ``(st_mtime_ns, st_size)``
+#: before it was read (``None`` if it could not be stated): kept for the process, as the
+#: index is.
+_SCANNED: dict[str, tuple] = {}
+
+
+def _scanned_entries(path: str) -> tuple:
+    """``(number in the file, (bold, italic, family names) or None)`` of every face of
+    ``path`` a scan can read (:func:`_scanned_faces`), ``None`` where its style or names
+    cannot be read: what :func:`installed_index` needs, in both its orders, read once per
+    process -- or taken from a :class:`FontScan` (:func:`load_scan`)."""
+    found = _SCANNED.get(path)
+    if found is not None:
+        return found[1]
+    try:
+        stat = os.stat(path)
+        stamp: tuple | None = (stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        stamp = None
+    out = []
+    for number, face in _scanned_faces(Path(path)):
+        try:
+            bold, italic = face.style
+            named: tuple | None = (bold, italic, tuple(face.families()))
+        except (OSError, struct.error, TypeError, FontError):
+            named = None
+        out.append((number, named))
+    return _SCANNED.setdefault(path, (stamp, tuple(out)))[1]
+
+
+#: :func:`_scanned_rasteriser_families`' answers, by path: face number -> names or ``None``.
+_RASTERISER: dict[str, dict] = {}
+
+
+def _scanned_rasteriser_families(path: str, number: int) -> tuple | None:
+    """The family names a rasteriser files face ``number`` of ``path`` under
+    (:attr:`Face.rasteriser_families`), from its header tables; ``None`` where they cannot
+    be read.  Only a drawing that names a face its document name does not reach asks, so
+    they are read apart from :func:`_scanned_entries` (both from one :class:`FontScan`)."""
+    found = _RASTERISER.get(path)
+    if found is None:
+        found = {}
+        for at, face in _scanned_faces(Path(path)):
+            try:
+                found[at] = tuple(face.rasteriser_families)
+            except (OSError, struct.error, TypeError, FontError):
+                found[at] = None
+        found = _RASTERISER.setdefault(path, found)
+    return found.get(number)
+
+
+#: What a :class:`FontScan` holds per file; a scan of another format is not loaded.
+SCAN_FORMAT = 1
+
+
+@dataclass(frozen=True)
+class FontScan:
+    """What a process read of the font folders' files to find faces by name: per file,
+    its modification time and size and what each face in it is called, in which style --
+    a few hundred bytes a file.  Picklable: a render worker saves the one
+    :func:`docx2svg.warm` returns and hands it to the next worker's, which then reads only
+    the files that changed (:func:`load_scan`).
+
+    Keyed by each file's ``(st_mtime_ns, st_size)``
+    (:func:`ooxml_common.fonts.rasterdb.file_stamps`): a file changed, replaced or removed
+    is read afresh, a file added is read as it would be; the folders themselves are listed
+    by every process, so the scan never decides which files there are."""
+
+    #: path -> ``(st_mtime_ns, st_size, entries)`` (:func:`_scanned_entries`).
+    files: dict
+    #: The docx2svg version that read it: a scan from another version is not loaded.
+    version: str = ""
+    format: int = SCAN_FORMAT
+    #: path -> {face number: rasteriser family names} (:func:`_scanned_rasteriser_families`),
+    #: for the files this process asked that of.
+    rasteriser: dict = field(default_factory=dict)
+
+
+def _listed(dirs) -> list[str]:
+    """The font files :func:`installed_index` lists in ``dirs``, each once."""
+    out: dict[str, None] = {}
+    for directory in dirs:
+        if not directory.is_dir():
+            continue
+        for path in sorted(directory.iterdir()):
+            if path.suffix.lower() in _FONT_SUFFIXES:
+                out.setdefault(str(path), None)
+    return list(out)
+
+
+def font_scan(dirs, version: str = "") -> FontScan:
+    """The :class:`FontScan` of every font file in ``dirs``, from what this process has
+    read (reading what it has not)."""
+    files = {}
+    for path in _listed(dirs):
+        _scanned_entries(path)
+        stamp, entries = _SCANNED[path]
+        if stamp is not None:
+            files[path] = (*stamp, entries)
+    return FontScan(files, version, rasteriser={path: dict(_RASTERISER[path]) for path in files
+                                                if path in _RASTERISER})
+
+
+def load_scan(scan: FontScan, version: str = "") -> int:
+    """Take what ``scan`` read of each file whose modification time and size are still
+    those it recorded, so this process does not read it; the number of files taken.  A
+    scan of another version or format, or not a :class:`FontScan`, is not taken (0)."""
+    from ooxml_common.fonts.rasterdb import file_stamps
+
+    if not isinstance(scan, FontScan) or scan.format != SCAN_FORMAT or scan.version != version:
+        return 0
+    taken = 0
+    for path, mtime, size in file_stamps(font_files=list(scan.files)):
+        recorded = scan.files[path]
+        if (recorded[0], recorded[1]) == (mtime, size):
+            _SCANNED.setdefault(path, ((mtime, size), recorded[2]))
+            if path in scan.rasteriser:
+                _RASTERISER.setdefault(path, dict(scan.rasteriser[path]))
+            taken += 1
+    return taken
+
+
 @functools.lru_cache(maxsize=None)
 def installed_index(dirs: tuple[Path, ...] = FONT_DIRS, *,
                     bundle_first: bool = False) -> dict[tuple[str, bool, bool], tuple[str, int]]:
@@ -278,12 +470,10 @@ def installed_index(dirs: tuple[Path, ...] = FONT_DIRS, *,
         for path in sorted(directory.iterdir()):
             if path.suffix.lower() not in _FONT_SUFFIXES:
                 continue
-            for number, face in _faces_in(path):
-                try:
-                    bold, italic = face.style
-                    families = face.families()
-                except (struct.error, TypeError, FontError):
+            for number, named in _scanned_entries(str(path)):
+                if named is None:
                     continue
+                bold, italic, families = named
                 for family in families:
                     key = (family.lower(), bold, italic)
                     if key[0] in PREFER_BUNDLE and directory == WORD_FONTS and not bundle_first:
@@ -318,9 +508,8 @@ def _rasteriser_families_index(dirs: tuple[Path, ...]) -> dict[str, list[tuple[s
     a rasteriser files it under (:attr:`Face.rasteriser_families`), lowercased."""
     out: dict[str, list[tuple[str, int]]] = {}
     for path, number in sorted(set(installed_index(dirs, bundle_first=True).values())):
-        try:
-            names = _face_at(path, number).rasteriser_families
-        except (struct.error, TypeError, FontError):
+        names = _scanned_rasteriser_families(path, number)
+        if names is None:
             continue
         for name in {name.lower() for name in names}:
             out.setdefault(name, []).append((path, number))
@@ -944,7 +1133,7 @@ class _PoolFace:
 @functools.lru_cache(maxsize=4096)
 def _pool_faces(path: str, mtime: int, size: int) -> tuple:
     out = []
-    for _, face in _faces_in(Path(path)):
+    for _, face in _scanned_faces(Path(path)):
         try:
             out.append(_PoolFace(path, face.css, tuple(name.lower() for name in face.rasteriser_families),
                                  _legacy_families(face)))

@@ -118,6 +118,13 @@ class Resolved:
     def get(self, key: str, default=None):
         return self.values.get(key, default)
 
+    def __getstate__(self) -> dict:
+        # Not the character formats :func:`docx2svg.resolve.fonts.character_format` keeps
+        # here: they hold the document.
+        state = dict(self.__dict__)
+        state.pop("_formats", None)
+        return state
+
     def origin(self, key: str) -> Origin | None:
         chain = self.origins.get(key)
         return chain[-1] if chain else None

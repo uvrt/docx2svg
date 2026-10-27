@@ -5,6 +5,37 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.5.0 -- unreleased
+
+- **A cheaper first layout in a process** (round 19, R2). A process's first layout read
+  every installed font file whole to find which faces each holds -- 688 files, 1.4 GB on a
+  Mac with Office -- and kept the bytes (`ooxml_common.fonts.office.read_file` caches
+  them): most of the gap between a first and a second call, and 1.4 GB of memory per
+  render worker. The folder scan now reads each face's table directory and its `name`,
+  `OS/2` and `head` tables at their offsets (`fonts._scanned_faces`), once per file for
+  both of the index's orders and for the rasteriser's family index; only a face the
+  layout uses is read whole. The same index, entry for entry, as the whole-file scan on
+  this machine (2,584 entries), and the same answers for made-up fonts that cannot be
+  read (`tests/test_warm.py`). A process's memory after a 16-page layout: 1,444 MB ->
+  65 MB.
+- **`docx2svg.warm(source=None, options=None, *, scan=None)`**: a render worker's one-time
+  work done at its start -- every module imported, the font folders `options` names
+  scanned -- and, with `source` (a template), that document laid out and its first page
+  drawn, which loads the faces and hyphenation patterns it uses. It returns a
+  `docx2svg.fonts.FontScan` (picklable: per file, its modification time and size and the
+  faces in it); a later process's `warm(scan=...)` reads only the files whose time or
+  size changed (`fonts.font_scan`, `fonts.load_scan`; stamps as
+  `ooxml_common.fonts.rasterdb.file_stamps` takes them; a scan of another version is
+  ignored). Output is byte-identical with and without it: three subprocesses (cold,
+  warmed, warmed from the scan) draw the same pages, warnings and coverage.
+- **Plain speed-ups of every layout**: a run's character formats
+  (`resolve.character_format`) are made once per run and slot rather than per character
+  and call, and kept on the run's `Resolved` (left out of its pickle); `layout.units_px`
+  makes one `Fraction` instead of two for an integer, and `half_points_offset_px` is
+  cached. The same values, so the same output: the VRT snapshots, and 37 documents (341
+  pages: the fixtures, docx-agent's fixtures, local documents and two made-up 16- and
+  40-page reports) hashed page by page with this machine's fonts, the same as 0.4.2.
+
 ## 0.4.2 -- unreleased
 
 - **A font scan skips a file without a `head` table again** (hotfix after S8): since
