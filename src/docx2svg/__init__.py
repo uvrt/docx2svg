@@ -269,7 +269,10 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
         segments = relayout.segments(main) if main is not None else None
     else:
         parts = main = segments = None
-    measured = plan.state.memo if plan is not None and plan.measured else None
+    # The measurements of the previous layout, where the parts they depend on are the same and
+    # the blocks' models are what their XML says ("fields-open": a field's result in one block
+    # may hang on another's).
+    measured = plan.state.memo if plan is not None and plan.measured and plan.reason != "fields-open" else None
     relaid = plan.reason if plan is not None else None
     again = relayout.Again(plan, previous) if plan is not None and plan.reason is None else None
 

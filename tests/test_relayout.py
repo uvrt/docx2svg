@@ -250,3 +250,45 @@ def test_paths_are_renumbered_by_the_blocks_before_the_pages_kept(report16):
     edited.append(report_docs.Block("raw", '<w:bookmarkStart w:id="90" w:name="end"/><w:bookmarkEnd w:id="90"/>'))
     again, again_svgs = _check(edited, layout, svgs, "insert and bookmark", {})
     assert again.relaid is None and len(again.state.laid) < len(again.pages)
+
+
+FIELDS = [("PAGE", "1"), ("SEQ Figure", "1"), ("NUMPAGES", "1")]
+
+
+def _with_fields(blocks):
+    """``blocks`` with a paragraph of each field in :data:`FIELDS` well into the report,
+    each with a cached result a layout replaces."""
+    out = list(blocks)
+    for k, (instruction, cached) in enumerate(FIELDS):
+        out.insert(len(out) * (k + 2) // (len(FIELDS) + 2), report_docs.Block("raw", PAGE_FIELD.replace(
+            " PAGE ", f" {instruction} ").replace("<w:t>1</w:t>", f"<w:t>{cached}</w:t>")))
+    return out
+
+
+@pytest.mark.parametrize("name", ["fields", "samplelib/sample-long.docx", "wordto/sample-with-table.docx",
+                                  "wordto/sample-with-images.docx", "style-document.docx", "layout-sweep.docx"])
+def test_a_layout_that_keeps_its_state_draws_what_one_that_does_not_does(name):
+    # What a layout keeps -- the flow's measurements among it -- never changes what it draws:
+    # page fields laid out again with their values, SEQ counted, pictures, tables.
+    from pathlib import Path
+
+    if name == "fields":
+        data = report_docs.package(_with_fields(report_docs.report(8)))
+    else:
+        data = (Path(__file__).resolve().parent / "fixtures" / name).read_bytes()
+    kept, kept_data, kept_fonts = lay_out_docx(data)
+    plain, plain_data, plain_fonts = lay_out_docx(data, keep=False)
+    assert page_svgs(kept, kept_data, fonts=kept_fonts) == page_svgs(plain, plain_data, fonts=plain_fonts)
+    assert kept.state is not None and plain.state is None
+
+
+def test_edits_of_a_report_with_fields_lay_out_as_a_full_layout():
+    blocks = _with_fields(report_docs.report(8))
+    layout, data, fonts = lay_out_docx(report_docs.package(blocks))
+    svgs = page_svgs(layout, data, fonts=fonts)
+    rng = random.Random(5)
+    stats: dict = {}
+    for _ in range(6):
+        blocks, what = report_docs.edit(blocks, rng)
+        layout, svgs = _check(blocks, layout, svgs, f"fields, {what}", stats)
+    assert set(stats) <= {"page-fields", "cross-references"}, stats

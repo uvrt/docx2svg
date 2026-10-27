@@ -239,6 +239,14 @@ def parts_reason(before: dict, after: dict) -> str | None:
 # -- what the flow measured ------------------------------------------------------------------------
 
 
+def _texts(paragraphs) -> bytes:
+    """A digest of the paragraphs' text as the model holds it: what the layout sets in a
+    block beyond its own XML -- a footnote's number, a ``SEQ`` or ``REF`` field's value, a
+    field's result left out where its instruction began in another block -- changes it."""
+    return _digest("\x00".join("\x01".join(run.text for run in paragraph.runs)
+                                for paragraph in paragraphs).encode("utf-8", "surrogatepass"))
+
+
 class Measures:
     """What :func:`docx2svg.paginate.flow` measured, by what it measured it from: a
     top-level paragraph's ``(pieces, lines, shares, heights, more)`` by its element's
@@ -290,7 +298,10 @@ class Measures:
 
     def paragraph_key(self, paragraph, section: int, label):
         base = self.keys.get(id(paragraph))
-        return None if base is None else ("p", base, section, label)
+        if base is None or paragraph.joins:
+            # A paragraph joined to the next (its mark deleted) is more than its element.
+            return None
+        return ("p", base, section, label, _texts([paragraph]))
 
     def table_key(self, table, section: int, block: int, labels: dict, features, before):
         # A table's flow holds its model -- its cells' paragraphs, their paths and ids, which
@@ -305,7 +316,10 @@ class Measures:
         # The flow reads the paragraph before only for its style.
         previous = ((before.properties.style_id if before.properties else None,)
                     if isinstance(before, Paragraph) else None)
-        return ("t", base, table.path, section, block, tuple(labels.get(k) for k in range(block, block + count)),
+        from .layout import _all_paragraphs
+
+        return ("t", base, table.path, section, block, _texts(_all_paragraphs([table])),
+                tuple(labels.get(k) for k in range(block, block + count)),
                 tuple(features[k] if features and k < len(features) else None for k in range(block, block + count)),
                 previous)
 

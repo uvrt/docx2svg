@@ -21,7 +21,9 @@ snapshot commit; the development history before it is summarised here.
   `changed_blocks` is accepted as a hint and never trusted over that. Then:
   - the flow (`paginate.flow`) takes a paragraph's lines and line heights, and a table's
     flow, from what the previous layout measured (`relayout.Measures`, kept by the element's
-    digest without its `w14:paraId`/`w14:textId`, so stamping ids measures nothing again);
+    digest without its `w14:paraId`/`w14:textId` -- so stamping ids measures nothing again --
+    and by the text the layout sets in it: a footnote's number, a `SEQ` field's value; the
+    later passes that set the body's page-number fields measure afresh);
   - the pages are laid out again from the page holding the first changed block -- or the
     page before, where its end may hang on the change (the change starts the page, or a
     chain of keep-with-next blocks from its start reaches it) or the page starts inside a

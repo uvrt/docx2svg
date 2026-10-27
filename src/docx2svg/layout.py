@@ -797,10 +797,14 @@ class _Placer:
         footnote_pages: dict | None = None
         document = with_footnotes(original)
         values: dict = {}
-        for _attempt in range(4):
-            if self.memo is not None:
-                self.memo.bind(document, self.digests)
-            items = paginate.flow(document, self.advances, self.metrics, features=features, memo=self.memo)
+        for attempt in range(4):
+            # Measurements are kept by what a block's XML says; a later pass sets the
+            # values of the page-number fields and notes found (:func:`substitute_document`):
+            # it measures afresh.
+            memo = self.memo if attempt == 0 else None
+            if memo is not None:
+                memo.bind(document, self.digests)
+            items = paginate.flow(document, self.advances, self.metrics, features=features, memo=memo)
             result = paginate.paginate(document, items)
             self.document, self.items = document, items
             found = self._body_field_values(items, result)
