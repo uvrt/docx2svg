@@ -47,7 +47,7 @@ from ooxml_common.xmlutil import attr, local_name
 from ooxml_common.xmlutil import element_child as child
 from ooxml_common.xmlutil import element_children as children
 
-__all__ = ["Steps", "locate", "path_part", "resolve_path", "row_level", "split_path"]
+__all__ = ["Steps", "block_keys", "locate", "path_part", "resolve_path", "row_level", "split_path"]
 
 
 class Steps:
@@ -93,6 +93,38 @@ def split_path(path: str) -> list[tuple[str | None, str, int | None, str | None]
             raise ValueError(f"not a docx2svg path step: {step!r} in {path!r}")
         index = match.group("index")
         out.append((match.group("prefix"), match.group("name"), int(index) if index else None, match.group("id")))
+    return out
+
+
+#: The steps a body block's key ends at (:func:`block_keys`): a paragraph, a table, a row, a cell.
+BLOCK_STEPS = frozenset({"p", "tbl", "tr", "tc"})
+#: The block-level containers a key passes through to reach one.
+_BLOCK_CONTAINERS = frozenset({"sdt", "sdtContent", "customXml"})
+
+
+def block_keys(path: str) -> list[str]:
+    """The body's blocks a drawn object's ``path`` is in, outermost first: every prefix of
+    the path that ends at a paragraph, table, row or cell step, up to the first step inside
+    a paragraph (a run, a drawing, a text box's own paragraphs) -- ``w:body/w:tbl[2]``,
+    ``w:body/w:tbl[2]/w:tr[3]``, ``w:body/w:tbl[2]/w:tr[3]/w:tc[1]``,
+    ``w:body/w:tbl[2]/w:tr[3]/w:tc[1]/w:p[1]`` for a cell's line.  Each is a path
+    :func:`resolve_path` finds in the main document part, derived from the XML alone (the
+    keys :meth:`docx2svg.layout.Layout.pages_of` takes).  Empty for a path outside the
+    body: a header's, a footer's or a note's."""
+    steps = path.split("/")
+    if steps[0] != "w:body":
+        return []
+    out = []
+    prefix = steps[0]
+    for step in steps[1:]:
+        prefix += "/" + step
+        name = step.split("[", 1)[0].split(":", 1)[-1]
+        if name in BLOCK_STEPS:
+            out.append(prefix)
+            if name == "p":
+                break
+        elif name not in _BLOCK_CONTAINERS:
+            break
     return out
 
 

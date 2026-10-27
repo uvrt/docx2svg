@@ -7358,6 +7358,18 @@ margins 1,417 twips, mode 15.
 
 ---
 
+## A live view of a document being written (round 19)
+
+A caller showing a report's pages while an agent writes it needs to know which pages hold
+which blocks, and -- after each small edit -- which pages to draw again.
+
+- **Pages and blocks, both ways (R3).** `Page.blocks`, `Layout.blocks_on(page)` and
+  `Layout.pages_of(key)` (docs/api.md, "Pages and blocks"): read from what each page draws,
+  keyed by the path of the block's element (`paths.block_keys`) or a paragraph's
+  `w14:paraId` -- derivable from the XML alone, so a caller maps its own ids onto them
+  (docx-agent does: `DocumentLayout.blocks_on` and `pages_of`). Nothing is measured: it
+  is bookkeeping over the layout, and costs nothing until asked.
+
 ## Phase 6 — Everything else, sized
 
 | Item | Effort | Notes |

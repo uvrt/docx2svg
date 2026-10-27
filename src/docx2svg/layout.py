@@ -35,6 +35,7 @@ from ooxml_common.locales import Locale
 
 from . import linebreak, paginate, vertical
 from .model import Document, Paragraph, Table
+from .paths import block_keys
 from .resolve import (
     character_format, resolve_mark, resolve_paragraph, resolve_run, script_half_points, script_raise_half_points,
 )
@@ -303,6 +304,30 @@ class Page:
                 out.extend(line for placed in step[1] for line in placed.lines)
         return out
 
+    @property
+    def blocks(self) -> list[str]:
+        """The keys of the body's blocks the page draws something of
+        (:func:`docx2svg.paths.block_keys`): each paragraph, table, table row and cell, as
+        the path of its element in the main document part -- a table's key, then its
+        rows' and cells' and their paragraphs' -- once each, in the order the page draws
+        them (its body lines in the flow's order, then its floating drawings and their
+        text boxes, its placeholders and where the layout stopped).  A block on two pages
+        (a paragraph, a table or a row split across them; a header row drawn again) is
+        listed on both; a header's, a footer's or a note's lines are not the body's."""
+        out: dict[str, None] = {}
+        paths = [line.path for line in self.lines if line.story is None]
+        for placed in self.floats:
+            if placed.story is None:
+                paths.append(placed.path)
+                paths.extend(line.path for line in placed.lines)
+        paths.extend(box.path for box in self.boxes if box.story is None)
+        if self.stop is not None:
+            paths.append(self.stop.path)
+        for path in paths:
+            for key in block_keys(path):
+                out[key] = None
+        return list(out)
+
 
 @dataclass
 class Layout:
@@ -315,6 +340,45 @@ class Layout:
     #: ``(code, message, 1-based page, element path)`` of every place laid out by a rule
     #: no probe measured, without stopping (``layout-approximate:<reason>``), in order.
     approximations: list[tuple[str, str, int | None, str | None]] = field(default_factory=list)
+
+    def blocks_on(self, page: int) -> list[str]:
+        """The keys of the body's top-level blocks -- paragraphs and tables, as the paths
+        of their elements (``w:body/w:p[3]``, ``w:body/w:tbl[1]``; a content control's
+        paragraph ``w:body/w:sdt[1]/w:sdtContent/w:p[1]``) -- the 1-based ``page`` draws
+        something of, in the order it draws them (:attr:`Page.blocks`).  ``[]`` for a
+        page the layout does not have."""
+        if not 1 <= page <= len(self.pages):
+            return []
+        out: dict[str, None] = {}
+        for key in self.pages[page - 1].blocks:
+            out[block_keys(key)[0]] = None
+        return list(out)
+
+    def pages_of(self, key: str) -> list[int]:
+        """The 1-based pages a body block is drawn on, in order: every page of one split
+        across pages.  ``key`` is a block's path (:attr:`Page.blocks`: a paragraph's, a
+        table's, a row's or a cell's; a path inside a paragraph -- a run's, a drawing's --
+        is taken as its paragraph's) or a paragraph's ``w14:paraId`` as the file writes it
+        (any case).  ``[]`` for a block nothing of which is drawn: hidden, past where the
+        layout stopped, or not in the document."""
+        index = self.__dict__.get("_page_index")
+        if index is None:
+            index = {}
+            for page in self.pages:
+                for found in page.blocks:
+                    index.setdefault(found, []).append(page.number + 1)
+                for line in page.lines:
+                    if line.story is None and line.paragraph_id and line.path.startswith("w:body/"):
+                        pages = index.setdefault(f"#{line.paragraph_id.upper()}", [])
+                        if not pages or pages[-1] != page.number + 1:
+                            pages.append(page.number + 1)
+            self.__dict__["_page_index"] = index
+        if "/" not in key and key != "w:body":
+            return list(index.get(f"#{key.upper()}", []))
+        if key not in index:
+            keys = block_keys(key)
+            key = keys[-1] if keys else key
+        return list(index.get(key, []))
 
     def warn(self, code: str, message: str, page: int | None = None) -> None:
         entry = (code, message, page)

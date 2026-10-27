@@ -5,6 +5,24 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.6.0 -- unreleased
+
+- **Pages and blocks, both ways** (production round 19, R3): which body blocks each page
+  holds, and which pages each block is on, keyed by what the XML alone gives -- the path of
+  the block's element in the main part, as `data-docx-path` counts it, and a paragraph's
+  `w14:paraId`. `Page.blocks` lists the keys of every paragraph, table, table row and cell
+  the page draws something of (a table's key, then its rows', cells' and their paragraphs'),
+  once each, in the order the page draws them; `Layout.blocks_on(page)` the top-level ones;
+  `Layout.pages_of(key)` every 1-based page a block is drawn on -- each page of a paragraph,
+  table or row split across pages, each page a header row is drawn again on -- by path (a
+  run's path is taken as its paragraph's) or by paraId. `paths.block_keys(path)` gives the
+  keys of a drawn object's path. Read from what each page draws (its body lines, floating
+  drawings and their text boxes, placeholders, stop), so nothing is added to the layout's
+  work; headers, footers and notes are not the body's. `tools/report_docs.py` writes the
+  made-up reports the tests use (headings, lists, tables with a header row, side panels in
+  text boxes text wraps beside, a header and a `Page N of M` footer). Rendering is
+  unchanged.
+
 ## 0.4.2 -- unreleased
 
 - **A font scan skips a file without a `head` table again** (hotfix after S8): since
