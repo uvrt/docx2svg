@@ -55,8 +55,11 @@ snapshot commit; the development history before it is summarised here.
   the property over seeded random edits of made-up reports -- a paragraph's or a cell's text
   changed or grown, paragraphs, rows and page breaks inserted and deleted, footnotes --
   each layout made from the one before (`RELAYOUT_CASES` sets how many; CI runs 160 of 4
-  pages, 20 of 6 with footnotes, 10 of 16 and 4 of 40), and every fallback. Timings:
-  `feedback-round19/timings-B.md` (outside the repository). Rendering is unchanged.
+  pages, 20 of 6 with footnotes, 10 of 16 and 4 of 40), and every fallback. On made-up 16- and 40-page
+  reports (this machine, fonts on local disk), a one-paragraph edit that fits on its page
+  takes 0.27 s instead of a full layout's 1.65 and 4.06 s; one that pushes text on to the
+  next pages 0.52 and 0.33 s; a page break that adds a 41st page 1.58 s (every footer drawn
+  again). Rendering is unchanged.
 
 ## 0.6.0 -- unreleased
 
