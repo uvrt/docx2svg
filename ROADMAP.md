@@ -927,6 +927,14 @@ file drawn can be a different one. A renderer that measures with the file it emb
 be wrong for any face installed twice. Calibri, Aptos and Cambria exist only in Word's
 bundle here; Arial's two copies agree on `hhea`.
 
+**Looking the faces up, once and cheaply** (round 19). The index of installed faces by family
+and style needs three small tables of each face (`name`, `OS/2`, `head`), so the folder
+scan reads those at their offsets rather than every file whole (1.4 GB here), once per
+file per process, for the layout's order and the drawing's alike. `docx2svg.warm` does the
+scan (and, given a template, a layout of it) when a worker starts, and returns the scan
+for the next worker to reuse for every file whose modification time and size are
+unchanged. The index is the same entry for entry, so no measurement here changes.
+
 ---
 
 ## Style inheritance — measured (Phase 6, first row; Suggested order step 2)
