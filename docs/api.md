@@ -102,6 +102,24 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   for line in result.layout.pages[0].lines:
       part, paragraph = locate("report.docx", line.path, line.part)
   ```
+- <a id="page-blocks"></a>**Pages and blocks, both ways** (round 19, R3). `Page.blocks` is
+  the keys of the body's blocks a page draws something of -- every paragraph, table, row
+  and cell, as the path of its element in the main part (`w:body/w:tbl[2]`,
+  `w:body/w:tbl[2]/w:tr[3]`, `w:body/w:tbl[2]/w:tr[3]/w:tc[1]`, its paragraph's
+  `.../w:p[1]`), once each, in the order the page draws them. `layout.blocks_on(page)`
+  is the top-level ones (paragraphs and tables) on a 1-based page; `layout.pages_of(key)`
+  the 1-based pages a block is drawn on -- every one, for a paragraph, table or row split
+  across pages, or a header row drawn again -- taking a block's path, a path inside a
+  paragraph (a run's: its paragraph's), or a paragraph's `w14:paraId`. A key is derived
+  from the XML alone (`docx2svg.paths.block_keys(path)` gives a drawn object's), so a
+  caller that edits the document maps its own ids onto it; headers, footers and notes are
+  not the body's and are not listed.
+
+  ```python
+  layout.blocks_on(3)                  # ['w:body/w:p[26]', ..., 'w:body/w:tbl[3]', ...]
+  layout.pages_of("w:body/w:tbl[3]")   # [3, 4]: the table goes on to page 4
+  layout.pages_of("1A2B3C4D")          # by w14:paraId
+  ```
 - **`Line.column`** is the 0-based text column a line is in, in a section of several
   columns (a footnote's line the column it stands under), and `None` in a section of one
   column and for a header's, footer's or text box's line.
@@ -152,7 +170,7 @@ with a comment saying who it is kept for, and move docx-agent to the new name.
 - `docx2svg.parse.document` -- docx-agent: `cell_conditions`, `parse_package`
 - `docx2svg.parse.properties` -- docx-agent: `read_paragraph_properties`, `read_run_properties`
 - `docx2svg.parse.styles` -- docx-agent: `Numbering`, `parse_numbering`, `parse_styles`
-- `docx2svg.paths` -- docx-agent: `path_part`, `resolve_path`
+- `docx2svg.paths` -- docx-agent: `block_keys`, `path_part`, `resolve_path`
 - `docx2svg.png` -- docx-agent: `svg_to_png`
 - `docx2svg.resolve` -- docx-agent: `character_format`, `resolve_paragraph`, `resolve_run`
 - `docx2svg.table` -- docx-agent: `edge_winner`, `outer_part`, `resolve_table`, `table_style_id`

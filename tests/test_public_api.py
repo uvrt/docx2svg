@@ -80,6 +80,7 @@ USED_BY: dict[str, dict[str, str]] = {
         "parse_styles": "docx-agent",
     },
     "docx2svg.paths": {
+        "block_keys": "docx-agent",
         "path_part": "docx-agent",
         "resolve_path": "docx-agent",
     },
