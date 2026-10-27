@@ -64,7 +64,7 @@ from .png import RasterizerNotAvailable, available_backends, svg_to_png
 from ooxml_common.locales import EN_US, Locale
 from ooxml_common.opc import OpcPackage
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 __all__ = [
     "Conversion",
@@ -215,10 +215,11 @@ _PARSER_WARNINGS = {
 def convert_docx_to_layout(source, options: ConvertOptions | None = None):
     """Parse and lay out a document without writing SVG: a :class:`docx2svg.layout.Layout`
     with every glyph, rule and picture of every page placed."""
-    return lay_out_docx(source, options)[0]
+    return lay_out_docx(source, options, keep=False)[0]
 
 
-def lay_out_docx(source, options: ConvertOptions | None = None) -> tuple:
+def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None, changed_blocks=None,
+                 keep: bool = True) -> tuple:
     """``(layout, data, fonts)``: the document laid out -- every page, whatever
     ``options.pages`` selects -- its bytes, and the faces it was measured with
     (:class:`docx2svg.fonts.InstalledFonts`, ``None`` where ``options`` measures with
@@ -228,22 +229,69 @@ def lay_out_docx(source, options: ConvertOptions | None = None) -> tuple:
     The first half of :func:`convert_docx_to_svg`, for a caller that keeps the layout
     and writes pages from it later (:func:`page_svgs`): a render tool laying a document
     out once and drawing a few pages per call.  All three are picklable, so the layout
-    can be handed to another process."""
-    from .layout import lay_out
+    can be handed to another process.
+
+    **From a previous layout** (round 19, :mod:`docx2svg.relayout`): ``previous`` is a
+    layout this function made of an earlier version of the same document, with the same
+    options; the document is laid out again from the page the first changed block is on,
+    until its pages line up with ``previous``'s again, and the rest is ``previous``'s.  The
+    layout is the one a layout of the new bytes alone makes, page for page.  It says
+    which pages to draw again -- ``layout.changed_pages``, the 1-based pages whose drawing
+    differs from ``previous``'s page of the same number, and those ``previous`` did not
+    have -- and ``layout.relaid`` why the whole document was laid out again where it was
+    (:data:`docx2svg.relayout.FALLBACKS`; ``None`` where only what the change reaches
+    was).  The changed blocks are found by comparing the bytes; ``changed_blocks`` (the
+    blocks a caller knows it changed, as paths or ``w14:paraId``) is a hint only, never
+    trusted over that.  ``keep=False`` keeps nothing for a later layout (``layout.state``
+    is ``None``: smaller, and a ``previous`` it cannot be)."""
+    from . import relayout
+    from .layout import _Placer
 
     options = options if options is not None else ConvertOptions()
 
     data = _read(source)
     document = parse_package(data)
+    key = relayout.options_key(options)
+    plan = relayout.plan(previous, data, key) if previous is not None else None
     fonts = None
     if options.advances is None or options.metrics is None or options.decorations is None:
-        fonts = _fonts(data, options)
+        # The faces the previous layout measured with, where nothing they are found from changed.
+        fonts = plan.state.fonts if plan is not None and plan.measured else _fonts(data, options)
     advances = options.advances or fonts
     metrics = options.metrics or fonts.metrics
     decorations = options.decorations or fonts.decorations
     from .coverage import coverage_of
 
-    layout = lay_out(document, advances, metrics, package=data, decorations=decorations, locale=options.locale)
+    if plan is not None:
+        parts, main, segments = plan.parts, plan.main, plan.segments
+    elif keep:
+        parts, main = relayout.part_digests(data)
+        segments = relayout.segments(main) if main is not None else None
+    else:
+        parts = main = segments = None
+    measured = plan.state.memo if plan is not None and plan.measured else None
+    relaid = plan.reason if plan is not None else None
+    again = relayout.Again(plan, previous) if plan is not None and plan.reason is None else None
+
+    def placer_for(memo):
+        placer = _Placer(document, data, advances, metrics, decorations)
+        if keep or plan is not None:
+            placer.memo = relayout.Measures(memo)
+            placer.segments = segments
+            placer.digests = relayout.body_digests(segments)
+        return placer
+
+    from . import layout as layout_module
+
+    placer = placer_for(measured)
+    try:
+        layout = layout_module.lay_out(document, advances, metrics, package=data, decorations=decorations,
+                                       locale=options.locale, placer=placer, again=again)
+    except relayout.Relaid as why:
+        relaid, again = why.args[0], None
+        placer = placer_for({**(measured or {}), **placer.memo.kept})
+        layout = layout_module.lay_out(document, advances, metrics, package=data, decorations=decorations,
+                                       locale=options.locale, placer=placer)
     for code in document.warnings:
         options.warnings.append(Warning(code, _PARSER_WARNINGS.get(code, "a body element is not read")))
     for substitution in getattr(fonts, "substitutions", {}).values():
@@ -261,6 +309,16 @@ def lay_out_docx(source, options: ConvertOptions | None = None) -> tuple:
     for code, message, page in layout.warnings:
         options.warnings.append(Warning(code, message, page))
     layout.coverage = options.coverage = coverage_of(layout, document, data, fonts)
+    if keep:
+        source_document, original, _, by_page = placer.prepared
+        layout.state = relayout.record(placer, layout, data, parts, main, fonts, key, placer.approximated,
+                                       original, by_page)
+    if keep:
+        layout.state.laid = again.placed_pages if again is not None else range(len(layout.pages))
+        layout.state.redrawn = frozenset(again.redrawn) if again is not None else frozenset()
+    if previous is not None:
+        layout.relaid = relaid
+        layout.changed_pages = relayout.changed_pages(previous, layout, again, data, fonts, relaid)
     return layout, data, fonts
 
 
@@ -335,7 +393,7 @@ _svgs = page_svgs
 
 def _render(source, options: ConvertOptions):
     """The SVG pass, keeping the layout, the bytes and the faces it was measured with."""
-    layout, data, fonts = lay_out_docx(source, options)
+    layout, data, fonts = lay_out_docx(source, options, keep=False)
     return page_svgs(layout, data, options, fonts=fonts), layout, data, fonts
 
 
@@ -397,7 +455,7 @@ def convert_docx_to_png(source, options: ConvertOptions | None = None, *, backen
     page is drawn at 300 dpi, Word's export grid.
     """
     options = options or ConvertOptions()
-    layout, data, fonts = lay_out_docx(source, options)
+    layout, data, fonts = lay_out_docx(source, options, keep=False)
     return _rasterise(layout, data, fonts, options, backend=backend, font_dirs=font_dirs, font_files=font_files,
                       skip_system_fonts=skip_system_fonts)
 

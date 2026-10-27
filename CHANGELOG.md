@@ -5,6 +5,57 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.7.0 -- unreleased
+
+- **Laying a document out again from a previous layout** (production round 19, R1):
+  `lay_out_docx(data, options, previous=layout0)` lays the new version of a document out from
+  a layout of an earlier one, from where the edit reaches, and returns the usual
+  `(layout, data, fonts)`. The layout is the one a layout of the new bytes alone makes --
+  every page's SVG byte for byte, its warnings and coverage the same -- and it carries
+  `changed_pages` (the 1-based pages whose drawing differs from `layout0`'s page of the same
+  number, `data-docx-*` attributes aside, and the pages `layout0` did not have: the ones to
+  draw and send again) and `relaid` (`None`, or why the whole document was laid out again).
+  What changed is found by comparing the bytes: every part but the main one by digest, the
+  body's top-level elements by a digest of their bytes, with what each block is measured
+  from beyond its XML (its list labels, what the flow cannot model in it).
+  `changed_blocks` is accepted as a hint and never trusted over that. Then:
+  - the flow (`paginate.flow`) takes a paragraph's lines and line heights, and a table's
+    flow, from what the previous layout measured (`relayout.Measures`, kept by the element's
+    digest without its `w14:paraId`/`w14:textId`, so stamping ids measures nothing again);
+  - the pages are laid out again from the page holding the first changed block -- or the
+    page before, where its end may hang on the change (the change starts the page, or a
+    chain of keep-with-next blocks from its start reaches it) or the page starts inside a
+    paragraph broken beside a drawing -- with the pagination's state as it stood there
+    (`Pagination.states`, `paginate(resume=..., until=...)`), until a page starts where a
+    page of the previous layout did, in the same unchanged block and line, with the same
+    footnote carried over and the same page number relative to its place. From there the
+    previous layout's pages are taken as they are: their elements' paths renumbered where
+    blocks were inserted or deleted before them, moved on (their numbers with them) where the
+    edit added or removed pages, and their headers and footers drawn again where the page
+    number or the page count they show changed (the pages before the edit too, for
+    `NUMPAGES`);
+  - the warnings each kept page recorded are recorded again, in page order (`Layout.log`).
+  The whole document is laid out again -- the measurements of unchanged blocks still reused
+  where the parts they depend on are the same -- and `relaid` says why
+  (`relayout.FALLBACKS`) where an edit cannot be scoped: styles, numbering definitions,
+  settings, theme, fonts, headers and footers, the notes parts, a picture or chart part,
+  section properties, footnote references added or removed, page-number fields in the body
+  (`PAGE`, `NUMPAGES`, `PAGEREF`, a TOC's page numbers), `SEQ` and `REF`, footnotes
+  numbered per page, line numbers, several text columns, a field or a deleted paragraph mark
+  spanning blocks, other options, a layout from another docx2svg or one that kept nothing.
+  A layout keeps what the next needs in `layout.state` (`relayout.State`: picklable, with the
+  layout); `keep=False` keeps nothing, and the converters that do not hand a layout back
+  (`convert_docx_to_svg`, `convert_docx_to_png`, `convert_docx`, `convert_docx_to_layout`)
+  keep nothing. A layout without `previous` is laid out as before, and draws the same; the
+  flow resolves each paragraph's properties once instead of up to four times, a paragraph
+  that may be broken again beside a drawing resolves its runs only when it is
+  (`ParaSource.chars`), and a line-breaking `Piece` pickles as its fields alone. `tests/test_relayout.py` holds
+  the property over seeded random edits of made-up reports -- a paragraph's or a cell's text
+  changed or grown, paragraphs, rows and page breaks inserted and deleted, footnotes --
+  each layout made from the one before (`RELAYOUT_CASES` sets how many; CI runs 160 of 4
+  pages, 20 of 6 with footnotes, 10 of 16 and 4 of 40), and every fallback. Timings:
+  `feedback-round19/timings-B.md` (outside the repository). Rendering is unchanged.
+
 ## 0.6.0 -- unreleased
 
 - **Pages and blocks, both ways** (production round 19, R3): which body blocks each page

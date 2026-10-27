@@ -385,14 +385,20 @@ class ParaSource:
     one_column: bool
     #: ``(text index, the footnote's laid-out lines)`` for every footnote reference.
     notes: list = field(default_factory=list)
+    #: Text index -> ``(resolved run properties, character)``: found when a line's height
+    #: is first asked for (:meth:`_resolved`).
     chars: dict = field(default_factory=dict)
     #: The section, where its columns are of unequal widths: a line broken for a column
     #: other than the first is a :class:`ColumnLine` (:meth:`rest`).
     section: object = None
 
-    def __post_init__(self) -> None:
+    def _resolved(self) -> dict:
+        """:attr:`chars`, found when first asked for: most paragraphs are never broken again
+        beside a drawing."""
         from .resolve import resolve_run
 
+        if self.chars:
+            return self.chars
         index = 0
         for run in self.paragraph.runs:
             resolved = resolve_run(self.document, self.paragraph, run)
@@ -400,6 +406,7 @@ class ParaSource:
                 for offset, char in enumerate(run.text):
                     self.chars[index + offset] = (resolved, char)
             index += len(run.text)
+        return self.chars
 
     def rest(self, start: int, *, first: bool, width: int | None = None) -> list:
         """The lines the paragraph's rest from piece ``start`` breaks into -- in a column
@@ -429,8 +436,9 @@ class ParaSource:
 
         pieces = self.pieces[line.start:line.end]
         if chars is None:
-            chars = [self.chars[p.source] for p in pieces
-                     if p.source >= 0 and p.kind not in (TAB, BREAK, OBJECT) and p.source in self.chars]
+            resolved = self._resolved()
+            chars = [resolved[p.source] for p in pieces
+                     if p.source >= 0 and p.kind not in (TAB, BREAK, OBJECT) and p.source in resolved]
         objects = [p.height for p in pieces if p.kind == OBJECT]
         if objects:
             runs = sorted({p.run for p in pieces if p.kind == OBJECT})
@@ -542,6 +550,18 @@ class Pagination:
     #: Page -> its columns, in the flow's order (:class:`Frame`), in a document with a
     #: section of several columns.
     frames: dict[int, list] = field(default_factory=dict)
+    #: Per page the loop lays out, in :attr:`starts`' order, the loop's state before it:
+    #: ``(page, number, carry, approximated, pristine)`` -- the page (0-based, blank pages
+    #: counted) it begins at, any blank page Word inserts before it included; the number of
+    #: the page before; the rest of a footnote the page before could not hold; how many of
+    #: the flow's approximations (:attr:`Flow.approximated`) were made before it; whether
+    #: the item it starts in has its lines as the flow broke them (:func:`_pristine`).  What a
+    #: layout goes on from when it lays a document out again from that page
+    #: (:mod:`docx2svg.relayout`).
+    states: list = field(default_factory=list)
+    #: ``(position, page, number, carry)`` where :func:`paginate`'s ``until`` stopped it
+    #: (``None``: it went on to the end, or stopped at an obstacle).
+    until_at: tuple | None = None
 
 
 @dataclass
@@ -658,6 +678,7 @@ class Flow(list):
         self.note_at = None
         self.measure = ()
         self.areas = {}
+        self.labels = {}
         #: What the paginator laid out by an approximate rule rather than stop
         #: (:data:`CARRY_ON`), as messages: reported by the layout.
         self.approximated = []
@@ -1182,15 +1203,32 @@ def drop_cap_of(document: Document, paragraph: Paragraph, pp, section, advances,
                    max(widths, default=0), frame.get("dropCap"), hspace, frame.get("hAnchor") or "page")
 
 
-def flow(document: Document, advances, metrics, *, features: list[str | None] | None = None) -> list:
+def flow(document: Document, advances, metrics, *, features: list[str | None] | None = None,
+         memo=None) -> list:
     """The document's top-level items as :class:`Para` and :class:`Obstacle`.
 
     ``features`` -- per block, why the parsed model cannot stand for a paragraph (a
     field, a note reference, a frame), as ``tools/baselines.paragraph_features`` finds
     them -- makes those paragraphs obstacles too.
+
+    ``memo`` (:class:`docx2svg.relayout.Measures`) holds what an earlier flow of the same
+    document measured: a top-level paragraph's pieces, lines and line heights and a
+    table's flow, each by what it is measured from (its element's digest, its section, its
+    list label; a table's cells' labels and features, its place and the style before it),
+    taken from it where they are there and kept in it where they are not.  The items are
+    the same either way.
     """
     counters = ListCounters()
     heights_cache: dict = {}
+    # Each paragraph's properties, resolved once (the flow asks for them up to four times).
+    resolved: dict[int, object] = {}
+
+    def resolve(paragraph):
+        found = resolved.get(id(paragraph))
+        if found is None:
+            found = resolved[id(paragraph)] = resolve_paragraph(document, paragraph)
+        return found
+
     out = Flow()
     note_cache: dict = {}
 
@@ -1234,11 +1272,13 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
     for item, index in items:
         walk(item, index)
     for index, paragraph in all_paragraphs:
-        pp = resolve_paragraph(document, paragraph)
+        pp = resolve(paragraph)
         numbered[index] = bool(pp.get("numPr.numId"))
         if numbered[index]:
             labels[index] = counters.label(document, paragraph, pp)
 
+    #: Each paragraph's list label, by block (:mod:`docx2svg.relayout` compares them).
+    out.labels = labels
     out.stories = _stories(document, advances, metrics, heights_cache)
     # The drop caps the flow lays out (a paragraph in a frame whose ``w:dropCap`` is
     # set, followed by a paragraph, which ``features`` does not leave out as a frame).
@@ -1249,7 +1289,7 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
         if isinstance(item, Paragraph) and k + 1 < len(body_list) and isinstance(body_list[k + 1], Paragraph):
             block = blocks_of[id(item)]
             reason = features[block] if features and block < len(features) else None
-            if reason is None and is_drop_cap(resolve_paragraph(document, item)):
+            if reason is None and is_drop_cap(resolve(item)):
                 drop_caps.add(block)
     out.wraps = any(anchor.wrap in SIDE_WRAPS for item in document.body if isinstance(item, Paragraph)
                     for run in item.runs for anchor in run.anchors) or any(
@@ -1258,7 +1298,7 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
     pending_drop: DropCap | None = None
     # Every top-level paragraph resolved, for its neighbours' borders (a table between
     # two paragraphs parts them).
-    resolved_body = [resolve_paragraph(document, item) if not isinstance(item, Table) else None
+    resolved_body = [resolve(item) if not isinstance(item, Table) else None
                      for item in document.body]
     body_index = {id(item): k for k, item in enumerate(document.body)}
     for item, block in items:
@@ -1269,12 +1309,25 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
             before = document.body[position - 1] if position else None
             mode: dict = {}
             approximation = None
+            key = memo.table_key(item, section_number, block, labels, features, before) if memo is not None else None
+            found = memo.get(key) if key is not None else None
             try:
-                laid = table_model.flow_table(document, item, document.sections[section_number], advances, metrics,
-                                              block=block, labels=labels, features=features, cache=heights_cache,
-                                              previous=before if isinstance(before, Paragraph) else None)
+                if found is not None:
+                    laid, mode, approximation = found
+                    laid = dataclasses.replace(laid, overflowed=set())
+                    if approximation is not None:
+                        raise _Measured()
+                    mode = {}
+                laid = laid if found is not None else table_model.flow_table(
+                    document, item, document.sections[section_number], advances, metrics,
+                    block=block, labels=labels, features=features, cache=heights_cache,
+                    previous=before if isinstance(before, Paragraph) else None)
                 if is_multi_column(document.sections[section_number]) and laid.floating is not None:
                     raise table_model.Unsupported("a floating table in a section of several text columns")
+            except _Measured:
+                # Laid out by the approximate rules last time: as then.
+                mode = found[1]
+                laid.approximation = approximation
             except table_model.Unsupported as why:
                 if not CARRY_ON:
                     reason = "columns" if laid_floating(why) else "table"
@@ -1296,6 +1349,8 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
                                                 section_start=section_start))
                     continue
                 laid.approximation = approximation
+            if key is not None and found is None:
+                memo.put(key, (dataclasses.replace(laid, overflowed=set()), dict(mode), approximation))
             section_seen.add(section_number)
 
             def reflow(section, item=item, block=block, before=before, mode=mode):
@@ -1312,7 +1367,7 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
         section = document.sections[section_number]
         section_start = section_number not in section_seen
         section_seen.add(section_number)
-        pp = resolve_paragraph(document, item)
+        pp = resolve(item)
         approximations: list = []
 
         def carry(reason: str, detail: str | None = None, *, item=item, block=block, section_number=section_number,
@@ -1378,28 +1433,43 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
                 approximations.append(("columns", f"{detail} in a section of several text columns is laid out "
                                                   "as in a column of its own (not measured)"))
                 reason = detail = None
+        measured = key = None
+        #: What follows from the paragraph's lines alone, kept with them in ``memo``.
+        extras: dict = {}
         if reason is None:
-            pieces, broken = line_model.broken(document, item, section, advances, metrics, labels.get(block))
+            key = memo.paragraph_key(item, section_number, labels.get(block)) if memo is not None else None
+            measured = memo.get(key) if key is not None else None
+            if measured is not None:
+                pieces, broken, heights, extras = measured[0], list(measured[1]), list(measured[3]), measured[4]
+                shares = None
+            else:
+                pieces, broken = line_model.broken(document, item, section, advances, metrics, labels.get(block))
             if pieces is None:
                 reason = "unmeasurable"
         if reason is not None:
             carry(reason, detail)
             continue
-        shares = line_model.shares_of(document, item, pieces, broken)
-        objects = line_model.objects_of(pieces, broken)
-        object_runs = line_model.object_runs_of(pieces, broken)
-        heights = []
-        for number, chars in enumerate(shares):
-            if objects[number]:
-                height = line_model.object_line_height(document, item, pp, chars, metrics, objects[number],
-                                                       first_line=number == 0, runs=object_runs[number])
-            else:
-                height = line_model.line_height(document, item, pp, chars, metrics, first_line=number == 0,
-                                                cache=heights_cache)
-            if height is None:
-                break
-            heights.append(height)
-        if len(heights) != len(shares):
+        if measured is None:
+            shares = line_model.shares_of(document, item, pieces, broken)
+            objects = line_model.objects_of(pieces, broken)
+            object_runs = line_model.object_runs_of(pieces, broken)
+            heights = []
+            for number, chars in enumerate(shares):
+                if objects[number]:
+                    height = line_model.object_line_height(document, item, pp, chars, metrics, objects[number],
+                                                           first_line=number == 0, runs=object_runs[number])
+                else:
+                    height = line_model.line_height(document, item, pp, chars, metrics, first_line=number == 0,
+                                                    cache=heights_cache)
+                if height is None:
+                    break
+                heights.append(height)
+            extras["lines"] = len(shares)
+            extras["undrawn"] = frozenset(number for number, chars in enumerate(shares)
+                                          if number < len(shares) - 1 and all(char.isspace() for _, char in chars))
+            if key is not None:
+                memo.put(key, (pieces, tuple(broken), None, tuple(heights), extras))
+        if len(heights) != extras["lines"]:
             carry("no face metrics")
             continue
         one_column = not is_multi_column(section)
@@ -1437,8 +1507,10 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
         references = [(offset + position, int(kind.split(":")[1]))
                       for offset, run in zip(_run_offsets(item), item.runs)
                       for position, kind in run.breaks if kind.startswith("footnoteReference:")]
+        if "line_of" not in extras:
+            extras["line_of"] = _line_of_sources(pieces, broken)
         if references:
-            line_of = _line_of_sources(pieces, broken)
+            line_of = extras["line_of"]
             for source, note_id in references:
                 laid = note(note_id, section_number)
                 if laid is None:
@@ -1481,10 +1553,9 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
             page_break_before=bool(pp.get("pageBreakBefore")),
             widow_control=None if widow is None else bool(widow),
             section_start=section_start,
-            undrawn=frozenset(number for number, chars in enumerate(shares)
-                              if number < len(shares) - 1 and all(char.isspace() for _, char in chars)),
+            undrawn=extras["undrawn"],
             notes=notes,
-            anchors=anchors_of(item, _line_of_sources(pieces, broken), len(broken)),
+            anchors=anchors_of(item, extras["line_of"], len(broken)),
             section_mark=section_mark and len(heights) == 1,
             continuation=continuation(section_number) if item.note == "endnote" else None,
             drop_cap=drop,
@@ -1496,12 +1567,18 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
         if out.wraps or unequal or word_moves:
             from .linebreak import geometry as line_geometry
 
-            out[-1].source = ParaSource(document, item, pp, pieces, line_geometry(document, item, section, pp),
+            if "geometry" not in extras:
+                extras["geometry"] = line_geometry(document, item, section, pp)
+            out[-1].source = ParaSource(document, item, pp, pieces, extras["geometry"],
                                         advances, metrics, heights_cache, one_column, note_sources,
                                         section=section if unequal else None)
             out[-1].lines = list(broken)
             out[-1].plain_from = 0
     return out
+
+
+class _Measured(Exception):
+    """:func:`flow`: a table its ``memo`` holds was laid out by the approximate rules."""
 
 
 def laid_floating(why: Exception) -> bool:
@@ -3127,15 +3204,32 @@ def _keeps(items: list, start: Position, overflow: Position, rules: Rules,
 
 
 def paginate(document: Document, items: list, rules: Rules | None = None, *,
-             start: Position = Position(0)) -> Pagination:  # noqa: B008 -- Position is frozen
-    """Every page of ``items`` (:func:`flow`) from ``start``, until the end or an obstacle."""
+             start: Position = Position(0), resume: tuple | None = None,  # noqa: B008 -- Position is frozen
+             until=None) -> Pagination:
+    """Every page of ``items`` (:func:`flow`) from ``start``, until the end or an obstacle.
+
+    ``resume`` -- ``(position, page, number, carry)``, one of :attr:`Pagination.states`
+    with the page's start -- goes on from that page's start as the loop stood there, the
+    pages before it left out of the result; ``until(position, page, number, carry)``,
+    asked before each page after the first, stops the loop where it says so
+    (:attr:`Pagination.until_at`): :mod:`docx2svg.relayout`, laying a document out again
+    from a page until its pages line up with the previous layout's."""
     rules = rules or Rules()
     out = Pagination()
     position = start
     page = 0
     number = 0
     carry: tuple = ()
+    if resume is not None:
+        position, page, number, carry = resume
+    first = True
     while position.item < len(items):
+        if until is not None and not first and until(position, page, number, carry):
+            out.until_at = (position, page, number, carry)
+            return out
+        first = False
+        out.states.append((page, number, carry, len(getattr(items, "approximated", ())),
+                           _pristine(items[position.item]) if position.item < len(items) else True))
         item = items[position.item]
         section_first = position.line == 0 and not position.part and (
             position.item == 0 or items[position.item - 1].section != item.section)
@@ -3190,6 +3284,20 @@ def paginate(document: Document, items: list, rules: Rules | None = None, *,
             page += 1
             carry = ()
     return out
+
+
+def _pristine(item) -> bool:
+    """Whether ``item``'s lines are the ones the flow broke it into -- none broken again
+    beside a drawing, or for another column -- so that a line of it names the same text
+    in any layout of it: a page can start inside it in a layout made from another
+    (:mod:`docx2svg.relayout`).  A table's rows always do."""
+    if isinstance(item, TableItem):
+        return True
+    if not isinstance(item, Para):
+        return False
+    return item.source is None or (item.plain_from == 0 and not any(
+        getattr(line, "drop", None) is not None or hasattr(line, "segments") or hasattr(line, "width")
+        for line in item.lines))
 
 
 def _assign(items: list, out: Pagination, start: Position, end: Position, page: int) -> None:

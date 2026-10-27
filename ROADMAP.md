@@ -7369,6 +7369,32 @@ which blocks, and -- after each small edit -- which pages to draw again.
   `w14:paraId` -- derivable from the XML alone, so a caller maps its own ids onto them
   (docx-agent does: `DocumentLayout.blocks_on` and `pages_of`). Nothing is measured: it
   is bookkeeping over the layout, and costs nothing until asked.
+- **Laying out again from a previous layout (R1).** `lay_out_docx(..., previous=layout)`
+  (`docx2svg.relayout`; docs/api.md, "Laying out again"). Nothing new is measured: the
+  layout is the same computation, made from the page an edit reaches until the pagination's
+  state -- the flow position, the page and its number, a footnote carried over -- is again
+  the previous layout's at a page start, and the previous layout's pages after that. The
+  rules that keep it exact, each held by `tests/test_relayout.py` over random edits:
+  - *what changed* is decided by bytes (every part's digest; each body element's), and by
+    what the flow reads beyond a block's XML (list labels, the flow's features); a block's
+    neighbours are laid out with it (borders, spacing, a drop cap and a table read them);
+  - *where to start*: the page holding the first changed block, or the page before where
+    that page's end can depend on it -- the block starts the page, a keep-with-next chain
+    from the page's start reaches it, or the page starts inside a paragraph whose lines
+    were broken beside a drawing (a line of it would name other text) or inside a row;
+  - *where to stop*: a page start at an unchanged block's start or at a line of one whose
+    lines are still the flow's, with the same footnote carried over and the same number
+    relative to its place; pages moved on by an edit that added or removed pages are taken
+    only where none of them starts a section or is a blank page Word inserts, and where
+    even and odd pages have their own headers, only by an even number;
+  - *what is kept from the previous layout*: its pages, paths renumbered, moved on, their
+    headers and footers drawn again where their page number or the page count changed
+    (from where each page's lists end before and after them, recorded as it is placed);
+    the warnings each recorded; the measurements of every block whose bytes, as measured
+    (ids aside), are the same.
+  Where one of these cannot be had, the whole document is laid out again and said why
+  (`relayout.FALLBACKS`). Not done: the parse is the whole document's every time (about a
+  fifth of what is left of a one-paragraph edit's cost on 40 pages).
 
 ## Phase 6 — Everything else, sized
 
