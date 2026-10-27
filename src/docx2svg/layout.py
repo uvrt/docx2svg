@@ -26,6 +26,7 @@ Standard library only.
 from __future__ import annotations
 
 import dataclasses
+import functools
 import math
 from dataclasses import dataclass, field
 from fractions import Fraction
@@ -49,9 +50,13 @@ PX_PER_HALF_POINT = PX_PER_PT / 2
 
 def units_px(units) -> Fraction:
     """A length in Word's layout unit (1/4096 pt) in device px."""
+    if type(units) is int:
+        # The same value, one Fraction made rather than two (the layout asks per glyph).
+        return Fraction(units * LAYOUT_UNIT_PX.numerator, LAYOUT_UNIT_PX.denominator)
     return Fraction(units) * LAYOUT_UNIT_PX
 
 
+@functools.lru_cache(maxsize=None)
 def half_points_offset_px(half_points: int) -> int:
     """How many device px a run raised by ``half_points`` is drawn above its line's
     baseline (negative: below).

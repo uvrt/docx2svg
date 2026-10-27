@@ -46,6 +46,24 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   300 dpi when no size is asked, as `convert_docx_to_png` rasterises). `user_font_dirs(options)`
   is the application's font folders the rasteriser is handed after the faces the SVG
   names. A render tool drawing a few pages per call lays a version out once this way.
+- <a id="warm"></a>**A worker's one-time work, done at its start**: a process's first
+  layout pays for what later ones reuse -- the modules, the font folders' index (which
+  faces each installed file holds), and each face it uses read from its file.
+  `warm(source=None, options=None, *, scan=None)` does that work in advance, for the font
+  folders `options` names: call it when a render worker starts. With `source` (a
+  document, typically the template a worker's documents share) it also lays that document
+  out and draws its first page, which loads the faces and hyphenation patterns it uses;
+  its output is discarded and `options`' warnings and coverage are left untouched. It
+  returns a `docx2svg.fonts.FontScan`, what was read of the folders' files, picklable:
+  save it and hand it to the next worker's `warm(scan=...)`, which then reads only the
+  files whose modification time or size changed (and ignores a scan of another docx2svg
+  version). Output is the same bytes with and without it (`tests/test_warm.py`).
+
+  ```python
+  import pickle
+  scan = docx2svg.warm(source="template.docx", options=ConvertOptions(font_dirs=["/srv/fonts"]))
+  pickle.dump(scan, open("font-scan.pickle", "wb"))       # next worker: warm(scan=pickle.load(...))
+  ```
 - <a id="locale"></a>**Locale.** Word takes a few things from the machine it runs on
   rather than from the document: a decimal tab stop aligns on the *system's* decimal
   separator, not the document language's (measured: on a machine with a decimal comma,
@@ -142,7 +160,7 @@ docx2svg from `main`, so renaming or removing one breaks it at its next run.
 list and that one disagree. To rename one, keep the old name as an alias for one release,
 with a comment saying who it is kept for, and move docx-agent to the new name.
 
-- `docx2svg` -- docx-agent: `ConvertOptions`, `available_backends`, `convert_docx`, `convert_docx_to_layout`, `convert_docx_to_png`, `convert_docx_to_svg`, `drawn_faces`, `lay_out_docx`, `page_svgs`, `user_font_dirs`
+- `docx2svg` -- docx-agent: `ConvertOptions`, `available_backends`, `convert_docx`, `convert_docx_to_layout`, `convert_docx_to_png`, `convert_docx_to_svg`, `drawn_faces`, `lay_out_docx`, `page_svgs`, `user_font_dirs`, `warm`
 - `docx2svg.coverage` -- docx-agent: `Coverage`
 - `docx2svg.fields` -- docx-agent: `Uncomputable`, `field_text`, `sequence_step`, `sequence_switches`
 - `docx2svg.fonts` -- docx-agent: `InstalledFonts`, `cloud_font_dirs`, `default_font_dirs`, `installed_index`, `rasteriser_files`

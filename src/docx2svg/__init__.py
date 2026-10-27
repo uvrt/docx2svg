@@ -91,6 +91,7 @@ __all__ = [
     "resolve_path",
     "svg_to_png",
     "user_font_dirs",
+    "warm",
     "__version__",
 ]
 
@@ -196,10 +197,17 @@ def _user_dirs(options: ConvertOptions, *, subfolders: bool = False) -> tuple:
     return with_subfolders(dirs) if subfolders else dirs
 
 
-def _fonts(data: bytes, options: ConvertOptions):
-    from .fonts import SUBSTITUTES, InstalledFonts, default_font_dirs
+def _font_dirs(options: ConvertOptions) -> tuple:
+    """The folders a layout with ``options`` finds faces in, in Word's order."""
+    from .fonts import default_font_dirs
 
-    dirs = tuple(default_font_dirs()) + _user_dirs(options, subfolders=True)
+    return tuple(default_font_dirs()) + _user_dirs(options, subfolders=True)
+
+
+def _fonts(data: bytes, options: ConvertOptions):
+    from .fonts import SUBSTITUTES, InstalledFonts
+
+    dirs = _font_dirs(options)
     substitutes = dict(SUBSTITUTES) if options.substitute_fonts else {}
     substitutes.update({name.lower(): value for name, value in (options.font_substitutes or {}).items()})
     return InstalledFonts(data, dirs=dirs, substitutes=substitutes, recorded_faces=options.substitute_fonts,
@@ -262,6 +270,51 @@ def lay_out_docx(source, options: ConvertOptions | None = None) -> tuple:
         options.warnings.append(Warning(code, message, page))
     layout.coverage = options.coverage = coverage_of(layout, document, data, fonts)
     return layout, data, fonts
+
+
+def warm(source=None, options: ConvertOptions | None = None, *, scan=None):
+    """Do a process's one-time work now -- at a render worker's start -- rather than in
+    its first layout, and return what it read of the font folders, to save
+    (:class:`docx2svg.fonts.FontScan`, picklable).
+
+    Always: imports every module a layout and its drawing use, and reads the font folders
+    ``options`` names (:attr:`ConvertOptions.font_dirs`, else ``OOXML_FONT_DIRS``, after
+    the system's and Word's) for the faces in them, in both of the orders a layout and its
+    drawing look faces up in.  ``scan``, a :class:`~docx2svg.fonts.FontScan` an earlier
+    process returned, spares reading the files it read that have not changed since
+    (:func:`docx2svg.fonts.load_scan`; one of another docx2svg version is ignored).
+
+    With ``source`` -- a document, typically the template a worker's documents are made
+    from -- also lays it out and draws its first page with ``options``, which loads the
+    faces it uses (their files, character maps and advances), the hyphenation patterns it
+    asks for, and everything else a first layout does once; its output is discarded and
+    ``options``' warnings and coverage are left as they were.
+
+    Nothing it does changes a later conversion's output: it fills the caches the first
+    conversion would fill, with the same values (``tests/test_warm.py``).  The caches are
+    the process's: a new font installed in a folder already read is not seen until the
+    process restarts, as without it."""
+    import dataclasses
+    import importlib
+    import pkgutil
+
+    from . import fonts
+
+    options = options if options is not None else ConvertOptions()
+    for module in pkgutil.walk_packages(__path__, f"{__name__}."):
+        if module.name != f"{__name__}.cli":
+            importlib.import_module(module.name)
+    if scan is not None:
+        fonts.load_scan(scan, __version__)
+    dirs = _font_dirs(options)
+    fonts.installed_index(dirs)
+    fonts.installed_index(fonts.drawing_dirs(dirs), bundle_first=True)
+    fonts._rasteriser_families_index(fonts.drawing_dirs(dirs))
+    if source is not None:
+        quiet = dataclasses.replace(options, pages=[1], warnings=[], coverage=None)
+        layout, data, found = lay_out_docx(source, quiet)
+        page_svgs(layout, data, quiet, fonts=found)
+    return fonts.font_scan(dirs, __version__)
 
 
 #: The old name of :func:`lay_out_docx`, kept for docx-agent's tests until they move.
