@@ -152,7 +152,7 @@ with a comment saying who it is kept for, and move docx-agent to the new name.
 - `docx2svg.parse.document` -- docx-agent: `cell_conditions`, `parse_package`
 - `docx2svg.parse.properties` -- docx-agent: `read_paragraph_properties`, `read_run_properties`
 - `docx2svg.parse.styles` -- docx-agent: `Numbering`, `parse_numbering`, `parse_styles`
-- `docx2svg.paths` -- docx-agent: `path_part`, `resolve_path`
+- `docx2svg.paths` -- docx-agent: `block_keys`, `path_part`, `resolve_path`
 - `docx2svg.png` -- docx-agent: `svg_to_png`
 - `docx2svg.resolve` -- docx-agent: `character_format`, `resolve_paragraph`, `resolve_run`
 - `docx2svg.table` -- docx-agent: `edge_winner`, `outer_part`, `resolve_table`, `table_style_id`
