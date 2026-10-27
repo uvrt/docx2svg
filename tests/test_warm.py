@@ -80,6 +80,7 @@ def _read(face) -> dict:
 def fresh_scan(monkeypatch):
     """No file read yet, as in a new process (and the index forgotten after)."""
     monkeypatch.setattr(fonts, "_SCANNED", {})
+    monkeypatch.setattr(fonts, "_RASTERISER", {})
     fonts.installed_index.cache_clear()
     yield
     fonts.installed_index.cache_clear()

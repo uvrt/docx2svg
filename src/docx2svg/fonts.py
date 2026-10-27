@@ -342,11 +342,10 @@ _SCANNED: dict[str, tuple] = {}
 
 
 def _scanned_entries(path: str) -> tuple:
-    """``(number in the file, (bold, italic, family names) or None, rasteriser families or
-    None)`` of every face of ``path`` a scan can read (:func:`_scanned_faces`), ``None``
-    where reading that part of the face fails: what :func:`installed_index` (both orders)
-    and :func:`_rasteriser_families_index` need, read once per process -- or taken from a
-    :class:`FontScan` (:func:`load_scan`)."""
+    """``(number in the file, (bold, italic, family names) or None)`` of every face of
+    ``path`` a scan can read (:func:`_scanned_faces`), ``None`` where its style or names
+    cannot be read: what :func:`installed_index` needs, in both its orders, read once per
+    process -- or taken from a :class:`FontScan` (:func:`load_scan`)."""
     found = _SCANNED.get(path)
     if found is not None:
         return found[1]
@@ -362,12 +361,29 @@ def _scanned_entries(path: str) -> tuple:
             named: tuple | None = (bold, italic, tuple(face.families()))
         except (OSError, struct.error, TypeError, FontError):
             named = None
-        try:
-            rasteriser: tuple | None = tuple(face.rasteriser_families)
-        except (OSError, struct.error, TypeError, FontError):
-            rasteriser = None
-        out.append((number, named, rasteriser))
+        out.append((number, named))
     return _SCANNED.setdefault(path, (stamp, tuple(out)))[1]
+
+
+#: :func:`_scanned_rasteriser_families`' answers, by path: face number -> names or ``None``.
+_RASTERISER: dict[str, dict] = {}
+
+
+def _scanned_rasteriser_families(path: str, number: int) -> tuple | None:
+    """The family names a rasteriser files face ``number`` of ``path`` under
+    (:attr:`Face.rasteriser_families`), from its header tables; ``None`` where they cannot
+    be read.  Only a drawing that names a face its document name does not reach asks, so
+    they are read apart from :func:`_scanned_entries` (both from one :class:`FontScan`)."""
+    found = _RASTERISER.get(path)
+    if found is None:
+        found = {}
+        for at, face in _scanned_faces(Path(path)):
+            try:
+                found[at] = tuple(face.rasteriser_families)
+            except (OSError, struct.error, TypeError, FontError):
+                found[at] = None
+        found = _RASTERISER.setdefault(path, found)
+    return found.get(number)
 
 
 #: What a :class:`FontScan` holds per file; a scan of another format is not loaded.
@@ -392,6 +408,9 @@ class FontScan:
     #: The docx2svg version that read it: a scan from another version is not loaded.
     version: str = ""
     format: int = SCAN_FORMAT
+    #: path -> {face number: rasteriser family names} (:func:`_scanned_rasteriser_families`),
+    #: for the files this process asked that of.
+    rasteriser: dict = field(default_factory=dict)
 
 
 def _listed(dirs) -> list[str]:
@@ -415,7 +434,8 @@ def font_scan(dirs, version: str = "") -> FontScan:
         stamp, entries = _SCANNED[path]
         if stamp is not None:
             files[path] = (*stamp, entries)
-    return FontScan(files, version)
+    return FontScan(files, version, rasteriser={path: dict(_RASTERISER[path]) for path in files
+                                                if path in _RASTERISER})
 
 
 def load_scan(scan: FontScan, version: str = "") -> int:
@@ -431,6 +451,8 @@ def load_scan(scan: FontScan, version: str = "") -> int:
         recorded = scan.files[path]
         if (recorded[0], recorded[1]) == (mtime, size):
             _SCANNED.setdefault(path, ((mtime, size), recorded[2]))
+            if path in scan.rasteriser:
+                _RASTERISER.setdefault(path, dict(scan.rasteriser[path]))
             taken += 1
     return taken
 
@@ -448,7 +470,7 @@ def installed_index(dirs: tuple[Path, ...] = FONT_DIRS, *,
         for path in sorted(directory.iterdir()):
             if path.suffix.lower() not in _FONT_SUFFIXES:
                 continue
-            for number, named, _ in _scanned_entries(str(path)):
+            for number, named in _scanned_entries(str(path)):
                 if named is None:
                     continue
                 bold, italic, families = named
@@ -486,7 +508,7 @@ def _rasteriser_families_index(dirs: tuple[Path, ...]) -> dict[str, list[tuple[s
     a rasteriser files it under (:attr:`Face.rasteriser_families`), lowercased."""
     out: dict[str, list[tuple[str, int]]] = {}
     for path, number in sorted(set(installed_index(dirs, bundle_first=True).values())):
-        names = next((found for at, _, found in _scanned_entries(path) if at == number), None)
+        names = _scanned_rasteriser_families(path, number)
         if names is None:
             continue
         for name in {name.lower() for name in names}:
