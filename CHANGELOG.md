@@ -5,6 +5,24 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.7.2 -- unreleased
+
+- **Type checking** (mypy, as ooxml-common's): `mypy` checks the package (`[tool.mypy]` in
+  pyproject.toml: Python 3.10, not strict, an unannotated function's body unchecked), as a
+  step of CI's build job, pinned in the dev extra. It reported 343 errors; there are none. The
+  fixes are annotations, not checker settings: fields typed `object` now say what they hold
+  (`Layout.state` a `relayout.State`, `Page.info` a `PageInfo`, `Graphic.fill` and its
+  siblings ooxml-common's source types, a table item's `flow` a `TableFlow`,
+  `ConvertOptions.coverage` a `Coverage` ...), a few were wider than declared (a geometry's
+  edges and a mixed line's face metrics may be fractions; a chart title's alignment a
+  `Literal`), `xmlutil.attr_int` and `lines.shares_of` are overloaded on what they are given,
+  variables reused for another type are renamed, and an invariant the code relies on (a
+  plan with no reason holds the previous state; a paragraph broken again has its source) is
+  stated where mypy cannot see it. No `# type: ignore` was added. Two corners of malformed
+  input change: a face with no `hhea` table now raises `FontError` where it raised
+  `TypeError`, and a `REF` run without a field raises `Uncomputable`. Rendering is unchanged:
+  every page of the 74 documents compared (430 pages) draws byte for byte as before.
+
 ## 0.7.1 -- unreleased
 
 - **CI time: the relayout property tests in two sizes.** Round 19's seeded random edits

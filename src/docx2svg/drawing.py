@@ -540,7 +540,8 @@ def text_path_markup(body: dict, x, y, width, height, outlines: tuple | None = N
 def _fill_attrs(fill, defs, box, turns: tuple, geometry) -> str:
     name = geometry[1] if geometry is not None and geometry[0] == "preset" else "rect" if geometry is None else None
     frame = dataclasses.replace(_frame(turns), rectangular=name in _RECTANGULAR)
-    return dml_fill.render_fill_attrs(fill, defs, tuple(float(v) for v in box), rules=WORD, dpi=DPI, frame=frame)
+    left, top, width, height = (float(v) for v in box)
+    return dml_fill.render_fill_attrs(fill, defs, (left, top, width, height), rules=WORD, dpi=DPI, frame=frame)
 
 
 def _wrap(drawn: Drawn, begin: int, effects, defs, path: str) -> None:
@@ -585,7 +586,8 @@ def _outline(graphic: Graphic, x, y, width, height, path: str, colours: Colours,
     for geometry_path in paths:
         if not (geometry_path.stroke and geometry_path.d):
             continue
-        d, heads = geometry_path.d, []
+        d = geometry_path.d
+        heads: list[str] = []
         if outline.head_end is not None or outline.tail_end is not None:
             ends = dml_geometry.path_ends(d)
             if ends is not None:

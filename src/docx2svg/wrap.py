@@ -52,6 +52,7 @@ import dataclasses
 import math
 from dataclasses import dataclass
 from fractions import Fraction
+from typing import Literal
 
 from .linebreak import Geometry, Line, Piece, break_line
 from .vertical import LAYOUT_UNIT_PX
@@ -170,7 +171,7 @@ class Column:
     drawn (a whole device pixel), device px; its width in the layout unit; the mode."""
 
     exact: Fraction
-    start: int
+    start: int | Fraction
     width: Fraction
     mode15: bool
     #: The width in device px, exactly (the column's twips).
@@ -178,14 +179,15 @@ class Column:
 
 
 def free_spans(wraps, y0: Fraction, y1: Fraction, column: Column,
-               text: Fraction | None = None) -> tuple[list[tuple[Fraction, Fraction, bool]], list[Wrap]]:
+               text: Fraction | None = None
+               ) -> tuple[list[tuple[Fraction, Fraction, Wrap | Literal[False]]], list[Wrap]]:
     """What ``wraps`` leave of the column from ``y0`` down to ``y1``: ``(left, right,
     edge)`` spans, device px from the left margin's exact edge, left to right -- ``edge``
     the drawing (a :class:`Wrap`) whose side ``left`` is, ``False`` where it is the
     column's start -- and the drawings the band is beside (none: the whole column is
     free)."""
     beside: list[Wrap] = []
-    spans: list[tuple[Fraction, Fraction]] = []
+    spans: list[tuple[Fraction, Fraction, Wrap]] = []
     width_px = column.width_px
     for wrap in wraps:
         span = blocked(wrap, y0, y1, text)
@@ -201,9 +203,9 @@ def free_spans(wraps, y0: Fraction, y1: Fraction, column: Column,
         elif side == "right":
             lo = Fraction(-10 ** 9)
         spans.append((lo, hi, wrap))
-    free = [(Fraction(0), width_px, False)]
+    free: list[tuple[Fraction, Fraction, Wrap | Literal[False]]] = [(Fraction(0), width_px, False)]
     for lo, hi, wrap in sorted(spans, key=lambda span: span[:2]):
-        out = []
+        out: list[tuple[Fraction, Fraction, Wrap | Literal[False]]] = []
         for a, b, edge in free:
             if hi <= a or lo >= b:
                 out.append((a, b, edge))
@@ -228,18 +230,18 @@ def segments(wraps, y0: Fraction, y1: Fraction, column: Column,
     for a, b, edge in free:
         if (b - a) / TWIP_PX < MIN_SEGMENT_TWIPS:
             continue
-        shift = Fraction(0)
+        shift: int | Fraction = Fraction(0)
         if edge:
             page = column.exact + a
-            text = column.start + a
+            at = column.start + a
             if edge.text_shift is not None:
                 shift = edge.text_shift
             elif column.mode15:
-                shift = 0 if page == text else _half_up(page) - (_half_up if edge.half_up else _half_down)(text)
+                shift = 0 if page == at else _half_up(page) - (_half_up if edge.half_up else _half_down)(at)
             elif edge.half_up:
-                shift = _half_up(page) - text
+                shift = _half_up(page) - at
             else:
-                shift = _half_down(page) - text
+                shift = _half_down(page) - at
         result.append(Segment(a * UNITS_PER_PX, b * UNITS_PER_PX, shift * UNITS_PER_PX, bool(edge),
                               bool(edge) and not column.mode15))
     return result, beside
@@ -296,7 +298,7 @@ def break_across(items: list[Piece], start: int, segs: list[Segment], geometry: 
     order; a segment its next word does not fit in is passed over.  ``None`` where no
     segment takes anything (the line must go down)."""
     n = len(items)
-    placed = []
+    placed: list[tuple[Line, Segment, bool]] = []
     i = start
     if i >= n:
         if not segs:

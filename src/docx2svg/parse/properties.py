@@ -147,9 +147,9 @@ def read_run_properties(element: Element | None) -> dict[str, object]:
         elif name in _RUN_BOOLS:
             out[name] = _on(node)
         elif name in _RUN_INTS:
-            value = attr_int(node, "val")
-            if value is not None:
-                out[name] = value
+            number = attr_int(node, "val")
+            if number is not None:
+                out[name] = number
         elif name in _RUN_STRINGS:
             value = attr(node, "val")
             if value is not None:
@@ -225,9 +225,9 @@ def read_paragraph_properties(element: Element | None) -> dict[str, object]:
         elif name == "shd":
             out[name] = (attr(node, "val"), attr(node, "color"), attr(node, "fill"))
         elif name in ("jc", "textAlignment"):
-            value = attr(node, "val")
-            if value is not None:
-                out[name] = value
+            text = attr(node, "val")
+            if text is not None:
+                out[name] = text
         elif name == "outlineLvl":
             value = attr_int(node, "val")
             if value is not None:
@@ -298,9 +298,9 @@ def read_table_properties(element: Element | None) -> dict[str, object]:
             if value is not None:
                 out[name] = value
         elif name in _TABLE_INTS:
-            value = attr_int(node, "val")
-            if value is not None:
-                out[name] = value
+            number = attr_int(node, "val")
+            if number is not None:
+                out[name] = number
         elif name in _TABLE_BOOLS:
             out[name] = _on(node)
     return out

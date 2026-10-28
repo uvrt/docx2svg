@@ -125,7 +125,7 @@ def _glyf_outline(glyf, loca, long_offsets, glyph, matrix, bounds: _Bounds, dept
     at += 2 * contours
     count = ends[-1] + 1 if contours else 0
     at += 2 + struct.unpack_from(">H", glyf, at)[0]  # the instructions
-    flags = []
+    flags: list[int] = []
     while len(flags) < count:
         flag = glyf[at]
         at += 1
@@ -349,7 +349,7 @@ class _Type2:
         self.bounds.cubic(p0, p1, p2, p3)
         self.x, self.y = p3
 
-    def run(self, code: bytes, depth: int = 0) -> bool:
+    def run(self, code: bytes, depth: int = 0) -> bool | None:
         """Follow ``code``; ``True`` at ``endchar``, ``False`` where it cannot be followed,
         ``None`` at a subroutine's ``return``."""
         if depth > 10:
@@ -468,14 +468,14 @@ class _Type2:
                     self._curve(dx1, dy1, dx2, dy2, dx3, 0)
                     self._curve(dx4, 0, dx5, dy5, dx6, -(dy1 + dy2 + dy5))
                 elif b1 == 37:  # flex1
-                    d = s[:11]
-                    dx = sum(d[0:10:2])
-                    dy = sum(d[1:10:2])
-                    self._curve(*d[0:6])
+                    f = s[:11]
+                    dx = sum(f[0:10:2])
+                    dy = sum(f[1:10:2])
+                    self._curve(*f[0:6])
                     if abs(dx) > abs(dy):
-                        self._curve(d[6], d[7], d[8], d[9], d[10], -dy)
+                        self._curve(f[6], f[7], f[8], f[9], f[10], -dy)
                     else:
-                        self._curve(d[6], d[7], d[8], d[9], -dx, d[10])
+                        self._curve(f[6], f[7], f[8], f[9], -dx, f[10])
                 else:
                     return False  # Type 2 arithmetic and storage: not followed
                 s.clear()

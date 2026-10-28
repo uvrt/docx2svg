@@ -107,8 +107,10 @@ class FaceMetrics:
     """
 
     units_per_em: int
-    ascent: int
-    descent: int
+    #: A face's are integers; :func:`line_extent`'s synthetic face of a mixed line holds
+    #: fractions of an em (``units_per_em`` 1).
+    ascent: int | Fraction
+    descent: int | Fraction
     line_gap: int = 0
     #: ``OS/2.ySuperscriptYSize`` and ``ySubscriptYSize``: what a ``w:vertAlign`` run is
     #: drawn at, in font units of an em (:func:`docx2svg.resolve.script_half_points`).
@@ -553,6 +555,8 @@ def line_extent(text_items, metrics, label_items=()) -> tuple[FaceMetrics, int, 
     if len(distinct) == 1 and not all(e[4] for e in extents) and not any(e[5] for e in extents):
         # One face and size: a label in the text's own face and size adds nothing.
         face, half_points = next(iter(distinct))
+        # Never None: a picture bullet's extent is a label's, and not every item is one.
+        assert face is not None
         return face, half_points, False
     em = Fraction(half_points, 2) * PX_PER_PT
     return FaceMetrics(1, above / em, below / em, 0), half_points, True

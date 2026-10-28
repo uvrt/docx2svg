@@ -23,6 +23,7 @@ which leaves out the element it starts from.
 
 from __future__ import annotations
 
+from typing import overload
 from xml.etree.ElementTree import Element
 
 from ooxml_common.xmlutil import attr, descendants, local_name, parse_xml
@@ -43,6 +44,10 @@ def qualified_name(tag: str) -> tuple[str, str]:
     return "", local_name(tag)
 
 
+@overload
+def attr_int(element: Element | None, name: str, default: int) -> int: ...
+@overload
+def attr_int(element: Element | None, name: str, default: None = None) -> int | None: ...
 def attr_int(element: Element | None, name: str, default: int | None = None) -> int | None:
     value = attr(element, name)
     if value is None:

@@ -15,8 +15,16 @@ towards pretending the file says where a line breaks.  It does not.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from ooxml_common.locales import EN_US, Locale
+
+if TYPE_CHECKING:
+    from xml.etree.ElementTree import Element
+
+    from ooxml_common.drawingml.source import (
+        SourceEffectList, SourceFill, SourceFormatScheme, SourceOutline, SourceShapeStyle,
+    )
 
 
 @dataclass(frozen=True)
@@ -264,10 +272,10 @@ class Graphic:
     #: ``spPr``'s fill (a group's: ``grpSpPr``'s), outline and effects, and the shape's
     #: ``wps:style`` theme references, as ``ooxml_common.drawingml.read`` reads them
     #: (``ooxml_common.drawingml.source`` types, unresolved); ``None`` where not stated.
-    fill: object = field(default=None, compare=False)
-    line: object = field(default=None, compare=False)
-    effects: object = field(default=None, compare=False)
-    style: object = field(default=None, compare=False)
+    fill: SourceFill | None = field(default=None, compare=False)
+    line: SourceOutline | None = field(default=None, compare=False)
+    effects: SourceEffectList | None = field(default=None, compare=False)
+    style: SourceShapeStyle | None = field(default=None, compare=False)
     #: A text box's content (``w:txbxContent``): paragraphs and tables.
     text: tuple = ()
     #: ``wps:bodyPr``: ``lIns`` ``tIns`` ``rIns`` ``bIns`` (EMU), ``anchor``, ``vert``,
@@ -390,8 +398,8 @@ class Paragraph:
     #: ``mark_deleted`` says the mark is deleted and there was no paragraph to join.
     joins: tuple[int, ...] = field(default=(), compare=False)
     mark_deleted: bool = field(default=False, compare=False)
-    #: The ``w:sectPr`` this paragraph ends a section with (an ``Element``), or ``None``.
-    section: object = field(default=None, compare=False, repr=False)
+    #: The ``w:sectPr`` this paragraph ends a section with, or ``None``.
+    section: Element | None = field(default=None, compare=False, repr=False)
     #: The bookmarks that start or end in the paragraph, in document order:
     #: ``("start" | "end", w:id, w:name or None, run index)`` -- the index into :attr:`runs`
     #: of the run the mark stands before (``len(runs)`` after the last).  What ``PAGEREF``
@@ -556,7 +564,7 @@ class Document:
     default_paragraph_properties: ParagraphProperties | None = None
     #: Paragraphs and tables in document order.  ``paragraphs`` above holds only the
     #: top-level paragraphs, which is what section discovery indexes into.
-    body: list = field(default_factory=list)
+    body: list[Paragraph | Table] = field(default_factory=list)
     #: ``word/styles.xml``; ``None`` when the package has no styles part.
     styles: StyleSheet | None = None
     #: The theme's font scheme; ``None`` when the package has no theme part.
@@ -568,7 +576,7 @@ class Document:
     color_map: dict = field(default_factory=dict)
     #: The theme's format scheme (``a:fmtScheme``, an ``ooxml_common.drawingml.source.
     #: SourceFormatScheme``), what a shape's ``wps:style`` indexes; ``None`` without a theme.
-    theme_formats: object = None
+    theme_formats: SourceFormatScheme | None = None
     #: ``w:numbering``: numId -> level -> definition, overrides applied.
     numbering: dict = field(default_factory=dict)
     #: numId -> the list it counts in: the ``w:abstractNumId`` of its abstract definition
