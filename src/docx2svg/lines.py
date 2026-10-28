@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from fractions import Fraction
+from typing import overload
 
 from . import linebreak, vertical
 from .model import Document, Paragraph
@@ -81,6 +82,10 @@ def broken(document: Document, paragraph: Paragraph, section, advances, metrics=
         return None, None
 
 
+@overload
+def shares_of(document: Document, paragraph: Paragraph, items: None, lines) -> None: ...
+@overload
+def shares_of(document: Document, paragraph: Paragraph, items: list, lines) -> list[list[tuple]]: ...
 def shares_of(document: Document, paragraph: Paragraph, items, lines) -> list[list[tuple]] | None:
     if items is None:
         return None

@@ -28,11 +28,17 @@ import dataclasses
 import math
 from dataclasses import dataclass, field
 from fractions import Fraction
+from typing import TYPE_CHECKING
 
 from .linebreak import UNITS_PER_TWIP, twips_to_units
-from .model import Document, Table
+from .model import Document, Paragraph, Table
 from .resolve.cascade import style_chain
 from .vertical import LAYOUT_UNIT_PX, LINES_TALL, quantise, round_half_up, twips_to_px
+
+if TYPE_CHECKING:
+    from .linebreak import Geometry
+    from .paginate import Placeholder
+    from .resolve.cascade import Resolved
 
 #: The cell margin Word uses on a side nothing declares, twips: left and right as below,
 #: top and bottom none.  Measured (``make_table_geometry_probe.py``, ``margins none``):
@@ -325,7 +331,7 @@ def right_offset(cell: Cell) -> int:
     return max(cell.margins["right"], inner_part(cell.right_edge[0]))
 
 
-def grid_origin(document: Document, resolved: ResolvedTable, column_width: int) -> int:
+def grid_origin(document: Document, resolved: ResolvedTable, column_width: int) -> int | Fraction:
     """Twips from the text column's left edge to the table's first grid line.
 
     Measured (``make_table_geometry_probe.py``):
@@ -393,7 +399,7 @@ class CellBox:
     exact px from the page's left edge.
     """
 
-    text_left: int
+    text_left: Fraction
     budget: int
     left: Fraction
     right: Fraction
@@ -483,7 +489,7 @@ PERCENT_WHOLE = 5000
 
 def in_percent(resolved: ResolvedTable) -> bool:
     width = resolved.properties.get("tblW")
-    return bool(width) and width[1] == "pct"
+    return bool(width and width[1] == "pct")
 
 
 def percent_widths(document: Document, resolved: ResolvedTable, column_width: int) -> tuple[int, ...]:
@@ -527,7 +533,7 @@ def percent_widths(document: Document, resolved: ResolvedTable, column_width: in
     kinds = {share[1] if share else None for share in shares}
     if kinds == {"dxa"} and resolved.minimums is None:
         raise Unsupported("autofit: a table in percent whose cells' widths are in twips, shared by their content")
-    if kinds not in ({"pct"}, {"dxa"}) or any(share[0] <= 0 for share in shares):
+    if kinds not in ({"pct"}, {"dxa"}) or any(share is None or share[0] <= 0 for share in shares):
         raise Unsupported("a table in percent whose cells' widths are not all in percent")
     columns = len(resolved.table.grid)
     for row in rows:
@@ -543,7 +549,7 @@ def percent_widths(document: Document, resolved: ResolvedTable, column_width: in
     else:
         whole = column_width + left_offset(first) + right_offset(last)
     total = whole * table_width // PERCENT_WHOLE
-    values = [share[0] for share in shares]
+    values = [share[0] for share in shares if share is not None]
     if kinds == {"dxa"}:
         return dxa_shares(values, total, resolved.minimums)
     cumulative = [sum(values[:k + 1]) for k in range(len(values))]
@@ -795,6 +801,7 @@ def autofit_widths(document: Document, resolved: ResolvedTable, column_width: in
     widest word, as one without.)
     """
     extents = resolved.extents
+    assert extents is not None, "measured content (:func:`table_widths`)"
     columns = len(resolved.table.grid)
     rows = resolved.rows
     room = autofit_room(document, resolved, column_width)
@@ -862,9 +869,9 @@ def autofit_widths(document: Document, resolved: ResolvedTable, column_width: in
             raise Unsupported("autofit: a cell across columns wider than they are (measured, not settled)")
     total = sum(wants)
     narrowest = sum(lows)
-    percent_past = (target is not None and stated[1] == "pct"
+    percent_past = (target is not None and stated is not None and stated[1] == "pct"
                     and not (compatible_mode(document) or resolved.nested))
-    if percent_past and narrowest > target:
+    if percent_past and target is not None and narrowest > target:
         # Below mode 15 Word draws it past the margin, about as wide as its content
         # (5000 pct over three columns of 3,552: 3,552 / 3,552 / 3,547), its words broken
         # by a rule not settled.
@@ -882,7 +889,7 @@ def autofit_widths(document: Document, resolved: ResolvedTable, column_width: in
         return _edges([offset + left * part / sum(content) for offset, part in zip(offsets, content)],
                       nearest=not (compatible_mode(document) or resolved.nested))
     goal = target if target is not None else min(total, Fraction(room))
-    if target is not None and target > room and not (stated[1] == "pct"):
+    if target is not None and target > room and not (stated is not None and stated[1] == "pct"):
         raise Unsupported("autofit: a table width in dxa wider than the room (not measured)")
     if goal > total:
         grow = [c for c in range(columns) if auto[c]] or list(range(columns))
@@ -898,11 +905,11 @@ def autofit_widths(document: Document, resolved: ResolvedTable, column_width: in
             share = list(range(columns))
         else:
             raise Unsupported("autofit: columns in dxa giving way beside columns at their narrowest (not measured)")
-        left = goal - sum(wants[c] for c in range(columns) if c not in share) - sum(lows[c] for c in share)
+        spare = goal - sum(wants[c] for c in range(columns) if c not in share) - sum(lows[c] for c in share)
         slack = sum(wants[c] - lows[c] for c in share)
-        if left < 0 or slack <= 0:
+        if spare < 0 or slack <= 0:
             raise Unsupported("autofit: a table narrower than its content (not measured)")
-        widths = [lows[c] + left * (wants[c] - lows[c]) / slack if c in share else wants[c] for c in range(columns)]
+        widths = [lows[c] + spare * (wants[c] - lows[c]) / slack if c in share else wants[c] for c in range(columns)]
     else:
         # Each as wide as its content, to the twip above: what fits in it fits on its line.
         widths = [math.ceil(want) for want in wants]
@@ -932,15 +939,17 @@ def _edges(widths, *, nearest: bool) -> tuple[int, ...]:
 class CellParagraph:
     """One paragraph of a cell, broken into lines at the cell's width."""
 
-    paragraph: object
+    #: ``None`` for a nested table or a placeholder (:attr:`table`, :attr:`placeholder`), as
+    #: :attr:`geometry` is; their ``resolved`` is empty.
+    paragraph: Paragraph | None
     #: Its index in ``baselines.blocks`` order (table cells counted), as a
     #: :class:`docx2svg.paginate.Para`'s.
     block: int
-    resolved: object
+    resolved: Resolved | dict
     pieces: list
     lines: list
-    #: Line geometry from the cell's text start (:class:`docx2svg.linebreak.Geometry`).
-    geometry: object
+    #: Line geometry from the cell's text start.
+    geometry: Geometry | None
     label: str | None
     heights: list
     #: Space before and after, twips, as the body stacks them; its borders' room above
@@ -976,7 +985,7 @@ class CellParagraph:
     table: "TableFlow | None" = None
     #: A paragraph or nested table drawn as a placeholder of one line as tall as its
     #: estimated height (:func:`placeholder_entry`): what it stands for.
-    placeholder: object = None
+    placeholder: Placeholder | None = None
     #: A floating table nested in the cell: how far below the row's top it reaches, px
     #: (:func:`nested_entry`); the row is at least that tall.
     reach: Fraction | None = None
@@ -1415,15 +1424,16 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
                                                     "a drawing this model does not lay out (a VML shape it cannot "
                                                     "read, an embedded object)", approximated))
                     continue
-                why = cell_anchors_unmodelled(document, paragraph)
-                if why:
+                unmodelled = cell_anchors_unmodelled(document, paragraph)
+                if unmodelled:
                     if not carry_on:
-                        raise Unsupported(why)
-                    approximated.append(("cell-drawing", f"{why}: laid out as if text did not wrap around it",
+                        raise Unsupported(unmodelled)
+                    approximated.append(("cell-drawing", f"{unmodelled}: laid out as if text did not wrap around it",
                                          paragraph.path))
                     paragraph = unwrapped(paragraph)
                 approximate = cell_anchors_approximate(document, paragraph)
                 pp = resolved_items[k]
+                assert pp is not None  # a paragraph's (a table's is None, and went on above)
                 label = (labels or {}).get(number)
                 pieces, broken = line_model.broken(document, paragraph, cell_section, advances, metrics, label)
                 if pieces is None:
@@ -1718,6 +1728,7 @@ def _derive(document: Document, paragraph: CellParagraph, source) -> None:
     from . import lines as line_model
     from .paginate import _line_of_sources, anchors_of
 
+    assert paragraph.paragraph is not None, "a paragraph's lines (not a nested table's or a placeholder's)"
     shares = line_model.shares_of(document, paragraph.paragraph, paragraph.pieces, paragraph.lines)
     heights = []
     for n, (line, chars) in enumerate(zip(paragraph.lines, shares)):
@@ -1798,7 +1809,7 @@ def wrap_cell(document: Document, cell: Cell, box: CellBox, placed: list, previo
 
     for k, (source, run, index, anchor, here) in loose_anchors:
         y = floating.vertical(anchor, frames_of(k, here, source, run))
-        if y is not None:
+        if y is not None and loose is not None:  # (``loose_anchors`` are none without it)
             cy = floating.emu_twips(anchor.extent[1])
             loose.append((y * px, (y + cy) * px))
     wraps, bands = [], []
@@ -2072,7 +2083,7 @@ class RowPiece:
     split: bool = False
     #: The table as laid out where this row is drawn, when that is not the table's own
     #: flow: beside a drawing text wraps around (:func:`docx2svg.paginate.table_beside`).
-    flow: object = None
+    flow: TableFlow | None = None
     #: A cell merged down whose merge goes across a page: ``(row, cell, start, end)`` --
     #: its stacked lines ``start`` to ``end`` (of ``rows[row].cells[cell]``, the merge's
     #: first cell), drawn from this piece's top in its column, running on down through
@@ -2286,11 +2297,11 @@ def _place_table(flow: TableFlow, y: Fraction, bottom: Fraction, *, row: int = 0
     state: dict[int, _OnPage] = {}
     if first_on_page and (row > 0 or part) and 0 < header_count <= row:
         for h in range(header_count):
-            header = rows[h]
-            cells = tuple(len(cell.stack) for cell in header.cells)
-            pieces.append(RowPiece(h, tuple(0 for _ in cells), cells, y, header.top_border, header.height,
+            repeated = rows[h]
+            cells = tuple(len(cell.stack) for cell in repeated.cells)
+            pieces.append(RowPiece(h, tuple(0 for _ in cells), cells, y, repeated.top_border, repeated.height,
                                    header=True))
-            y += header.top_border + header.height
+            y += repeated.top_border + repeated.height
 
     def finish(end: Fraction, after: tuple | None) -> TablePage:
         """The page as placed: each merge on it given the lines that end above the last

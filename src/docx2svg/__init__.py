@@ -53,7 +53,7 @@ import os
 import tempfile
 from contextlib import nullcontext
 from dataclasses import dataclass, field
-from typing import Sequence
+from typing import TYPE_CHECKING, Callable, Sequence
 
 from .model import Document, PageMargins, PageSize, Paragraph, Run, Section
 from .opc import Package
@@ -64,7 +64,14 @@ from .png import RasterizerNotAvailable, available_backends, svg_to_png
 from ooxml_common.locales import EN_US, Locale
 from ooxml_common.opc import OpcPackage
 
-__version__ = "0.7.1"
+if TYPE_CHECKING:
+    from .coverage import Coverage
+    from .fonts import Decorations, DrawingName
+    from .layout import Layout
+    from .measure import Advances
+    from .vertical import FaceMetrics
+
+__version__ = "0.7.2"
 
 __all__ = [
     "Conversion",
@@ -134,13 +141,13 @@ class ConvertOptions:
     #: Override measurement: an :class:`~docx2svg.measure.Advances`, ``metrics(face,
     #: bold, italic)`` and ``decorations(face, bold, italic)``.  By default all three come
     #: from :class:`docx2svg.fonts.InstalledFonts` over the document.
-    advances: object = None
-    metrics: object = None
-    decorations: object = None
+    advances: Advances | None = None
+    metrics: Callable[[str, bool, bool], FaceMetrics | None] | None = None
+    decorations: Callable[[str, bool, bool], Decorations | None] | None = None
     #: ``names(face, bold, italic) -> DrawingName | None``: how the SVG names a face its
     #: document name does not reach in a rasteriser.  By default
     #: :meth:`docx2svg.fonts.InstalledFonts.drawing_name`.
-    names: object = None
+    names: Callable[[str, bool, bool], DrawingName | None] | None = None
     #: Lay out and draw an absent face with its open metric compatible substitute
     #: (:data:`docx2svg.fonts.SUBSTITUTES`: Carlito for Calibri, Liberation Sans, Serif
     #: and Mono for Arial, Times New Roman and Courier New) where that is installed.
@@ -166,7 +173,7 @@ class ConvertOptions:
     warnings: list[Warning] = field(default_factory=list)
     #: Set by every conversion: how much of the document was laid out
     #: (:class:`docx2svg.coverage.Coverage`), also the layout's ``coverage``.
-    coverage: object = None
+    coverage: Coverage | None = None
 
 
 def _read(source) -> bytes:
@@ -266,13 +273,17 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
     plan = relayout.plan(previous, data, key) if previous is not None else None
     fonts = None
     if options.advances is None or options.metrics is None or options.decorations is None:
-        # The faces the previous layout measured with, where nothing they are found from changed.
-        fonts = plan.state.fonts if plan is not None and plan.measured else _fonts(data, options)
+        # The faces the previous layout measured with, where nothing they are found from changed
+        # (a plan that may reuse the measurements holds a state).
+        fonts = plan.state.fonts if plan is not None and plan.measured and plan.state is not None \
+            else _fonts(data, options)
     advances = options.advances or fonts
-    metrics = options.metrics or fonts.metrics
-    decorations = options.decorations or fonts.decorations
+    # (``fonts`` is found wherever one of the three is not given.)
+    metrics = options.metrics or (fonts.metrics if fonts is not None else None)
+    decorations = options.decorations or (fonts.decorations if fonts is not None else None)
     from .coverage import coverage_of
 
+    parts: dict | None
     if plan is not None:
         parts, main, segments = plan.parts, plan.main, plan.segments
     elif keep:
@@ -283,7 +294,8 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
     # The measurements of the previous layout, where the parts they depend on are the same and
     # the blocks' models are what their XML says ("fields-open": a field's result in one block
     # may hang on another's).
-    measured = plan.state.memo if plan is not None and plan.measured and plan.reason != "fields-open" else None
+    measured = plan.state.memo if plan is not None and plan.state is not None and plan.measured \
+        and plan.reason != "fields-open" else None
     relaid = plan.reason if plan is not None else None
     cause = plan.cause if plan is not None else None
     again = relayout.Again(plan, previous) if plan is not None and plan.reason is None else None
@@ -327,12 +339,13 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
     layout.coverage = options.coverage = coverage_of(layout, document, data, fonts)
     if keep:
         source_document, original, _, by_page = placer.prepared
-        layout.state = relayout.record(placer, layout, data, parts, main, fonts, key, placer.approximated,
-                                       original, by_page)
-    if keep:
-        layout.state.laid = again.laid if again is not None else range(len(layout.pages))
-        layout.state.redrawn = frozenset(again.redrawn) if again is not None else frozenset()
-        layout.state.fresh = again.placed_pages if again is not None else frozenset(range(len(layout.pages)))
+        assert parts is not None  # read above wherever ``keep`` is
+        state = relayout.record(placer, layout, data, parts, main, fonts, key, placer.approximated, original,
+                                by_page)
+        state.laid = again.laid if again is not None else range(len(layout.pages))
+        state.redrawn = frozenset(again.redrawn) if again is not None else frozenset()
+        state.fresh = again.placed_pages if again is not None else frozenset(range(len(layout.pages)))
+        layout.state = state
     if previous is not None:
         layout.relaid = relaid
         layout.relaid_cause = cause if relaid is not None else None
@@ -405,7 +418,9 @@ def _images(data: bytes):
 
     def images(relationship: str, source: str | None = None):
         part = package.related_part(source or main, relationship)
-        found = package.read(part) if part is not None else None
+        if part is None:
+            return None
+        found = package.read(part)
         if found is None:
             return None
         return content_type(package, part), found
@@ -472,7 +487,7 @@ class Conversion:
     #: Every page laid out (:class:`docx2svg.layout.Layout`), whatever ``pages`` selects:
     #: its pages' lines, spans, rules, pictures and floating drawings, each with the
     #: ``path`` its SVG element carries as ``data-docx-path`` (:mod:`docx2svg.paths`).
-    layout: object
+    layout: Layout
     #: The selected pages' SVG documents, exactly as :func:`convert_docx_to_svg` writes them.
     svgs: list[str]
     #: The 1-based number of the page each SVG is of.

@@ -65,8 +65,9 @@ class Frames:
     page_height: int
     left: int
     right: int
-    top: int
-    bottom: int
+    #: Fractions of a twip in a table cell (from the cell's top: ``layout._Placer._cell_anchors``).
+    top: int | Fraction
+    bottom: int | Fraction
     header: int
     footer: int
     #: The page's place, 1-based: its parity picks inside and outside.
@@ -109,7 +110,7 @@ def _aligned(start, width, size: int, before: int, after: int, align: str | None
     return None
 
 
-def horizontal(anchor: Anchor, frames: Frames) -> Fraction | None:
+def horizontal(anchor: Anchor, frames: Frames) -> int | Fraction | None:
     """The drawing's left edge, twips from the page's left edge; ``None`` when the anchor
     names a frame this model does not know."""
     cx, _cy, el, _et, er, _eb = _box(anchor)
@@ -141,7 +142,7 @@ def horizontal(anchor: Anchor, frames: Frames) -> Fraction | None:
     return _aligned(start, width, cx, el, er, position.align or "left", odd)
 
 
-def vertical(anchor: Anchor, frames: Frames) -> Fraction | None:
+def vertical(anchor: Anchor, frames: Frames) -> int | Fraction | None:
     """The drawing's top edge, twips from the page's top edge."""
     _cx, cy, _el, et, _er, eb = _box(anchor)
     if anchor.simple is not None:
@@ -151,7 +152,7 @@ def vertical(anchor: Anchor, frames: Frames) -> Fraction | None:
     odd = frames.page % 2 == 1
     relative = position.relative or "paragraph"
     height = frames.page_height
-    margins = {
+    margins: dict[str, tuple[int | Fraction, int | Fraction]] = {
         "page": (frames.page_y, height),
         "margin": (frames.top, height - frames.top - frames.bottom),
         "topMargin": (frames.page_y, frames.top),

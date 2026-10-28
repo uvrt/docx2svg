@@ -53,6 +53,7 @@ import sys
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal, overload
 
 from ooxml_common.fonts import office as _office
 from ooxml_common.fonts.office import (  # noqa: F401  (re-exported: docx2svg.fonts' names)
@@ -137,14 +138,14 @@ class Face(_office.Face):
         if os2 is not None and len(os2) >= 74 and struct.unpack_from(">H", os2, 62)[0] & 0x80:
             ascender, descender, gap = struct.unpack_from(">hhh", os2, 68)
             return FaceMetrics(self.units_per_em, ascender, -descender, gap, *scripts)
-        ascender, descender, gap = struct.unpack_from(">hhh", self.table(b"hhea"), 4)
+        ascender, descender, gap = struct.unpack_from(">hhh", self._required(b"hhea"), 4)
         return FaceMetrics(self.units_per_em, ascender, -descender, gap, *scripts)
 
     @functools.cached_property
     def decorations(self) -> Decorations:
         os2 = self.table(b"OS/2")
         post = self.table(b"post")
-        hhea = self.table(b"hhea")
+        hhea = self._required(b"hhea")
         ascender, descender = struct.unpack_from(">hh", hhea, 4)
         values: dict = {}
         if os2 is not None and len(os2) >= 30:
@@ -243,6 +244,8 @@ class Face(_office.Face):
         box: list | None = None
         for char, pen in zip(text, pens):
             glyph = self.glyph(char)
+            if glyph is None:
+                return None
             found = self.glyph_box(glyph, slant)
             if found is None:
                 return None
@@ -318,7 +321,7 @@ def _scanned_faces(path: Path) -> list[tuple[int, Face]]:
                 offsets = list(struct.unpack_from(f">{count}I", head + handle.read(4 * count), 12))
             else:
                 offsets = [0]
-            faces = []
+            faces: list[tuple[int, Face]] = []
             for number, offset in enumerate(offsets):
                 header = _read_at(handle, offset, 12)
                 if len(header) < 12:
@@ -787,7 +790,7 @@ class InstalledFonts:
         self._embedded = embedded_faces(self.package) if self.package else {}
         self.substitutes = {name.lower(): value for name, value in self.substitutes.items()}
 
-    def face(self, family: str, bold: bool = False, italic: bool = False) -> Face | None:
+    def face(self, family: str, bold: bool = False, italic: bool = False) -> Face | RecordedFace | None:
         return self._find(installed_index(self.dirs), family, bold, italic, recorded=True)
 
     def drawing_face(self, family: str, bold: bool = False, italic: bool = False, *,
@@ -799,8 +802,14 @@ class InstalledFonts:
         return self._find(installed_index(drawing_dirs(self.dirs), bundle_first=True), family, bold, italic,
                           record=record)
 
+    @overload
+    def _find(self, index: dict, family: str, bold: bool, italic: bool, *, record: bool = ...,
+              recorded: Literal[False] = ...) -> Face | None: ...
+    @overload
+    def _find(self, index: dict, family: str, bold: bool, italic: bool, *, record: bool = ...,
+              recorded: bool) -> Face | RecordedFace | None: ...
     def _find(self, index: dict, family: str, bold: bool, italic: bool, *, record: bool = True,
-              recorded: bool = False) -> Face | None:
+              recorded: bool = False) -> Face | RecordedFace | None:
         if not family:
             return None
         found = _lookup(index, family, bold, italic)
@@ -836,7 +845,8 @@ class InstalledFonts:
             self.substitutions[family] = substitution
         return _face_at(*found)
 
-    def _named(self, index: dict, family: str, bold: bool, italic: bool):
+    def _named(self, index: dict, family: str, bold: bool, italic: bool) \
+            -> tuple[tuple[str, int], Substitution] | tuple[None, None]:
         """The first installed face of the chain of substitutes named for ``family``."""
         seen = {family.lower()}
         name = self.substitutes.get(family.lower())
@@ -849,12 +859,13 @@ class InstalledFonts:
             name = self.substitutes.get(name.lower())
         return None, None
 
-    def _default(self, index: dict, family: str, bold: bool, italic: bool):
+    def _default(self, index: dict, family: str, bold: bool, italic: bool) \
+            -> tuple[tuple[str, int], Substitution] | tuple[None, None]:
         """:func:`default_substitutes`' first installed face for ``family`` (or the
         substitute named for it), cached."""
         key = (id(index), family.lower(), bold, italic)
         if key not in self._defaults:
-            result = None, None
+            result: tuple[tuple[str, int], Substitution] | tuple[None, None] = None, None
             if self._font_table is None:
                 self._font_table = font_table_classes(self.package)
             for name, kind in default_substitutes(family, self._font_table):
@@ -904,8 +915,10 @@ class InstalledFonts:
 
     def advance(self, family: str, bold: bool, italic: bool, char: str) -> tuple[int, int] | None:
         face = self.face(family, bold, italic)
-        width = face.advance(char) if face is not None else None
-        if width is None and face is not None and self.fallbacks and len(char) == 1:
+        if face is None:
+            return None
+        width = face.advance(char)
+        if width is None and self.fallbacks and len(char) == 1:
             key = (family, bold, italic, char)
             if key not in self._glyphs:
                 self._glyphs[key] = self._glyph_fallback(face, family, bold, italic, char)
@@ -1143,7 +1156,7 @@ def _pool_faces(path: str, mtime: int, size: int) -> tuple:
 
 
 @functools.lru_cache(maxsize=64)
-def _pool(stamps: tuple) -> tuple:
+def _pool(stamps: tuple) -> tuple | None:
     """The faces of the files ``stamps`` names, in load order, by each name the rasteriser
     files them under; ``None`` where no two faces of different files tie (one name, one
     weight, width and style): nothing to plan, the common case."""
@@ -1177,9 +1190,9 @@ def _text_queries(svg: str) -> dict:
         value = attributes.get("font-family")
         if value is None:
             continue
-        families = [name.strip().strip("'\"").replace("\\'", "'").replace("&apos;", "'").replace("&amp;", "&")
-                    for name in value.split(",")]
-        families = tuple(name for name in families if name and name.lower() not in _GENERIC)
+        names = [name.strip().strip("'\"").replace("\\'", "'").replace("&apos;", "'").replace("&amp;", "&")
+                 for name in value.split(",")]
+        families = tuple(name for name in names if name and name.lower() not in _GENERIC)
         if not families:
             continue
         weight = attributes.get("font-weight", "normal")

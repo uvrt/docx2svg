@@ -213,7 +213,7 @@ def banded(chain: list[Style], conditions: tuple[str, ...]) -> tuple[str, ...]:
 _Layer = dict  # key -> (value, Origin)
 
 
-def _flatten(chain: list[Style], level: str, part: str, applied: str,
+def _flatten(chain: list[Style], level: str, part: str, applied: str | None,
              conditions: tuple[str, ...] = ()) -> _Layer:
     """One style level: its chain merged root-first by override, origins kept.
 
@@ -390,19 +390,19 @@ def _resolve_run_properties(document: Document, paragraph: Paragraph, character_
     for key in sorted(declared & TOGGLES):
         base = bool(defaults.get(key, False))
         value = base
-        chain = [Origin(DOC_DEFAULTS, detail=f"{base}")] if key in defaults else []
+        origins = [Origin(DOC_DEFAULTS, detail=f"{base}")] if key in defaults else []
         for level in levels:
             if key in level:
                 declared_value, origin = level[key]
                 flips = bool(declared_value) != base
                 if flips:
                     value = not value
-                chain.append(Origin(origin.level, origin.style_id, origin.declared_in,
-                                    f"{declared_value}, {'flips' if flips else 'no flip'}"))
+                origins.append(Origin(origin.level, origin.style_id, origin.declared_in,
+                                      f"{declared_value}, {'flips' if flips else 'no flip'}"))
         if key in direct:
             value = bool(direct[key])
-            chain.append(Origin(DIRECT, detail=f"{value}, absolute"))
-        toggles[key] = (value, tuple(chain))
+            origins.append(Origin(DIRECT, detail=f"{value}, absolute"))
+        toggles[key] = (value, tuple(origins))
     return _finish(layer, toggles)
 
 

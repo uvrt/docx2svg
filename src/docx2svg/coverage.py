@@ -52,7 +52,7 @@ class StopInfo:
 
     code: str
     reason: str
-    message: str
+    message: str | None
     page: int | None = None
     path: str | None = None
 

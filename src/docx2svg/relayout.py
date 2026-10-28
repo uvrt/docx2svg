@@ -60,9 +60,14 @@ import io
 import re
 import zipfile
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Callable
 
 from . import paginate
 from .paginate import Position
+
+if TYPE_CHECKING:
+    from .fonts import InstalledFonts
+    from .model import Paragraph, Table
 
 #: Why a layout from a previous one lays the whole document out again, by
 #: :attr:`Layout.relaid` code.  With ``measured``, the measurements of the blocks that did
@@ -307,6 +312,7 @@ class Measures:
         #: ``None`` (an endnote's paragraph, a block whose element was not read).
         self.elements = []
         seen: dict = {}
+        element: str | tuple[str, str]
         for block in document.body:
             path = block.path
             steps = path.split("/")
@@ -378,8 +384,9 @@ class State:
 
     #: ``(docx2svg version, STATE_FORMAT)``: a state of another is not read.
     version: tuple
-    #: What the layout was measured with besides the document (:func:`options_key`).
-    options: tuple
+    #: What the layout was measured with besides the document (:func:`options_key`);
+    #: ``None`` where it cannot be compared (the next layout is a whole one: ``options``).
+    options: tuple | None
     data: bytes
     parts: dict
     relationships: dict
@@ -397,14 +404,14 @@ class State:
     #: ``(first page, end page, log, floats)``: the pages placed (blank ones before it
     #: included), the warnings placing them recorded (:attr:`Layout.log`), and how many
     #: floating drawings were placed before it.
-    result: object
+    result: paginate.Pagination
     iterations: list
     #: :attr:`docx2svg.paginate.Flow.approximated`, in order.
     approximated: list
     #: :attr:`Measures.kept`.
     memo: dict
     #: The faces measured with (:class:`docx2svg.fonts.InstalledFonts`): the next layout's.
-    fonts: object
+    fonts: InstalledFonts | None
     #: Whether a header or footer shows ``NUMPAGES`` or ``SECTIONPAGES``; the page count,
     #: and each section's pages (``SECTIONPAGES``).
     count_fields: bool
@@ -458,7 +465,7 @@ def body_digests(segs: list[Segment] | None) -> dict:
     return out
 
 
-def _top_level(document) -> list[tuple[object, int, int]]:
+def _top_level(document) -> list[tuple[Paragraph | Table, int, int | None]]:
     """``(block, first block index, how many)`` of each top-level block of the flow."""
     out = []
     pairs = paginate._blocks_of_body(document)
@@ -721,6 +728,7 @@ def renumbered(value, moves: dict, seen: dict | None = None):
         return value
     seen = {} if seen is None else seen
     key = id(value)
+    out: object
     if key in seen:
         return seen[key]
 
@@ -737,8 +745,8 @@ def renumbered(value, moves: dict, seen: dict | None = None):
         items = [renumbered(item, moves, seen) for item in value]
         out = items if any(a is not b for a, b in zip(items, value)) else value
     elif isinstance(value, tuple):
-        items = tuple(renumbered(item, moves, seen) for item in value)
-        out = items if any(a is not b for a, b in zip(items, value)) else value
+        members = tuple(renumbered(item, moves, seen) for item in value)
+        out = members if any(a is not b for a, b in zip(members, value)) else value
     elif isinstance(value, dict):
         pairs = {renumbered(k, moves, seen): renumbered(v, moves, seen) for k, v in value.items()}
         out = pairs if any(a is not b or pairs[a] is not value[b] for a, b in zip(pairs, value)) else value
@@ -1330,7 +1338,7 @@ def _movable(before, document) -> list:
     of them starts a section or is a blank page Word inserts, and moving them keeps every
     page's headers and footers (an even number of pages, where even and odd pages have
     their own)."""
-    out = [None] * len(before.starts)
+    out: list[Callable[[int], bool] | None] = [None] * len(before.starts)
     plain = True
     for j in range(len(before.starts) - 1, -1, -1):
         page = before.states[j][0]
@@ -1339,7 +1347,10 @@ def _movable(before, document) -> list:
             info = before.info.get(number)
             if info is None or info.blank or info.section_first:
                 plain = False
-        out[j] = (lambda delta, ok=plain: ok and (delta % 2 == 0 or not document.even_and_odd_headers))
+        def movable(delta: int, ok: bool = plain) -> bool:
+            return ok and (delta % 2 == 0 or not document.even_and_odd_headers)
+
+        out[j] = movable
     return out
 
 
