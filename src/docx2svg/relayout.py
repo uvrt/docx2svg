@@ -863,7 +863,7 @@ class Pass:
     the flow's approximations, per flow item its top-level block, and per item whether it
     holds a page's decision to end before the block after it."""
 
-    result: object
+    result: paginate.Pagination
     texts: list
     approximated: list
     item_blocks: list
@@ -887,7 +887,7 @@ class Spliced:
     top-level blocks) and their pages by ``delta``, at the new iteration ``new first`` --
     or ``("fresh", first, end)``, the iterations laid out again."""
 
-    result: object
+    result: paginate.Pagination
     messages: list
     segments: list
     windows: list
@@ -909,8 +909,9 @@ class Again:
     ``placed_pages`` holds the 0-based pages placed again and ``laid`` spans them."""
 
     def __init__(self, plan: Plan, previous) -> None:
+        assert plan.state is not None, "a plan with no reason holds the previous state"
         self.plan = plan
-        self.state = plan.state
+        self.state: State = plan.state
         self.previous = previous
         self.placed_pages: frozenset = frozenset()
         self.laid = range(0)
@@ -1156,7 +1157,6 @@ class Again:
         previous layout (moved, their paths renumbered, their headers and footers drawn again
         where their numbers changed), and record what each page warned of, in page order."""
         state = self.state
-        before = state.passes[-1].result
         merged = spliced.result
         layout = placer.layout
         placer.result = merged
@@ -1246,6 +1246,8 @@ class Again:
             old = state.elements[ordinal]
             new = memo_elements[ordinal + offset] if 0 <= ordinal + offset < len(memo_elements) else None
             if old is not None and new is not None:
+                # Both read: a plan with no reason compared them (:func:`plan`).
+                assert state.segments is not None and self.plan.segments is not None
                 return renumbering(state.segments, self.plan.segments, old, new)
             if (old is None) != (new is None):
                 raise Relaid("body")

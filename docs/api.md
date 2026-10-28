@@ -59,6 +59,8 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   layout1, data1, fonts1 = lay_out_docx(data1, previous=layout0)
   layout1.changed_pages        # [17]: only the page the edit is on; [17, 18, 19] if it pushes text on
   layout1.relaid               # None; or why the whole document was laid out again ("styles", ...)
+  layout1.relaid_cause         # None; or {"reason": "fields-open", "at": "w:body/w:p[4]",
+                               #   "para_id": "1A2B3C4D", "field": "TOC \\o \"1-3\" \\h"}
   svgs = page_svgs(layout1, data1, ConvertOptions(pages=layout1.changed_pages), fonts=fonts1)
   ```
 
@@ -68,7 +70,18 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   `changed_blocks=[...]` (paths or paraIds) is accepted as a hint only. The whole document is
   laid out again -- the unchanged blocks' measurements still reused where the styles and
   settings are the same -- where an edit cannot be scoped: `docx2svg.relayout.FALLBACKS`
-  lists each reason `relaid` gives. `previous` must be a layout this function made, with
+  lists each reason `relaid` gives, and `relaid_cause` says what caused it: the body element
+  (`at`, its path, and `para_id`, its `w14:paraId`), the field an edited element opens and
+  another closes (`field`), or the part that changed (`part`: `word/styles.xml`), to explain
+  a slow refresh. A body with page-number fields -- a table of contents (its lines'
+  `PAGEREF`s), `PAGE`, `NUMPAGES` -- or `SEQ` and `REF` is laid out from the edit too
+  (round 20): a full layout lays such a body out in passes until the fields' values settle,
+  and each pass is laid out from the same pass of `previous`, only where a block or a field's
+  value differs (the edit; a contents line whose number changed; the captions after an
+  inserted one), each stretch until the pages line up again -- a page break after it
+  typically, the pages after the break then `previous`'s, moved on where pages were added or
+  removed before it. `changed_pages` then holds the contents page where a number on it
+  changed. `previous` must be a layout this function made, with
   the same options; one of another docx2svg, of other options, or made with `keep=False`
   (which keeps nothing for later: `layout.state` is `None`) is laid out whole. The state a
   layout keeps (`layout.state`) is picklable with it, so a worker process can hand it back.
