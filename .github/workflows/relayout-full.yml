@@ -5,12 +5,19 @@ name: Relayout (full set)
 # fields.  A pull request's CI (ci.yml) runs the small set, which has every edit kind and
 # every fallback; this runs the rest, with the same assertions (the module's docstring).
 # One leg -- ubuntu, the newest Python -- nightly after CI's own (02:47 UTC), on push to
-# main (a few minutes, so a merge that breaks the property shows at once), and on demand.
+# main (a few minutes, so a merge that breaks the property shows at once), on demand, and
+# on a pull request that changes this file or the relayout tests' own code.
 # Not a required check: branch protection requires ci.yml's jobs only.
 
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - .github/workflows/relayout-full.yml
+      - tests/test_relayout.py
+      - tools/report_docs.py
+      - src/docx2svg/relayout.py
   workflow_dispatch:
   schedule:
     - cron: "57 3 * * *"
