@@ -1209,12 +1209,13 @@ class _Placer:
     def _styleref_target(self, run, where: str):
         """A ``STYLEREF`` run's :class:`fields.StyleReference` and what it searches for
         (:func:`fields.style_reference_target`), or ``None`` with a warning."""
-        from .fields import Uncomputable, style_reference, style_reference_target
+        from .fields import Uncomputable, names_language, style_reference, style_reference_target
 
         instruction = run.field.instruction
         try:
             reference = style_reference(instruction)
-            return reference, style_reference_target(reference, self.document.styles, self.document.locale.language)
+            return reference, style_reference_target(reference, self.document.styles, self.document.locale.language,
+                                                     names_language(self.document))
         except Uncomputable as why:
             self.layout.warn("field-not-computed:STYLEREF",
                              f"a STYLEREF field {where} is drawn as Word cached it ({why.args[0]})")
@@ -1350,11 +1351,12 @@ class _Placer:
         return text
 
     def _quiet_target(self, run):
-        from .fields import Uncomputable, style_reference, style_reference_target
+        from .fields import Uncomputable, names_language, style_reference, style_reference_target
 
         try:
             reference = style_reference(run.field.instruction)
-            return reference, style_reference_target(reference, self.document.styles, self.document.locale.language)
+            return reference, style_reference_target(reference, self.document.styles, self.document.locale.language,
+                                                     names_language(self.document))
         except Uncomputable:
             return None
 

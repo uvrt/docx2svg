@@ -37,6 +37,13 @@ CACHED = {
     "extra": {"S", "SL", "FT", "FTL"},
 }
 
+#: Where this differs from the English Word that was measured, on purpose: ``n4`` is
+#: ``STYLEREF "Kop 1"`` in a Dutch document.  English Word reads its own (English) names
+#: and gives its error; docx2svg reads a document converted without a locale in the
+#: document's language (``fields.names_language``), where "Kop 1" is heading 1 -- the
+#: heading's text, as Dutch Word, which wrote such a document, shows it.
+DOCUMENT_LANGUAGE = {"nl": {"n4"}}
+
 
 def _values(data: bytes) -> tuple[list[dict], list]:
     options = ConvertOptions()
@@ -60,6 +67,9 @@ def test_every_computed_styleref_is_the_text_word_shows(name):
         for label, text in theirs.items():
             if ours[label] == "?":
                 assert label in cached, (number, label, text)
+                continue
+            if label in DOCUMENT_LANGUAGE.get(name, ()):
+                assert text.startswith("Error!") and ours[label] in ("Part one heading", "Second part heading")
                 continue
             assert ours[label] == text, (number, label)
             compared += 1
@@ -97,8 +107,33 @@ def test_find_style_by_name_case_ignored_or_by_heading_level():
     assert fields.find_style("key term", sheet) == ("character", frozenset({"Keyterm"}))
     assert fields.find_style("Chaptertitle", sheet) is None  # a style id is not a name
     assert fields.find_style(" Chapter title ", sheet) is None
-    # In a language whose error texts are not measured, an unknown name is not computed.
+    # Word's display names in the conversion's or the document's language (ooxml-common's
+    # stylenames, measured): Dutch Word's "Kop 1" is heading 1; English's still counts.
     reference = fields.style_reference('STYLEREF "Kop 1"')
+    assert fields.style_reference_target(reference, sheet, "nl-NL") == ("paragraph", frozenset({"Heading1"}))
     assert fields.style_reference_target(reference, sheet, "en-US").startswith("Error! Use the Home tab")
+    # Names read in the document's language, errors in the application's.
+    assert fields.style_reference_target(reference, sheet, "en-US", "nl-NL") == ("paragraph", frozenset({"Heading1"}))
+    assert fields.find_style("Überschrift 1", sheet, ("de-DE",)) == ("paragraph", frozenset({"Heading1"}))
+    assert fields.find_style(" Kop 1", sheet, ("nl-NL",)) is None          # not trimmed
+    # In a language whose error texts are not measured, an unknown name is not computed.
     with pytest.raises(fields.Uncomputable):
-        fields.style_reference_target(reference, sheet, "nl-NL")
+        fields.style_reference_target(fields.style_reference('STYLEREF "Geen stijl"'), sheet, "nl-NL")
+
+
+def test_style_names_are_read_in_the_callers_language_else_the_documents():
+    from ooxml_common.locales import EN_US, Locale
+
+    from docx2svg.model import Document
+
+    document = Document()
+    assert fields.names_language(document) is None
+    document.theme_font_lang = {"val": "de-DE"}
+    assert fields.names_language(document) == "de-DE"
+    document.locale = Locale(decimal_separator=",", thousands_separator=".", date_order="dmy", language="nl-BE",
+                             list_separator=";")
+    assert fields.names_language(document) == "nl-BE"
+    document.locale = EN_US
+    document.theme_font_lang = {}
+    document.styles = StyleSheet(run_defaults={"lang.val": "fr-FR"})
+    assert fields.names_language(document) == "fr-FR"

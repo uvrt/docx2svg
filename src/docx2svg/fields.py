@@ -531,33 +531,68 @@ def style_reference(instruction: str) -> StyleReference:
     return StyleReference(name or "", last, position)
 
 
-def find_style(name: str, styles) -> tuple[str, frozenset[str]] | None:
+def find_style(name: str, styles, languages: tuple[str | None, ...] = ()) -> tuple[str, frozenset[str]] | None:
     """The style a ``STYLEREF`` names: ``(kind, style ids)`` -- ``paragraph`` or
     ``character`` -- or ``None`` where no style has that name.  ``styles`` is the document's
-    :class:`~docx2svg.model.StyleSheet` (or ``None``).
+    :class:`~docx2svg.model.StyleSheet` (or ``None``); ``languages`` the languages whose
+    built-in display names count (:func:`names_language`).
 
-    The one place a field's style name is looked up.  Measured (English Word): the stored
-    name (``w:name``), case ignored -- ``heading 1``, ``Heading 1`` and ``HEADING 1`` alike
-    -- not the style id, not with spaces around it; a number ``1`` .. ``9`` is the built-in
-    ``heading N``.  Dutch Word matches a built-in style by its Dutch name instead (``Kop 1``):
-    the conversion's locale decides whether a lookup that finds nothing is Word's error
-    (:func:`style_reference_target`)."""
-    wanted = name.lower()
-    if name.isdigit() and 1 <= int(name) <= 9:
-        wanted = f"heading {int(name)}"
-    kinds: dict[str, set] = {}
-    for style_id, style in (styles.styles.items() if styles is not None else ()):
-        if style.name is not None and style.name.lower() == wanted and style.kind in ("paragraph", "character"):
-            kinds.setdefault(style.kind, set()).add(style_id)
-    if not kinds:
-        if name.isdigit() and 1 <= int(name) <= 9:
+    The one place a field's style name is looked up, through
+    ``ooxml_common.stylenames.find_style``.  Measured (English Word): the stored name
+    (``w:name``), case ignored -- ``heading 1``, ``Heading 1`` and ``HEADING 1`` alike -- not
+    the style id, **not trimmed** (``" Chapter title "`` is Word's error); a number ``1``
+    .. ``9`` is the built-in ``heading N``.  Dutch Word matches a built-in style by its Dutch
+    name (``Kop 1``) and not by the English one.  Word takes the names of its *interface*
+    language -- English Word gave its error for ``"Kop 1"`` in a Dutch document
+    (``make_styleref_probe``'s ``nl``) -- which a file does not say; so, as docx-agent's
+    ``TOC \\t``, the names of the conversion's language when the caller gave one, else the
+    document's, and English's always.  A Dutch document converted without a locale finds
+    "Kop 1" where English Word would not: documents are written in their own Word's
+    language."""
+    from ooxml_common.stylenames import find_style as find_name
+
+    numbered = name.isdigit() and 1 <= int(name) <= 9
+    if numbered:
+        name = f"heading {int(name)}"
+    entries = [(style_id, style) for style_id, style in (styles.styles.items() if styles is not None else ())
+               if style.name is not None and style.kind in ("paragraph", "character")]
+    names = {style.name: style.name for _, style in entries}
+    found = None
+    for language in dict.fromkeys(languages or (None,)):
+        found = find_name(name, names, language, trim=False)
+        if found is not None:
+            break
+    if found is None:
+        if numbered:
             return "paragraph", frozenset()
         return None
+    wanted = found.casefold()
+    kinds: dict[str, set] = {}
+    for style_id, style in entries:
+        if style.name.casefold() == wanted:
+            kinds.setdefault(style.kind, set()).add(style_id)
     kind = "paragraph" if "paragraph" in kinds else "character"
     return kind, frozenset(kinds[kind])
 
 
-def style_reference_target(reference: StyleReference, styles, language: str) -> tuple[str, frozenset[str]] | str:
+def names_language(document) -> str | None:
+    """The language a field's style names are read in (:func:`find_style`): the
+    conversion's (:attr:`Document.locale <docx2svg.model.Document.locale>`) when the caller
+    gave one -- any but the default :data:`~ooxml_common.locales.EN_US` --, else the
+    document's: ``w:themeFontLang``, else the default run language (``w:docDefaults``'
+    ``w:lang``); ``None`` when none says (English only)."""
+    from ooxml_common.locales import EN_US
+
+    if document.locale is not EN_US:
+        return document.locale.language
+    stated = document.theme_font_lang.get("val")
+    if not stated and document.styles is not None:
+        stated = document.styles.run_defaults.get("lang.val")
+    return stated or None
+
+
+def style_reference_target(reference: StyleReference, styles, language: str,
+                           names_language: str | None = None) -> tuple[str, frozenset[str]] | str:
     """What a ``STYLEREF`` searches for (:func:`find_style`), or Word's error text where it
     finds no style (:data:`STYLEREF_ERRORS`).  Raises :class:`Uncomputable` for the error
     text of a language not measured, a style found by a name Word may not match in the
@@ -568,10 +603,11 @@ def style_reference_target(reference: StyleReference, styles, language: str) -> 
         if "unnamed" not in errors:
             raise Uncomputable("the instruction names no style: Word's error text, in the application's language")
         return errors["unnamed"]
-    found = find_style(reference.name, styles)
+    found = find_style(reference.name, styles, (names_language or language,))
     if found is None:
         if "undefined" not in errors:
-            raise Uncomputable("no style has that name in English: Word's interface language decides")
+            raise Uncomputable("no style has that name in the languages measured: Word's error text, in the "
+                               "application's language")
         return errors["undefined"].format(name=reference.name)
     kind, ids = found
     if kind == "character" and styles is not None and any(styles.styles[i].default for i in ids):
