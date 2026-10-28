@@ -7405,6 +7405,28 @@ which blocks, and -- after each small edit -- which pages to draw again.
   Where one of these cannot be had, the whole document is laid out again and said why
   (`relayout.FALLBACKS`). Not done: the parse is the whole document's every time (about a
   fifth of what is left of a one-paragraph edit's cost on 40 pages).
+- **Page-number fields, SEQ and REF laid out from the edit too (round 20, S1).** A body with
+  a table of contents (a `PAGEREF` per line), `PAGE`, `NUMPAGES`, `SEQ` or `REF` was laid out
+  whole after every edit. A full layout lays such a body out in passes -- the fields' cached
+  results first, then the values each pass finds, until they are the ones it was laid out
+  with, four passes at most (`field-layout-unsettled` past that) -- and a layout from a
+  previous one now makes the same passes, each from the same pass of the previous layout
+  (the first from its first, every later one from its last: `relayout.State.passes`), in
+  stretches: the blocks the edit changed, and each other block whose text the pass sets
+  differs from the previous layout's (a contents line whose number changed; the captions
+  after an inserted one and the `REF` to them; a `PAGE` on a page that moved). Each stretch
+  is laid out from the page holding it until a page starts in step with the previous pass
+  -- the same rule as above, after each stretch -- so every pass's pagination and the
+  values its fields find are a full layout's, and so is the number of passes. A page break
+  after the stretch is where it stops, typically: the pages after it are the previous
+  layout's, moved on where pages were added or removed before it. Every pass but the first
+  now also reuses the measurements of the blocks whose text it did not change (they were
+  measured afresh), and the fields' values are found from only the paragraphs that hold a
+  field or a bookmark, which makes a full layout of a body with fields faster too. What
+  caused a full layout is said (`Layout.relaid_cause`: the element, the field, the part).
+  What still lays the whole document out: an edit of an element that opens or closes a
+  field another element holds (the contents' first line holds the `TOC` field's start),
+  and the reasons above (`relayout.FALLBACKS`).
 
 ## Phase 6 — Everything else, sized
 

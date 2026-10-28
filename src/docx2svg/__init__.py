@@ -71,7 +71,7 @@ if TYPE_CHECKING:
     from .measure import Advances
     from .vertical import FaceMetrics
 
-__version__ = "0.7.2"
+__version__ = "0.8.0"
 
 __all__ = [
     "Conversion",
@@ -255,7 +255,10 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
     differs from ``previous``'s page of the same number, and those ``previous`` did not
     have -- and ``layout.relaid`` why the whole document was laid out again where it was
     (:data:`docx2svg.relayout.FALLBACKS`; ``None`` where only what the change reaches
-    was).  The changed blocks are found by comparing the bytes; ``changed_blocks`` (the
+    was), ``layout.relaid_cause`` what caused it (where, which field, which part).  A body
+    with page-number fields (a table of contents' ``PAGEREF``, ``PAGE``) or ``SEQ`` and
+    ``REF`` is laid out again from the change too (round 20): each of the passes a full
+    layout makes until its fields' values settle, from the same pass of ``previous``.  The changed blocks are found by comparing the bytes; ``changed_blocks`` (the
     blocks a caller knows it changed, as paths or ``w14:paraId``) is a hint only, never
     trusted over that.  ``keep=False`` keeps nothing for a later layout (``layout.state``
     is ``None``: smaller, and a ``previous`` it cannot be)."""
@@ -294,6 +297,7 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
     measured = plan.state.memo if plan is not None and plan.state is not None and plan.measured \
         and plan.reason != "fields-open" else None
     relaid = plan.reason if plan is not None else None
+    cause = plan.cause if plan is not None else None
     again = relayout.Again(plan, previous) if plan is not None and plan.reason is None else None
 
     def placer_for(memo):
@@ -312,6 +316,7 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
                                        locale=options.locale, placer=placer, again=again)
     except relayout.Relaid as why:
         relaid, again = why.args[0], None
+        cause = {"reason": relaid}
         placer = placer_for({**(measured or {}), **placer.memo.kept})
         layout = layout_module.lay_out(document, advances, metrics, package=data, decorations=decorations,
                                        locale=options.locale, placer=placer)
@@ -337,11 +342,13 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
         assert parts is not None  # read above wherever ``keep`` is
         state = relayout.record(placer, layout, data, parts, main, fonts, key, placer.approximated, original,
                                 by_page)
-        state.laid = again.placed_pages if again is not None else range(len(layout.pages))
+        state.laid = again.laid if again is not None else range(len(layout.pages))
         state.redrawn = frozenset(again.redrawn) if again is not None else frozenset()
+        state.fresh = again.placed_pages if again is not None else frozenset(range(len(layout.pages)))
         layout.state = state
     if previous is not None:
         layout.relaid = relaid
+        layout.relaid_cause = cause if relaid is not None else None
         layout.changed_pages = relayout.changed_pages(previous, layout, again, data, fonts, relaid)
     return layout, data, fonts
 
