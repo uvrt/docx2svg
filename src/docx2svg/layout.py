@@ -802,16 +802,22 @@ class _Placer:
         footnote_pages: dict | None = None
         document = with_footnotes(original)
         values: dict = {}
-        for attempt in range(4):
-            # Measurements are kept by what a block's XML says; a later pass sets the
-            # values of the page-number fields and notes found (:func:`substitute_document`):
-            # it measures afresh.
-            memo = self.memo if attempt == 0 else None
+        #: Per pass, ``(document, items, result, approximations)`` (``None``: the items'):
+        #: what a layout from this one goes on from
+        #: (:mod:`docx2svg.relayout` lays each pass out again from the same pass of this one).
+        self.passes = []
+        for _attempt in range(4):
+            # Measurements are kept by what a block's XML says and the text the model holds
+            # (:class:`docx2svg.relayout.Measures`): a later pass, which sets the values of
+            # the page-number fields and notes found (:func:`substitute_document`), measures
+            # only the paragraphs whose text that changed.
+            memo = self.memo
             if memo is not None:
                 memo.bind(document, self.digests)
             items = paginate.flow(document, self.advances, self.metrics, features=features, memo=memo)
             result = paginate.paginate(document, items)
             self.document, self.items = document, items
+            self.passes.append((document, items, result, None))
             found = self._body_field_values(items, result)
             pages = _footnote_pages(items, result) if by_page else None
             if found == values and pages == footnote_pages:
@@ -1132,7 +1138,8 @@ class _Placer:
         if not keys:
             return {}
         drawn = paginate.drawn_pages(items, result)
-        details = self._details(items)
+        # Only the paragraphs holding a field or a bookmark are asked for.
+        details = self._details(items, lazy=True)
         self._flow_of = {item.block: index for index, item in enumerate(items) if isinstance(item, paginate.Para)}
         paragraphs = _all_paragraphs(self.document.body)
         targets = None

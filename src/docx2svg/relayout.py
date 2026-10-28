@@ -43,6 +43,7 @@ import zipfile
 from dataclasses import dataclass, field
 
 from . import paginate
+from .paginate import Position
 
 #: Why a layout from a previous one lays the whole document out again, by
 #: :attr:`Layout.relaid` code.  With ``measured``, the measurements of the blocks that did
@@ -91,7 +92,7 @@ _PART_REASONS = (
 )
 
 #: The version of what :class:`State` keeps; a state of another is not read.
-STATE_FORMAT = 1
+STATE_FORMAT = 2
 
 
 def _digest(data: bytes) -> bytes:
@@ -383,6 +384,9 @@ class State:
     #: Why the next layout from this one lays the whole document out again whatever
     #: changes (:data:`FALLBACKS`), or ``None``.
     blocked: str | None
+    #: Each pass the layout made (:class:`Pass`), the last the one drawn: one, unless the
+    #: body has page-number fields.
+    passes: list = field(default_factory=list)
     #: Page (0-based) -> a digest of what it draws (:func:`drawing`), as found.
     drawings: dict = field(default_factory=dict)
     #: The 0-based pages this layout laid out again, made from a previous one (all of them
@@ -472,8 +476,6 @@ def _story_fields(document, keywords: tuple = ("NUMPAGES", "SECTIONPAGES")) -> b
 def blocked(placer, original, by_page: bool) -> str | None:
     """Why no layout from this document's can lay out only what an edit reaches
     (:data:`FALLBACKS`), from what it is: ``None`` where nothing stands in the way."""
-    from .layout import PAGE_FIELDS, _all_paragraphs
-
     if by_page:
         return "footnote-restart"
     if any(section.line_numbering for section in original.sections):
@@ -482,13 +484,6 @@ def blocked(placer, original, by_page: bool) -> str | None:
         return "columns"
     if not paginate.CARRY_ON:
         return "stopped"
-    for paragraph in _all_paragraphs(original.body):
-        for run in paragraph.runs:
-            if run.field is not None:
-                if run.field.keyword in PAGE_FIELDS:
-                    return "page-fields"
-                if run.field.keyword in ("SEQ", "REF"):
-                    return "cross-references"
     return None
 
 
@@ -508,10 +503,16 @@ def record(placer, layout, data: bytes, parts: dict, main: bytes | None, fonts, 
     if reason is None and options is None:
         reason = "options"
     section_pages = {k: placer._section_pages(result, k) for k in range(len(placer.document.sections))}
+    passes = [Pass(found, block_texts(document), list(messages if messages is not None else
+                                                     getattr(items, "approximated", ())),
+                   _item_blocks(items, ordinal), _chains(items))
+              for document, items, found, messages in getattr(placer, "passes", ())]
+    if not passes or passes[-1].result is not result:
+        reason = reason or "body"
     return State(_version(), options, data, parts, relationships(_read_rels(data)), segs, sigs,
                  list(memo.elements), _item_blocks(placer.items, ordinal), _chains(placer.items), result,
                  [entry[1:] for entry in placer.placed], list(approximated), dict(memo.kept), fonts,
-                 _story_fields(placer.document), len(layout.pages), section_pages, reason)
+                 _story_fields(placer.document), len(layout.pages), section_pages, reason, passes)
 
 
 def _read_rels(data: bytes) -> bytes | None:
@@ -702,166 +703,441 @@ def _first(values: list, at_least: int) -> int:
     return next((k for k, value in enumerate(values) if value >= at_least), len(values))
 
 
+def windows(old_sigs: list, sigs: list, old_texts: list, texts: list) -> list[tuple[int, int, int, int]]:
+    """Where a pass of the new document differs from the same pass of the previous one, as
+    ``(first, end, first before, end before)`` top-level block ordinals, in order: the
+    blocks an edit changed (between the common start and end of the blocks'
+    :func:`signatures`), and each block elsewhere whose text the layout set differs --
+    a field's result (a ``TOC`` line's ``PAGEREF``, a ``PAGE``, a ``SEQ`` number, a ``REF``)
+    -- each with its neighbours (laid out with it: borders, spacing, the style before a
+    table), those that touch joined."""
+    n, o = len(sigs), len(old_sigs)
+    a, b = _common(old_sigs, sigs)
+    offset = n - o
+    marks: list[tuple[int, int]] = []
+    if a < n - b or a < o - b:
+        marks.append((a, n - b))
+    for index in range(a):
+        if old_texts[index] != texts[index]:
+            marks.append((index, index + 1))
+    for index in range(max(n - b, a), n):
+        if old_texts[index - offset] != texts[index]:
+            marks.append((index, index + 1))
+    joined: list[list[int]] = []
+    for low, high in sorted(marks):
+        low, high = max(low - 1, 0), min(high + 1, n)
+        if joined and low <= joined[-1][1]:
+            joined[-1][1] = max(joined[-1][1], high)
+        else:
+            joined.append([low, high])
+    return [(low, high, low if low <= a else low - offset, high if high <= a else high - offset)
+            for low, high in joined]
+
+
+@dataclass
+class Window:
+    """One stretch of the flow a pass lays out again (:func:`windows`, as flow items): from
+    ``changed`` (the first item) to ``suffix_new`` (the first after it that is unchanged),
+    ``suffix_old`` that item in the previous pass; ``shift`` how many items the items after
+    it moved by, ``offset`` how many top-level blocks."""
+
+    changed: int
+    suffix_new: int
+    suffix_old: int
+    shift: int
+    offset: int
+
+
+@dataclass
+class Pass:
+    """One pass of a layout (:meth:`docx2svg.layout._Placer.run_full` lays a body with
+    page-number fields out again until their values settle): its pagination, per top-level
+    block a digest of the text the pass laid out (:func:`block_texts`: the fields' values),
+    the flow's approximations, per flow item its top-level block, and per item whether it
+    holds a page's decision to end before the block after it."""
+
+    result: object
+    texts: list
+    approximated: list
+    item_blocks: list
+    chains: list
+
+
+def block_texts(document) -> list:
+    """Per top-level block of the flow ``document``: a digest of its paragraphs' text as the
+    model holds it (:func:`_texts`): what a pass sets in a block beyond its XML."""
+    from .layout import _all_paragraphs
+
+    return [_texts(_all_paragraphs([block])) for block, _, _ in _top_level(document)]
+
+
+@dataclass
+class Spliced:
+    """A pass's pagination made from the previous layout's same pass (:meth:`Again._splice`):
+    the whole pagination, the flow's approximations over it, and how it is made, in order:
+    ``("kept", first, end, shift, delta, offset, new first)`` -- the previous pass's
+    iterations ``first`` to ``end``, their flow items moved by ``shift`` items (``offset``
+    top-level blocks) and their pages by ``delta``, at the new iteration ``new first`` --
+    or ``("fresh", first, end)``, the iterations laid out again."""
+
+    result: object
+    messages: list
+    segments: list
+    windows: list
+
+
 class Again:
     """One layout of a document made again from a previous layout's :class:`State`
-    (:meth:`docx2svg.layout._Placer.run`).  After :meth:`run`, ``placed_pages`` is the
-    range of pages laid out again (the others are the previous layout's)."""
+    (:meth:`docx2svg.layout._Placer.run`).
+
+    It goes through the passes a full layout makes (:meth:`docx2svg.layout._Placer.run_full`:
+    the body laid out with its fields' cached results, then again with the page numbers
+    found, until they are the ones it was laid out with, four passes at most): each pass
+    is laid out from the same pass of the previous layout (the first from the first, every
+    later one from the last, the one drawn), only where it differs (:func:`windows`) -- each
+    stretch from the page holding its first block until a page starts where a page of the
+    previous pass did, in the same state -- so that each pass's pagination, and the values
+    its fields find, are a full layout's.  Of the last pass the pages laid out again are
+    placed, the others taken from the previous layout.  After :meth:`run`,
+    ``placed_pages`` holds the 0-based pages placed again and ``laid`` spans them."""
 
     def __init__(self, plan: Plan, previous) -> None:
         self.plan = plan
         self.state = plan.state
         self.previous = previous
-        self.placed_pages = range(0)
+        self.placed_pages: frozenset = frozenset()
+        self.laid = range(0)
         #: Pages kept from the previous layout but moved, or with their headers and
         #: footers drawn again: compared, as the pages placed again are.
         self.redrawn: set = set()
+        #: How many passes the layout made, and how many stretches of the drawn one it laid
+        #: out again (:attr:`docx2svg.layout.Layout.relaid` is ``None``).
+        self.passes = 0
+        self.stretches = 0
 
     def run(self, placer, source, original, features, by_page):
+        from .layout import substitute_document
         from .notes import with_footnotes
-        from .paginate import Position
 
         state = self.state
         reason = blocked(placer, original, by_page)
         if reason is not None:
             raise Relaid(reason)
         placer.features_used = features
-        document = with_footnotes(original)
         memo = placer.memo
-        memo.bind(document, placer.digests)
-        items = paginate.flow(document, placer.advances, placer.metrics, features=features, memo=memo)
-        placer.document, placer.items = document, items
-        if not items or items.columns:
-            raise Relaid("columns" if items and items.columns else "body")
+        document = with_footnotes(original)
+        values: dict = {}
+        passes = state.passes
+        last = len(passes) - 1
+        placer.passes = []
+        layout = placer.layout
+        spliced = None
+        for attempt in range(4):
+            memo.bind(document, placer.digests)
+            items = paginate.flow(document, placer.advances, placer.metrics, features=features, memo=memo)
+            if not items or items.columns:
+                raise Relaid("columns" if items and items.columns else "body")
+            base = 0 if attempt == 0 else last
+            spliced = self._splice(document, items, memo, features, passes[base])
+            placer.document, placer.items = document, items
+            placer.passes.append((document, items, spliced.result, spliced.messages))
+            found = placer._body_field_values(items, spliced.result)
+            self.passes = attempt + 1
+            if found == values:
+                break
+            values = found
+            document = substitute_document(with_footnotes(original), values)
+        else:
+            layout.warn("field-layout-unsettled", "the body's page-number fields did not settle on one "
+                        "layout in four passes; the last is drawn")
+        drawn_document, items = placer.document, placer.items
+        if base != last:
+            # The pass drawn was laid out from a pass of the previous layout that was not
+            # drawn (the first, where the body's fields were all removed): from the one drawn.
+            memo.bind(drawn_document, placer.digests)
+            items = paginate.flow(drawn_document, placer.advances, placer.metrics, features=features, memo=memo)
+            spliced = self._splice(drawn_document, items, memo, features, passes[last])
+            placer.items = items
+            placer.passes[-1] = (drawn_document, items, spliced.result, spliced.messages)
+        return self._place(placer, drawn_document, items, spliced, document)
+
+    # -- one pass --------------------------------------------------------------------------
+
+    def _splice(self, document, items, memo: Measures, features, before: Pass) -> Spliced:
+        """The pagination of ``document`` (whose flow is ``items``), from ``before``: its
+        pages where nothing on them or before them differs, laid out again elsewhere."""
+        state = self.state
         sigs, ordinal = signatures(document, memo, getattr(items, "labels", {}), features)
-        old_sigs = state.signatures
-        a, b = _common(old_sigs, sigs)
-        # A block's neighbours are laid out with it (borders, spacing, a drop cap, the
-        # style before a table): one more on each side.
-        low = max(a - 1, 0)
-        high_new = min(len(sigs) - b + 1, len(sigs))
-        high_old = len(old_sigs) - (len(sigs) - high_new)
+        texts = block_texts(document)
         blocks = _item_blocks(items, ordinal)
-        changed = _first(blocks, low)
-        suffix_new = _first(blocks, high_new)
-        suffix_old = _first(state.item_blocks, high_old)
-        shift = suffix_new - suffix_old
-        if len(items) - suffix_new != len(state.item_blocks) - suffix_old or changed > suffix_new:
+        old_blocks = before.item_blocks
+        if len(state.signatures) != len(before.texts) or len(sigs) != len(texts):
             raise Relaid("body")
-        before = state.result
-        starts = before.starts
+        found = []
+        shift = 0
+        for low, high, low_old, high_old in windows(state.signatures, sigs, before.texts, texts):
+            changed, suffix_new = _first(blocks, low), _first(blocks, high)
+            changed_old, suffix_old = _first(old_blocks, low_old), _first(old_blocks, high_old)
+            if changed - changed_old != shift or changed > suffix_new:
+                raise Relaid("body")
+            shift = suffix_new - suffix_old
+            found.append(Window(changed, suffix_new, suffix_old, shift, high - high_old))
+        if len(items) - len(old_blocks) != shift:
+            raise Relaid("body")
+        result = before.result
+        starts = result.starts
         if not starts:
             raise Relaid("body")
-        # The page to lay out again from: the one holding the first changed item -- or one
-        # before, where that page starts inside a paragraph or table, or where its end may
-        # be decided by the change (the change starts the page, or a chain of
-        # keep-with-next blocks from its start reaches it).
-        k = max((j for j, start in enumerate(starts) if start.item <= changed), default=0)
-        while k > 0:
-            start = starts[k]
-            # Inside a paragraph only where its lines were the flow's, there as here (one
-            # broken beside a drawing on the page before is laid out with that page).
-            inside = start.part or (start.line and not before.states[k][4])
-            if inside or all(state.chains[i] for i in range(start.item, changed)):
-                k -= 1
-                continue
-            break
-        page, number, carry = before.states[k][:3]
         at = {start: j for j, start in enumerate(starts)}
-        movable = _movable(before, document)
+        movable = _movable(result, document)
+        segments: list = []
+        pieces: list = []
+        j = shift = delta = offset = 0
+        w = 0
+        while w < len(found):
+            window = found[w]
+            changed_old = window.changed - shift
+            # The page to lay out again from: the one holding the first changed item -- or one
+            # before, where that page starts inside a paragraph or table, or where its end may
+            # be decided by the change (the change starts the page, or a chain of
+            # keep-with-next blocks from its start reaches it) -- and never one before where
+            # the stretch before lined up (its pages up to there are this document's).
+            k = max((i for i, start in enumerate(starts) if start.item <= changed_old), default=0)
+            while k > j:
+                start = starts[k]
+                # Inside a paragraph only where its lines were the flow's, there as here (one
+                # broken beside a drawing on the page before is laid out with that page).
+                inside = start.part or (start.line and not result.states[k][4])
+                if inside or all(before.chains[i] for i in range(start.item, changed_old)):
+                    k -= 1
+                    continue
+                break
+            k = max(k, j)
+            if k > j:
+                segments.append(("kept", j, k, shift, delta, offset))
+            page, number, carry = result.states[k][:3]
+            start = starts[k]
+            resume = (Position(start.item + shift, start.line, start.part), page + delta, number + delta, carry)
 
-        def lines_up(position, page, number, carry) -> bool:
-            # A page starts at the start of an unchanged block, where a page of the
-            # previous layout started, with the same footnote carried over -- on the same
-            # page, or on another where the pages after it can move by as many (the page
-            # numbers going on with them, the same headers and footers).
-            if position.part or position.item < suffix_new:
-                return False
-            if position.line and not (before.states[at.get(Position(position.item - shift, position.line), 0)][4]
-                                      and paginate._pristine(items[position.item])):
-                return False
-            j = at.get(Position(position.item - shift, position.line))
-            if j is None or j <= k:
-                return False
-            old_page, old_number, old_carry = before.states[j][:3]
-            if old_carry != carry or page - old_page != number - old_number:
-                return False
-            return page == old_page or movable[j](page - old_page)
+            def lines_up(position, page, number, carry, w=w, k=k) -> bool:
+                # A page starts at the start of an unchanged block past the stretch (and not
+                # inside a later one), where a page of the previous pass started, with the same
+                # footnote carried over -- on the same page, or on another where the pages
+                # after it can move by as many (the page numbers going on with them, the same
+                # headers and footers).
+                if position.part or position.item < found[w].suffix_new:
+                    return False
+                v = w
+                while v + 1 < len(found) and found[v + 1].changed <= position.item:
+                    v += 1
+                if position.item < found[v].suffix_new:
+                    return False
+                old = Position(position.item - found[v].shift, position.line)
+                jj = at.get(old)
+                if position.line and not (jj is not None and result.states[jj][4]
+                                          and paginate._pristine(items[position.item])):
+                    return False
+                if jj is None or jj <= k:
+                    return False
+                old_page, old_number, old_carry = result.states[jj][:3]
+                if old_carry != carry or page - old_page != number - old_number:
+                    return False
+                return page == old_page or movable[jj](page - old_page)
 
-        again = paginate.paginate(document, items, resume=(starts[k], page, number, carry), until=lines_up)
-        if again.stopped is not None:
-            raise Relaid("stopped")
-        new_count = len(again.starts)
-        if again.until_at is not None:
-            j = at[Position(again.until_at[0].item - shift, again.until_at[0].line)]
-            delta = again.until_at[1] - before.states[j][0]
+            again = paginate.paginate(document, items, resume=resume, until=lines_up)
+            if again.stopped is not None:
+                raise Relaid("stopped")
+            pieces.append((again, len(getattr(items, "approximated", ()))))
+            segments.append(("fresh", len(pieces) - 1))
+            if again.until_at is None:
+                j = len(starts)
+                break
+            position = again.until_at[0]
+            v = w
+            while v + 1 < len(found) and found[v + 1].changed <= position.item:
+                v += 1
+            shift, offset = found[v].shift, found[v].offset
+            j = at[Position(position.item - shift, position.line)]
+            delta = again.until_at[1] - result.states[j][0]
+            w = v + 1
         else:
-            j, delta = len(starts), 0
-        self.moves = self._moves(memo, sigs, items, shift, j) if j < len(starts) else {}
-        merged, messages = self._merge(before, again, k, j, shift, delta, items)
-        moves = self.moves
-        placer.result = placer.result_for_fields = merged
-        placer.references = paginate.story_references(document)
-        placer.approximated = messages
-        placer.field_values, placer.footnote_pages = {}, None
+            if j < len(starts):
+                segments.append(("kept", j, len(starts), shift, delta, offset))
+        return self._merge(before, items, segments, pieces, found)
+
+    def _merge(self, before: Pass, items, segments: list, pieces: list, found: list) -> Spliced:
+        """The pagination of the whole document: ``before``'s iterations where ``segments``
+        keeps them -- their flow positions moved by their ``shift`` items, their pages and
+        page numbers by ``delta`` -- and ``pieces``' (the paginations laid out again) between,
+        with the flow's approximations over them, in order."""
+        from .paginate import Pagination
+
+        result = before.result
+        old_messages = before.approximated
+        counts = [state[3] for state in result.states] + [len(old_messages)]
+        new_messages = list(getattr(items, "approximated", ()))
+        first_piece = pieces[0][0] if pieces else None
+        flow_end = first_piece.states[0][3] if first_piece is not None and first_piece.states else (
+            pieces[0][1] if pieces else len(new_messages))
+        messages = list(new_messages[:flow_end])
+        merged = Pagination()
+        states: list = []
+        starts: list = []
+        ends: list = []
+        info: dict = {}
+        pages: dict = {}
+        keyed: dict = {"bands": {}, "wraps": {}, "notes": {}, "frames": {}}
+        out_segments: list = []
+
+        def add(state, chunk, by: int = 0) -> None:
+            states.append((state[0] + by, state[1] + by, state[2], len(messages), state[4]))
+            messages.extend(message for message in chunk if message not in messages)
+
+        for segment in segments:
+            if segment[0] == "fresh":
+                piece, end_count = pieces[segment[1]]
+                piece_counts = [state[3] for state in piece.states] + [end_count]
+                out_segments.append(("fresh", len(states), len(states) + len(piece.states)))
+                for index in range(len(piece.states)):
+                    add(piece.states[index], new_messages[piece_counts[index]:piece_counts[index + 1]])
+                starts.extend(piece.starts)
+                ends.extend(piece.ends)
+                info.update(piece.info)
+                for name, values in keyed.items():
+                    values.update(getattr(piece, name))
+                for index, found_pages in piece.pages.items():
+                    pages.setdefault(index, []).extend(found_pages)
+                continue
+            _, first, end, shift, delta, offset = segment
+            out_segments.append(("kept", first, end, shift, delta, offset, len(states)))
+            for index in range(first, end):
+                add(result.states[index], old_messages[counts[index]:counts[index + 1]], delta)
+                start = result.starts[index]
+                starts.append(Position(start.item + shift, start.line, start.part))
+                if index < len(result.ends):
+                    stop = result.ends[index]
+                    ends.append(Position(stop.item + shift, stop.line, stop.part))
+            low = result.states[first][0]
+            high = result.states[end][0] if end < len(result.states) else None
+            for page, value in result.info.items():
+                if page >= low and (high is None or page < high):
+                    info[page + delta] = dataclasses.replace(value, number=value.number + delta) if delta else value
+            for name, values in keyed.items():
+                for page, value in getattr(result, name).items():
+                    if page >= low and (high is None or page < high):
+                        values[page + delta] = value
+            last_item = result.starts[end].item if end < len(result.starts) else None
+            for index, found_pages in result.pages.items():
+                if index < result.starts[first].item or (last_item is not None and index > last_item):
+                    continue
+                kept = [page + delta for page in found_pages if page >= low and (high is None or page < high)]
+                if kept:
+                    pages.setdefault(index + shift, []).extend(kept)
+        merged.states = states
+        merged.starts = starts
+        merged.ends = ends
+        merged.info = dict(sorted(info.items()))
+        merged.pages = dict(sorted(pages.items()))
+        for name, values in keyed.items():
+            setattr(merged, name, dict(sorted(values.items())))
+        return Spliced(merged, messages, out_segments, found)
+
+    # -- the pass drawn ----------------------------------------------------------------------
+
+    def _place(self, placer, document, items, spliced: Spliced, last_document):
+        """Place the pages of the pass drawn that it laid out again, take the others from the
+        previous layout (moved, their paths renumbered, their headers and footers drawn again
+        where their numbers changed), and record what each page warned of, in page order."""
+        state = self.state
+        before = state.passes[-1].result
+        merged = spliced.result
         layout = placer.layout
-        for message in messages:
+        placer.result = merged
+        placer.field_values, placer.footnote_pages = {}, None
+        placer.references = paginate.story_references(last_document)
+        placer.approximated = spliced.messages
+        for message in spliced.messages:
             layout.approximate("pagination", message, None, None)
         placer._notes(items)
         details = placer._details(items, lazy=True)
-        first_page = before.states[k][0]
-        # The pages the edit reaches, placed with their warnings kept aside: they are
-        # recorded in page order once the pages before them are.
-        placer.__dict__["_float_count"] = [state.iterations[k][3]]
-        with _captured(layout):
-            end_page = placer.place_pages(items, details, merged, range(k, k + new_count), first_page)
-        placed, layout.pages, fresh = placer.placed, [], layout.pages
-        placer.placed = []
-        self.placed_pages = range(first_page, end_page)
-        if j < len(starts) and before.states[j][0] + delta != end_page:
-            raise Relaid("body")
-        total = end_page + (state.page_count - before.states[j][0] if j < len(starts) else 0)
+        segments = spliced.segments
+        self.stretches = sum(1 for segment in segments if segment[0] == "fresh")
+        # The stretches laid out again, placed first, each with its warnings kept aside:
+        # they are recorded in page order once the pages before them are.  ``floats``: the
+        # floating drawings placed before each stretch, as a full layout counts them.
+        floats = 0
+        placed: dict = {}
+        fresh_pages: set = set()
+        for n, segment in enumerate(segments):
+            if segment[0] == "kept":
+                _, first, end, *_ = segment
+                placed[n] = floats - state.iterations[first][3]
+                if end < len(state.iterations):
+                    floats += state.iterations[end][3] - state.iterations[first][3]
+                continue
+            _, first, end = segment
+            first_page = merged.states[first][0]
+            placer.__dict__["_float_count"] = [floats]
+            placer.placed = []
+            saved, layout.pages = layout.pages, []
+            with _captured(layout):
+                end_page = placer.place_pages(items, details, merged, range(first, end), first_page)
+            placed[n] = (layout.pages, placer.placed)
+            layout.pages = saved
+            floats = placer.__dict__["_float_count"][0]
+            fresh_pages.update(range(first_page, end_page))
+            if end < len(merged.states) and merged.states[end][0] != end_page:
+                raise Relaid("body")
+        self.placed_pages = frozenset(fresh_pages)
+        self.laid = range(min(fresh_pages), max(fresh_pages) + 1) if fresh_pages else range(0)
+        last = segments[-1] if segments else None
+        if last is not None and last[0] == "kept":
+            total = state.page_count + last[4]
+        else:
+            total = max(fresh_pages) + 1 if fresh_pages else state.page_count
         sections = {s: placer._section_pages(merged, s) for s in range(len(document.sections))}
         counted = (state.count_fields or _story_fields(document)) and (
             total != state.page_count or sections != state.section_pages)
         numbered = _story_fields(document, ("PAGE", "NUMPAGES", "SECTIONPAGES"))
-        for index in range(k):
-            first, end, log, floats, marks = state.iterations[index]
-            pages = self.previous.pages[first:end]
-            if counted:
-                pages, log, marks = self._restoried(placer, pages, log, marks, 0)
-                self.redrawn.update(range(first, end))
-            layout.pages.extend(pages)
-            layout.replay(log)
-            placer.placed.append((index, first, end, log, floats, marks))
-        layout.pages.extend(fresh)
-        for entry in placed:
-            layout.replay(entry[3])
-            placer.placed.append(entry)
-        for index in range(j, len(starts)):
-            first, end, log, floats, marks = state.iterations[index]
-            pages = [renumbered(page, moves) for page in self.previous.pages[first:end]]
-            log = renumbered(log, moves)
-            if delta or counted:
-                self.redrawn.update(range(first + delta, end + delta))
-                if delta and not numbered and not counted:
-                    pages, log = _moved(pages, delta), _moved_log(log, delta)
-                else:
-                    pages, log, marks = self._restoried(placer, pages, log, marks, delta)
-            layout.pages.extend(pages)
-            layout.replay(log)
-            placer.placed.append((k + new_count + index - j, first + delta, end + delta, log, floats, marks))
+        layout.pages = []
+        placer.placed = []
+        for n, segment in enumerate(segments):
+            if segment[0] == "fresh":
+                fresh, entries = placed[n]
+                layout.pages.extend(fresh)
+                for entry in entries:
+                    layout.replay(entry[3])
+                    placer.placed.append(entry)
+                continue
+            _, first, end, shift, delta, offset, new_first = segment
+            moves = self._moves(placer.memo.elements, first, offset) if n else {}
+            floats_offset = placed[n]
+            for index in range(first, end):
+                first_page, end_page, log, floats_before, marks = state.iterations[index]
+                pages = [renumbered(page, moves) for page in self.previous.pages[first_page:end_page]]
+                log = renumbered(log, moves)
+                if delta or counted:
+                    self.redrawn.update(range(first_page + delta, end_page + delta))
+                    if delta and not numbered and not counted:
+                        pages, log = _moved(pages, delta), _moved_log(log, delta)
+                    else:
+                        pages, log, marks = self._restoried(placer, pages, log, marks, delta)
+                layout.pages.extend(pages)
+                layout.replay(log)
+                placer.placed.append((new_first + index - first, first_page + delta, end_page + delta, log,
+                                      floats_before + floats_offset, marks))
         return layout
 
-    def _moves(self, memo: Measures, sigs: list, items, shift: int, j: int) -> dict:
-        """:func:`renumbering` for the pages kept from iteration ``j`` of the previous
-        pagination on: by the first block on them that is in a body element."""
+    def _moves(self, memo_elements: list, first: int, offset: int) -> dict:
+        """:func:`renumbering` for the pages kept from iteration ``first`` of the previous
+        pass drawn on, whose top-level blocks moved by ``offset``: by the first block on them
+        that is in a body element."""
         state = self.state
-        start = state.result.starts[j]
-        first = state.item_blocks[start.item] if start.item < len(state.item_blocks) else len(state.elements)
-        offset = len(sigs) - len(state.signatures)
-        for ordinal in range(max(first, 0), len(state.elements)):
-            old, new = state.elements[ordinal], memo.elements[ordinal + offset] \
-                if 0 <= ordinal + offset < len(memo.elements) else None
+        start = state.result.starts[first]
+        found = state.item_blocks[start.item] if start.item < len(state.item_blocks) else len(state.elements)
+        for ordinal in range(max(found, 0), len(state.elements)):
+            old = state.elements[ordinal]
+            new = memo_elements[ordinal + offset] if 0 <= ordinal + offset < len(memo_elements) else None
             if old is not None and new is not None:
                 return renumbering(state.segments, self.plan.segments, old, new)
             if (old is None) != (new is None):
@@ -898,75 +1174,6 @@ class Again:
         for name, tail in tails.items():
             getattr(again, name).extend(tail)
         return pages[:-1] + [again], log[:before[5]] + story + log[after[5]:], (before, drawn)
-
-    def _merge(self, before, again, k: int, j: int, shift: int, delta: int, items) -> tuple:
-        """The pagination of the whole document: ``before``'s pages up to iteration ``k``,
-        ``again``'s, and ``before``'s from iteration ``j`` on -- their flow positions moved
-        by ``shift`` items, their pages and page numbers by ``delta`` -- and the flow's
-        approximations over them, in order."""
-        from .paginate import Pagination, Position
-
-        def moved(position):
-            return Position(position.item + shift, position.line, position.part)
-
-        old_messages = self.state.approximated
-        counts = [state[3] for state in before.states] + [len(old_messages)]
-        new_messages = list(getattr(items, "approximated", ()))
-        new_counts = [state[3] for state in again.states] + [len(new_messages)]
-        flow_messages = new_messages[:new_counts[0]] if again.states else new_messages
-        merged = Pagination()
-        messages = list(flow_messages)
-        states = []
-
-        def add(state, chunk, by: int = 0):
-            states.append((state[0] + by, state[1] + by, state[2], len(messages), state[4]))
-            messages.extend(message for message in chunk if message not in messages)
-
-        for index in range(k):
-            add(before.states[index], old_messages[counts[index]:counts[index + 1]])
-        for index in range(len(again.states)):
-            add(again.states[index], new_messages[new_counts[index]:new_counts[index + 1]])
-        moves = self.moves
-        for index in range(j, len(before.starts)):
-            add(before.states[index], renumbered(old_messages[counts[index]:counts[index + 1]], moves), delta)
-        merged.states = states
-        merged.starts = before.starts[:k] + again.starts + [moved(p) for p in before.starts[j:]]
-        merged.ends = before.ends[:k] + again.ends + [moved(p) for p in before.ends[j:]]
-        first = before.states[k][0]
-        last = before.states[j][0] if j < len(before.starts) else None
-
-        def pick(old: dict, new: dict, info: bool = False) -> dict:
-            out = {page: value for page, value in old.items() if page < first}
-            out.update(new)
-            if last is not None:
-                for page, value in old.items():
-                    if page >= last:
-                        out[page + delta] = dataclasses.replace(value, number=value.number + delta) \
-                            if info and delta else value
-            return out
-
-        merged.info = dict(sorted(pick(before.info, again.info, True).items()))
-        merged.bands = pick(before.bands, again.bands)
-        merged.wraps = pick(before.wraps, again.wraps)
-        merged.notes = pick(before.notes, again.notes)
-        merged.frames = pick(before.frames, again.frames)
-        start = before.starts[k]
-        end = before.starts[j] if j < len(before.starts) else None
-        pages = {index: found for index, found in before.pages.items() if index < start.item}
-        pages.update(again.pages)
-        if start.line:
-            # The item the pages laid out again start inside: its lines before, as they were.
-            pages[start.item] = before.pages.get(start.item, [])[:start.line] + again.pages.get(start.item, [])
-        if end is not None:
-            pages.update({index + shift: [page + delta for page in found] if delta else found
-                          for index, found in before.pages.items() if index > end.item
-                          or (index == end.item and not end.line)})
-            if end.line:
-                # The item the kept pages start inside: its lines before, as laid out again.
-                kept = [page + delta for page in before.pages.get(end.item, [])[end.line:]]
-                pages[end.item + shift] = again.pages.get(end.item + shift, [])[:end.line] + kept
-        merged.pages = pages
-        return merged, messages
 
 
 def changed_pages(previous, layout, again: "Again | None", data: bytes, fonts, reason: str | None) -> list[int]:

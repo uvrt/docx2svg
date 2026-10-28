@@ -325,7 +325,7 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
         layout.state = relayout.record(placer, layout, data, parts, main, fonts, key, placer.approximated,
                                        original, by_page)
     if keep:
-        layout.state.laid = again.placed_pages if again is not None else range(len(layout.pages))
+        layout.state.laid = again.laid if again is not None else range(len(layout.pages))
         layout.state.redrawn = frozenset(again.redrawn) if again is not None else frozenset()
     if previous is not None:
         layout.relaid = relaid

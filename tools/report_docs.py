@@ -15,6 +15,7 @@ from __future__ import annotations
 import io
 import random
 import zipfile
+import zlib
 from dataclasses import dataclass, replace
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
@@ -36,7 +37,14 @@ class Block:
     """One body block: ``kind`` is ``heading``, ``para``, ``bullet``, ``table``, ``panel``
     (a paragraph anchoring a side text box), ``break`` (a paragraph holding a page break),
     ``noted`` (a paragraph with a footnote, whose text is ``note``) or ``raw`` (``text`` is
-    the block's XML, written as it is); ``text`` its words (a table's: ``rows`` of cells)."""
+    the block's XML, written as it is); ``text`` its words (a table's: ``rows`` of cells).
+
+    With fields (round 20): ``toc`` (a line of a table of contents: its heading's words, a
+    dotted tab and ``PAGEREF target``; the first ``opens`` the ``TOC`` field), ``tocend``
+    (the paragraph closing it), ``caption`` (``Table {SEQ Table}: text``, its label and
+    number bookmarked as ``mark``), ``xref`` (``text`` and ``See {REF target}.``),
+    ``pageref`` (``text (see page {PAGEREF target})``) and ``pagefield`` (``This paragraph
+    is on page {PAGE}.`` and ``text``)."""
 
     kind: str
     text: str = ""
@@ -45,6 +53,13 @@ class Block:
     para_id: str = ""
     #: A ``noted`` paragraph's footnote.
     note: str = ""
+    #: A bookmark: around a ``heading``'s text, or a ``caption``'s label and number.
+    mark: str = ""
+    #: The bookmark a ``toc`` line's ``PAGEREF``, an ``xref``'s ``REF`` or a ``pageref``'s
+    #: ``PAGEREF`` points at.
+    target: str = ""
+    #: A ``toc`` line that opens the ``TOC`` field (the first).
+    opens: bool = False
 
 
 def _words(rng: random.Random, n: int) -> str:
@@ -63,12 +78,20 @@ def section_break(kind: str = "nextPage") -> Block:
                         'w:footer="708" w:gutter="0"/></w:sectPr></w:pPr></w:p>')
 
 
-def report(pages: int, seed: int = 0, *, notes: bool = False, sections: bool = False) -> list[Block]:
+def report(pages: int, seed: int = 0, *, notes: bool = False, sections: bool = False, toc: bool = False,
+           toc_break: bool = True, fields: bool = False) -> list[Block]:
     """A made-up report of about ``pages`` A4 pages: per part a heading, paragraphs, a
     bulleted list, a side panel, and every other part a table; every sixth part starts a
     page (a paragraph holding a page break before its heading).  ``notes``: every third
     part has a paragraph with a footnote too; ``sections``: every seventh part ends a
-    section, the next starting on a new page, or (every other one) on the same page."""
+    section, the next starting on a new page, or (every other one) on the same page.
+
+    ``toc``: a title page, then a table of contents -- a ``TOC`` field whose lines each
+    hold a ``PAGEREF`` to a heading's bookmark: 12 of them from 40 pages, 7 from 16, fewer
+    in a shorter report -- and (``toc_break``) a page break after it.  ``fields``: each table
+    has a caption numbered by ``SEQ Table`` before it, every third part a paragraph
+    referring to the last caption (``REF``), every fifth a paragraph showing a heading's
+    page (``PAGEREF``) and every seventh one showing its own (``PAGE``)."""
     rng = random.Random(seed)
     blocks: list[Block] = []
     serial = 0
@@ -78,11 +101,26 @@ def report(pages: int, seed: int = 0, *, notes: bool = False, sections: bool = F
         serial += 1
         return f"{0x10000000 + serial * 7919:08X}"
 
-    for part in range(pages * 8 // 5):
+    parts = pages * 8 // 5
+    entries = 12 if pages >= 40 else 7 if pages >= 16 else min(parts, 4)
+    step = -(-parts // entries)
+    headings = [part for part in range(parts) if part % step == 0]
+    if toc:
+        blocks.append(Block("para", "Made-up quarterly report", para_id=pid()))
+        blocks.append(Block("break", para_id=pid()))
+        blocks.append(Block("para", "Contents", para_id=pid()))
+        for k, part in enumerate(headings):
+            blocks.append(Block("toc", "", para_id=pid(), target=f"_Toc{part + 1:04d}", opens=k == 0))
+        blocks.append(Block("tocend", para_id=pid()))
+        if toc_break:
+            blocks.append(Block("break", para_id=pid()))
+    captions = 0
+    for part in range(parts):
         if part % 6 == 5:
             # A chapter starts a page.
             blocks.append(Block("break", para_id=pid()))
-        blocks.append(Block("heading", f"Part {part + 1}: " + _words(rng, 3)[:-1], para_id=pid()))
+        mark = f"_Toc{part + 1:04d}" if toc or fields else ""
+        blocks.append(Block("heading", f"Part {part + 1}: " + _words(rng, 3)[:-1], para_id=pid(), mark=mark))
         for _ in range(rng.randint(2, 4)):
             blocks.append(Block("para", _sentences(rng, 2, 6), para_id=pid()))
         if part % 3 == 1:
@@ -94,10 +132,25 @@ def report(pages: int, seed: int = 0, *, notes: bool = False, sections: bool = F
         if part % 2 == 0:
             rows = tuple(tuple(_words(rng, rng.randint(1, 6 if r else 2)) for _ in range(3))
                          for r in range(rng.randint(3, 7)))
+            if fields:
+                captions += 1
+                blocks.append(Block("caption", _words(rng, 4)[:-1], para_id=pid(), mark=f"_Ref{captions:04d}"))
             blocks.append(Block("table", rows=rows))
+        if fields and captions and part % 3 == 2:
+            blocks.append(Block("xref", _sentences(rng, 1, 2), para_id=pid(), target=f"_Ref{captions:04d}"))
+        if fields and part % 5 == 4:
+            blocks.append(Block("pageref", _sentences(rng, 1, 2), para_id=pid(),
+                                target=f"_Toc{rng.randrange(parts) + 1:04d}"))
+        if fields and part % 7 == 3:
+            blocks.append(Block("pagefield", _sentences(rng, 1, 2), para_id=pid()))
         blocks.append(Block("para", _sentences(rng, 1, 4), para_id=pid()))
         if sections and part % 7 == 6:
             blocks.append(section_break("nextPage" if part % 14 == 6 else "continuous"))
+    if toc:
+        # Each line of the contents shows its heading's words.
+        words = {block.mark: block.text for block in blocks if block.kind == "heading" and block.mark}
+        blocks = [replace(block, text=words.get(block.target, "")) if block.kind == "toc" else block
+                  for block in blocks]
     return blocks
 
 
@@ -106,23 +159,38 @@ def report(pages: int, seed: int = 0, *, notes: bool = False, sections: bool = F
 
 #: Every kind of edit :func:`edit` makes.
 EDIT_KINDS = ("text", "grow", "cell", "insert", "delete", "row-insert", "row-delete", "break", "unbreak")
+#: The edits of a report with fields (:func:`report`'s ``toc`` and ``fields``): a caption
+#: inserted or deleted (the ``SEQ`` numbers after it change, and the ``REF`` to them), a line
+#: of the contents inserted or deleted.
+FIELD_EDIT_KINDS = ("caption-insert", "caption-delete", "toc-insert", "toc-delete")
+#: The blocks whose words an edit changes.
+_WORDED = ("heading", "para", "bullet", "panel", "noted", "caption", "xref", "pageref", "pagefield")
 
 
-def edit(blocks: list[Block], rng: random.Random, kind: str | None = None) -> tuple[list[Block], str]:
+def _in_contents(blocks: list[Block], k: int) -> bool:
+    """Whether a block inserted at ``k`` would stand inside the contents' ``TOC`` field."""
+    return 0 < k < len(blocks) and blocks[k - 1].kind == "toc" and blocks[k].kind in ("toc", "tocend")
+
+
+def edit(blocks: list[Block], rng: random.Random, kind: str | None = None,
+         kinds: tuple | None = None) -> tuple[list[Block], str]:
     """One random edit of ``blocks``: change a paragraph's or a cell's text, insert or delete
     a paragraph, a table row or a page break.  ``(new blocks, what was done)``.  ``kind``
-    (one of :data:`EDIT_KINDS`) makes an edit of that kind only; ``unbreak`` then needs a
-    page break in ``blocks`` and ``cell``, ``row-insert`` and ``row-delete`` a table."""
+    (one of :data:`EDIT_KINDS` or :data:`FIELD_EDIT_KINDS`) makes an edit of that kind only;
+    ``unbreak`` then needs a page break in ``blocks``, ``cell``, ``row-insert`` and
+    ``row-delete`` a table, ``caption-delete`` a caption and ``toc-insert`` and
+    ``toc-delete`` contents.  ``kinds``: the kinds to choose from (each as often as it is
+    named), else the usual mix.  The contents' field is never split or emptied."""
     blocks = list(blocks)
-    if kind is not None and kind not in EDIT_KINDS:
-        raise ValueError(f"no edit of kind {kind!r}: one of {', '.join(EDIT_KINDS)}")
-    kinds = [kind] if kind else ["text", "text", "cell", "insert", "delete", "row-insert", "row-delete", "break",
-                                 "unbreak", "grow"]
+    if kind is not None and kind not in EDIT_KINDS + FIELD_EDIT_KINDS:
+        raise ValueError(f"no edit of kind {kind!r}: one of {', '.join(EDIT_KINDS + FIELD_EDIT_KINDS)}")
+    kinds = [kind] if kind else list(kinds or ["text", "text", "cell", "insert", "delete", "row-insert",
+                                               "row-delete", "break", "unbreak", "grow"])
     while True:
         kind = rng.choice(kinds)
         k = rng.randrange(len(blocks))
         block = blocks[k]
-        if kind in ("text", "grow") and block.kind in ("heading", "para", "bullet", "panel", "noted"):
+        if kind in ("text", "grow") and block.kind in _WORDED:
             text = _words(rng, rng.randint(3, 10)) if kind == "text" and rng.random() < 0.5 else (
                 block.text + " " + _sentences(rng, 1, 3 if kind == "grow" else 1))
             blocks[k] = replace(block, text=text)
@@ -140,10 +208,12 @@ def edit(blocks: list[Block], rng: random.Random, kind: str | None = None) -> tu
                 continue
             blocks[k] = replace(block, rows=tuple(tuple(row) for row in rows))
             return blocks, f"{kind} {k}.{r}"
+        if kind in ("insert", "break", "caption-insert") and _in_contents(blocks, k):
+            continue
         if kind == "insert":
             blocks.insert(k, Block("para", _sentences(rng, 1, 3), para_id=f"7{rng.randrange(1 << 28):07X}"))
             return blocks, f"insert {k}"
-        if kind == "delete" and len(blocks) > 2:
+        if kind == "delete" and len(blocks) > 2 and block.kind not in ("toc", "tocend"):
             del blocks[k]
             return blocks, f"delete {k}"
         if kind == "break":
@@ -155,6 +225,32 @@ def edit(blocks: list[Block], rng: random.Random, kind: str | None = None) -> tu
                 k = rng.choice(breaks)
                 del blocks[k]
                 return blocks, f"unbreak {k}"
+        if kind == "caption-insert":
+            mark = f"_Ref{rng.randrange(1 << 20) + 5000:07d}"
+            blocks.insert(k, Block("caption", _words(rng, 4)[:-1], para_id=f"5{rng.randrange(1 << 28):07X}",
+                                   mark=mark))
+            return blocks, f"caption-insert {k}"
+        if kind == "caption-delete":
+            found = [i for i, b in enumerate(blocks) if b.kind == "caption"]
+            if found:
+                k = rng.choice(found)
+                del blocks[k]
+                return blocks, f"caption-delete {k}"
+        if kind == "toc-insert":
+            lines = [i for i, b in enumerate(blocks) if b.kind == "toc"]
+            marks = [b for b in blocks if b.kind == "heading" and b.mark]
+            if lines and marks:
+                k = rng.choice(lines) + 1
+                heading = rng.choice(marks)
+                blocks.insert(k, Block("toc", heading.text, para_id=f"4{rng.randrange(1 << 28):07X}",
+                                       target=heading.mark))
+                return blocks, f"toc-insert {k}"
+        if kind == "toc-delete":
+            lines = [i for i, b in enumerate(blocks) if b.kind == "toc" and not b.opens]
+            if lines:
+                k = rng.choice(lines)
+                del blocks[k]
+                return blocks, f"toc-delete {k}"
 
 
 # -- writing -----------------------------------------------------------------------------------
@@ -213,13 +309,45 @@ def _table(rows: tuple) -> str:
     return out + "</w:tbl>"
 
 
+def _marked(runs: str, name: str) -> str:
+    """``runs`` inside a bookmark ``name`` (none where ``name`` is empty), its id found from
+    its name: a bookmark inserted before it does not change it, as in Word."""
+    if not name:
+        return runs
+    number = zlib.crc32(name.encode()) % 1000000
+    return f'<w:bookmarkStart w:id="{number}" w:name="{name}"/>{runs}<w:bookmarkEnd w:id="{number}"/>'
+
+
 def body_xml(blocks: list[Block]) -> str:
     out = ""
     panels = 0
     notes = 0
     for block in blocks:
         if block.kind == "heading":
-            out += _para(block.text, "Heading1", block.para_id)
+            out += _para("", "Heading1", block.para_id, runs=_marked(_run(block.text), block.mark)) \
+                if block.mark else _para(block.text, "Heading1", block.para_id)
+        elif block.kind == "toc":
+            opening = ('<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> '
+                       'TOC \\o "1-1" \\h \\z \\u </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/>'
+                       '</w:r>') if block.opens else ""
+            number = _field(f"PAGEREF {block.target} \\h", "1")
+            link = (f'<w:hyperlink w:anchor="{block.target}" w:history="1">{_run(block.text)}<w:r><w:tab/></w:r>'
+                    f'{number}</w:hyperlink>')
+            out += _para("", "TOC1", block.para_id, runs=opening + link)
+        elif block.kind == "tocend":
+            out += _para("", None, block.para_id, runs='<w:r><w:fldChar w:fldCharType="end"/></w:r>')
+        elif block.kind == "caption":
+            out += _para("", "Caption", block.para_id, runs=_marked(_run("Table ") + _field(
+                "SEQ Table \\* ARABIC", "1"), block.mark) + _run(": " + block.text))
+        elif block.kind == "xref":
+            out += _para("", None, block.para_id, runs=_run(block.text + " See ") + _field(
+                f"REF {block.target} \\h", "Table 1") + _run("."))
+        elif block.kind == "pageref":
+            out += _para("", None, block.para_id, runs=_run(block.text + " (see page ") + _field(
+                f"PAGEREF {block.target} \\h", "1") + _run(")."))
+        elif block.kind == "pagefield":
+            out += _para("", None, block.para_id, runs=_run("This paragraph is on page ") + _field("PAGE", "1")
+                         + _run(". " + block.text))
         elif block.kind == "para":
             out += _para(block.text, None, block.para_id)
         elif block.kind == "bullet":
@@ -289,6 +417,10 @@ STYLES = (
              '<w:sz w:val="18"/><w:szCs w:val="18"/>')
     + '<w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="footnote reference"/>'
       '<w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>'
+    + _style("paragraph", "TOC1", "toc 1",
+             '<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="9062"/></w:tabs><w:spacing w:after="100"/>')
+    + _style("paragraph", "Caption", "caption", '<w:keepNext/><w:spacing w:after="200" w:line="240" '
+             'w:lineRule="auto"/>', '<w:i/><w:color w:val="44546A"/><w:sz w:val="18"/><w:szCs w:val="18"/>')
     + _style("paragraph", "Header", "header",
              '<w:tabs><w:tab w:val="center" w:pos="4513"/><w:tab w:val="right" w:pos="9026"/></w:tabs>'
              '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/>')
