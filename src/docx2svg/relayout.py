@@ -13,7 +13,7 @@ the same document) instead:
 2. **measures only those** -- the flow (:func:`docx2svg.paginate.flow`) takes a
    paragraph's lines and line heights and a table's flow from the previous layout's
    :class:`Measures` wherever what they are measured from is the same;
-3. **lays the pages out again from the page holding the first changed block** -- or the
+3. **lays the pages out again from the page holding each changed block** -- or the
    page before, where that page's end may depend on it (the block starts the page, or a
    chain of keep-with-next paragraphs from the page's start reaches it) or the page
    starts inside a paragraph or table -- with the pagination's state as it stood there
@@ -26,11 +26,30 @@ the same document) instead:
    drawing differs from the previous layout's page of the same number, and the pages it
    did not have -- a page whose only change is its elements' ``data-docx-path`` is not one.
 
+**Fields** (round 20).  A body with page-number fields -- a table of contents' lines, each
+a ``PAGEREF`` to its heading's bookmark, a ``PAGE``, a ``NUMPAGES`` -- is laid out in
+passes, the fields' values found by one laid out by the next until they are the ones it
+was laid out with (:meth:`docx2svg.layout._Placer.run_full`, four passes at most).  A
+layout from a previous one makes the same passes (:class:`Again`), each from the same
+pass of the previous layout (:attr:`State.passes`: the first from its first, every later
+one from its last, the one drawn) and in **stretches** (:func:`windows`): the blocks the
+edit changed, and each block elsewhere whose text the pass sets differs from the
+previous layout's -- a ``TOC`` line whose page number changed, the ``SEQ`` numbers after an
+inserted caption and the ``REF`` to them, a ``PAGE`` on a page that moved.  Each stretch is
+laid out from the page holding it until a page starts in step with the previous pass
+again (a hard page break after it, typically: after a table of contents, the pages after
+the break are the previous pass's, moved by the pages added or removed before it), so a
+pass's pagination, and the values its fields find, are those of a full layout's same
+pass; and as many passes are made.  ``SEQ`` and ``REF``, which depend on the document's
+order and not on the pages, are found once from the new document: a block whose value
+changed is a stretch like an edited one.
+
 The result is the layout a full layout of the new bytes makes, page for page, byte for
 byte in every page's SVG (``tests/test_relayout.py`` holds it to that over random edits).
 Where an edit cannot be scoped, the whole document is laid out again -- with the
 measurements of unchanged blocks still reused where the document's styles and settings
-are the same -- and :attr:`Layout.relaid` says why: see :data:`FALLBACKS`.
+are the same -- and :attr:`Layout.relaid` says why (:data:`FALLBACKS`) and
+:attr:`Layout.relaid_cause` what: the element, the field or the part.
 """
 
 from __future__ import annotations
@@ -63,9 +82,6 @@ FALLBACKS = {
     "parts": "another part the drawing reads changed (a picture, a chart), or a relationship was removed",
     "sections": "a section's properties changed (a section break added, removed or edited)",
     "note-references": "footnote or endnote references were added, removed or moved: the notes are numbered again",
-    "page-fields": "the body has page-number fields (PAGE, NUMPAGES, SECTIONPAGES, PAGEREF: a TOC's page "
-                   "numbers): their values depend on the whole layout",
-    "cross-references": "the body has SEQ or REF fields, counted over the whole body",
     "footnote-restart": "footnote numbers restart on each page",
     "line-numbers": "a section numbers its lines",
     "columns": "a section has several text columns",
@@ -136,6 +152,13 @@ def segments(xml: bytes) -> list[Segment] | None:
     """The body's elements of ``word/document.xml``, in order, read from its bytes; ``None``
     where they cannot be read that way (a comment, a processing instruction or CDATA in
     the body, or a tag the scan does not parse)."""
+    found = elements(xml)
+    return None if found is None else [_segment(name, data) for name, data in found]
+
+
+def elements(xml: bytes) -> list[tuple[str, bytes]] | None:
+    """The body's elements of ``word/document.xml`` as ``(local name, bytes)``, in order
+    (:func:`segments`)."""
     found = _BODY.search(xml)
     if found is None:
         return None
@@ -146,7 +169,7 @@ def segments(xml: bytes) -> list[Segment] | None:
     body = xml[start:end]
     if b"<!--" in body or b"<?" in body or b"<![CDATA[" in body:
         return None
-    out: list[Segment] = []
+    out: list[tuple[str, bytes]] = []
     depth = 0
     begin = 0
     position = 0
@@ -161,10 +184,10 @@ def segments(xml: bytes) -> list[Segment] | None:
             if depth < 0:
                 break
             if depth == 0:
-                out.append(_segment(name, body[begin:match.end()]))
+                out.append((name, body[begin:match.end()]))
         elif empty:
             if depth == 0:
-                out.append(_segment(tag.split(b":")[-1].decode(), body[match.start():match.end()]))
+                out.append((tag.split(b":")[-1].decode(), body[match.start():match.end()]))
         else:
             if depth == 0:
                 begin, name = match.start(), tag.split(b":")[-1].decode()
@@ -220,20 +243,26 @@ def parts_reason(before: dict, after: dict) -> str | None:
     """Why the parts ``after`` differ from ``before`` in a way an edit of the body cannot be
     scoped past (:data:`FALLBACKS`), or ``None``: only parts the main part's new
     relationships add, or the main part's relationships, gained."""
+    found = parts_cause(before, after)
+    return found[0] if found is not None else None
+
+
+def parts_cause(before: dict, after: dict) -> tuple[str, str] | None:
+    """:func:`parts_reason`, with the part that differs: ``(reason, part name)``."""
     for name in sorted(set(before) | set(after)):
         if before.get(name) == after.get(name) or name == MAIN_RELS:
             continue
         if name not in before and name not in (MAIN_RELS,):
             # A new part: only an edited block can refer to it (a new relationship).
             if any(pattern.match(name) for pattern, _ in _PART_REASONS):
-                return next(reason for pattern, reason in _PART_REASONS if pattern.match(name))
+                return next(reason for pattern, reason in _PART_REASONS if pattern.match(name)), name
             continue
         if name == "[Content_Types].xml":
             continue  # each kept part's type is compared below
         for pattern, reason in _PART_REASONS:
             if pattern.match(name):
-                return reason
-        return "parts"
+                return reason, name
+        return "parts", name
     return None
 
 
@@ -393,6 +422,9 @@ class State:
     #: where it laid out the whole document); with the pages kept but moved or drawn again.
     laid: range | None = None
     redrawn: frozenset = frozenset()
+    #: The 0-based pages laid out again, exactly (:attr:`laid` spans them: from a previous
+    #: layout, the stretches laid out again may be apart -- a table of contents and an edit).
+    fresh: frozenset = frozenset()
 
 
 def options_key(options) -> tuple | None:
@@ -531,7 +563,7 @@ class Plan:
     """What :func:`plan` found: the previous layout's state, and either why the whole
     document is laid out again (``reason``) or nothing standing in the way.  ``measured``:
     the previous layout's measurements may be reused (the parts they depend on are the
-    same)."""
+    same).  ``cause``: :attr:`docx2svg.layout.Layout.relaid_cause`."""
 
     state: State | None
     reason: str | None
@@ -539,6 +571,64 @@ class Plan:
     parts: dict
     main: bytes | None
     segments: list | None
+    cause: dict | None = None
+
+
+_PARA_ID = re.compile(rb'\s(?:\w+:)?paraId\s*=\s*"([^"]*)"')
+_FIELD_PIECE = re.compile(rb'fldCharType\s*=\s*["\'](begin|separate|end)["\']|'
+                          rb'<(?:\w+:)?instrText\b[^>]*?(?:/>|>([^<]*)</(?:\w+:)?instrText>)')
+
+
+def open_field(data: bytes) -> str | None:
+    """The instruction of the first field the element ``data`` opens and does not close
+    (``TOC \\o "1-3" \\h``), trimmed; ``None`` where it opens none (it closes one opened
+    before it, or its fields are its own)."""
+    stack: list[list[bytes]] = []
+    for kind, text in _FIELD_PIECE.findall(data):
+        if kind == b"begin":
+            stack.append([])
+        elif kind == b"end":
+            if stack:
+                stack.pop()
+        elif not kind and stack:
+            stack[-1].append(text)
+    if not stack:
+        return None
+    from xml.sax.saxutils import unescape
+
+    return " ".join(unescape(b"".join(stack[0]).decode("utf-8", "replace"), {"&quot;": '"', "&apos;": "'"}
+                             ).split()) or None
+
+
+def where(xml: bytes | None, index: int, with_field: bool = False) -> dict:
+    """Where the body element ``index`` of ``xml`` (``word/document.xml``) is, for
+    :attr:`docx2svg.layout.Layout.relaid_cause`: ``{"at": its path, "para_id": its first
+    paragraph's w14:paraId}`` (the id where there is one), with ``"field"`` -- the
+    instruction of the field it opens (:func:`open_field`) -- where asked for and found."""
+    found = elements(xml) if xml is not None else None
+    if found is None or not 0 <= index < len(found):
+        return {}
+    name, data = found[index]
+    count = sum(1 for other, _ in found[:index + 1] if other == name)
+    out: dict = {"at": f"w:body/w:{name}[{count}]"}
+    ident = _PARA_ID.search(data)
+    if ident is not None:
+        out["para_id"] = ident.group(1).decode()
+    if with_field:
+        instruction = open_field(data)
+        if instruction is not None:
+            out["field"] = instruction
+    return out
+
+
+def _main_of(data: bytes | None) -> bytes | None:
+    if data is None:
+        return None
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        try:
+            return archive.read(MAIN)
+        except KeyError:
+            return None
 
 
 def plan(previous, data: bytes, options: tuple | None) -> Plan:
@@ -547,22 +637,27 @@ def plan(previous, data: bytes, options: tuple | None) -> Plan:
     parts, main = part_digests(data)
     segs = segments(main) if main is not None else None
     state = getattr(previous, "state", None)
+
+    def fallback(reason: str, measured: bool, **cause) -> Plan:
+        return Plan(state if isinstance(state, State) and reason not in ("no-state", "version") else None,
+                    reason, measured, parts, main, segs, {"reason": reason, **cause})
+
     if not isinstance(state, State):
-        return Plan(None, "no-state", False, parts, main, segs)
+        return fallback("no-state", False)
     if state.version != _version():
-        return Plan(None, "version", False, parts, main, segs)
+        return fallback("version", False)
     if options is None or state.options != options:
-        return Plan(state, "options", False, parts, main, segs)
-    reason = parts_reason(state.parts, parts)
-    if reason is not None:
-        return Plan(state, reason, False, parts, main, segs)
+        return fallback("options", False)
+    found = parts_cause(state.parts, parts)
+    if found is not None:
+        return fallback(found[0], False, part=found[1])
     before, after = state.relationships, relationships(_read_rels(data))
     if any(key not in after or after[key] != value for key, value in before.items()):
-        return Plan(state, "parts", False, parts, main, segs)
+        return fallback("parts", False, part=MAIN_RELS)
     if segs is None or state.segments is None:
-        return Plan(state, "body", True, parts, main, segs)
+        return fallback("body", True, part=MAIN)
     if state.blocked is not None:
-        return Plan(state, state.blocked, True, parts, main, segs)
+        return fallback(state.blocked, True)
     old, new = state.segments, segs
     a = 0
     while a < min(len(old), len(new)) and old[a] == new[a]:
@@ -571,14 +666,26 @@ def plan(previous, data: bytes, options: tuple | None) -> Plan:
     while b < min(len(old), len(new)) - a and old[-1 - b] == new[-1 - b]:
         b += 1
     changed_old, changed_new = old[a:len(old) - b], new[a:len(new) - b]
+
+    def at(test, with_field: bool = False) -> dict:
+        # The first element of the new document that is why, else of the previous one.
+        for k, segment in enumerate(changed_new):
+            if test(segment):
+                return where(main, a + k, with_field)
+        for k, segment in enumerate(changed_old):
+            if test(segment):
+                return where(_main_of(state.data), a + k, with_field)
+        return {}
+
     if any(segment.section for segment in changed_old + changed_new):
-        return Plan(state, "sections", True, parts, main, segs)
+        return fallback("sections", True, **at(lambda segment: segment.section))
     if any(segment.joined for segment in changed_old + changed_new) or (a and old[a - 1].joined):
-        return Plan(state, "joined", True, parts, main, segs)
+        place = at(lambda segment: segment.joined) or where(_main_of(state.data), a - 1)
+        return fallback("joined", True, **place)
     if any(not segment.plain for segment in changed_old + changed_new):
-        return Plan(state, "fields-open", True, parts, main, segs)
+        return fallback("fields-open", True, **at(lambda segment: not segment.plain, True))
     if [n for s in changed_old for n in s.notes] != [n for s in changed_new for n in s.notes]:
-        return Plan(state, "note-references", True, parts, main, segs)
+        return fallback("note-references", True, **at(lambda segment: bool(segment.notes)))
     return Plan(state, None, True, parts, main, segs)
 
 

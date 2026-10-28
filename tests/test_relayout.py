@@ -43,10 +43,14 @@ from docx2svg.relayout import FALLBACKS
 FULL = os.environ.get("RELAYOUT_FULL", "") not in ("", "0")
 #: How many edits each test makes, in the full set and in a pull request's: of the small
 #: reports (over the four seeds), of the reports with footnotes and with sections (each
-#: variant), of the 16- and the 40-page report, and of the report with fields.
+#: variant), of the 16- and the 40-page report, of the report with fields, and of the
+#: reports with contents, captions and cross-references (each variant; and of 16 and 40
+#: pages).
 SIZES = {
-    True: {"small": 96, "notes": 12, "sections": 8, 16: 6, 40: 2, "fields": 6},
-    False: {"small": 8, "notes": 2, "sections": 2, 16: 1, 40: 0, "fields": 2},
+    True: {"small": 96, "notes": 12, "sections": 8, 16: 6, 40: 2, "fields": 6, "contents": 24,
+           "contents-16": 8, "contents-40": 3},
+    False: {"small": 8, "notes": 2, "sections": 2, 16: 1, 40: 0, "fields": 2, "contents": 3,
+            "contents-16": 0, "contents-40": 0},
 }[FULL]
 #: Edits of the small reports; ``RELAYOUT_CASES`` sets another number.
 CASES = int(os.environ.get("RELAYOUT_CASES", SIZES["small"]))
@@ -89,16 +93,18 @@ def _check(blocks, previous, previous_svgs, what: str, stats: dict, package: dic
     return layout, svgs
 
 
-def _run(pages: int, seed: int, cases: int, *, notes: bool = False, sections: bool = False, **package) -> dict:
+def _run(pages: int, seed: int, cases: int, *, notes: bool = False, sections: bool = False,
+         contents: dict | None = None, kinds: tuple | None = None, **package) -> dict:
     rng = random.Random(seed)
     stats: dict = {}
     done = 0
     while done < cases:
-        blocks = report_docs.report(pages, seed=rng.randrange(1 << 30), notes=notes, sections=sections)
+        blocks = report_docs.report(pages, seed=rng.randrange(1 << 30), notes=notes, sections=sections,
+                                    **(contents or {}))
         layout, data, fonts = lay_out_docx(report_docs.package(blocks, **package))
         svgs = page_svgs(layout, data, fonts=fonts)
         for _ in range(min(CHAIN, cases - done)):
-            blocks, what = report_docs.edit(blocks, rng)
+            blocks, what = report_docs.edit(blocks, rng, kinds=kinds)
             layout, svgs = _check(blocks, layout, svgs, f"seed {seed}, {pages} pages, {what}", stats, package)
             done += 1
     return stats
@@ -243,7 +249,6 @@ PAGE_FIELD = ('<w:p><w:r><w:t xml:space="preserve">This is page </w:t></w:r><w:r
 @pytest.mark.parametrize("change, reason", [
     ("section", "sections"),
     ("styles", "styles"),
-    ("page-field", "page-fields"),
     ("note", "notes"),
 ])
 def test_each_fallback_is_a_full_layout_and_says_why(report16, change, reason):
@@ -255,8 +260,6 @@ def test_each_fallback_is_a_full_layout_and_says_why(report16, change, reason):
     elif change == "styles":
         styles = ('<w:style w:type="paragraph" w:styleId="Unused"><w:name w:val="Unused"/>'
                   '<w:basedOn w:val="Normal"/></w:style>')
-    elif change == "page-field":
-        edited.insert(10, report_docs.Block("raw", PAGE_FIELD))
     else:
         edited.insert(10, report_docs.Block("noted", "A paragraph with a footnote.", note="A made-up note."))
     data = report_docs.package(edited, styles=styles)
@@ -266,6 +269,7 @@ def test_each_fallback_is_a_full_layout_and_says_why(report16, change, reason):
         full, full_data, full_fonts = lay_out_docx(data, keep=False)
         assert page_svgs(again, again_data, fonts=fonts) == page_svgs(full, full_data, fonts=full_fonts)
     assert again.relaid == reason
+    assert again.relaid_cause["reason"] == reason
     # A layout made whole from a previous one is a previous layout as good as any.
     later = list(edited)
     k = _paragraph(later, 30)
@@ -274,7 +278,7 @@ def test_each_fallback_is_a_full_layout_and_says_why(report16, change, reason):
     final = lay_out_docx(data, previous=again)[0]
     full = lay_out_docx(data, keep=False)
     assert page_svgs(final, data, fonts=None) == page_svgs(full[0], full[1], fonts=None)
-    assert final.relaid in (None, "page-fields")
+    assert final.relaid is None and final.relaid_cause is None
 
 
 def test_paths_are_renumbered_by_the_blocks_before_the_pages_kept(report16):
@@ -327,4 +331,164 @@ def test_edits_of_a_report_with_fields_lay_out_as_a_full_layout():
     for _ in range(SIZES["fields"]):
         blocks, what = report_docs.edit(blocks, rng)
         layout, svgs = _check(blocks, layout, svgs, f"fields, {what}", stats)
-    assert set(stats) <= {"page-fields", "cross-references"}, stats
+    # PAGE, SEQ and NUMPAGES in the body: laid out from the edit (round 20).
+    assert set(stats) == {None}, stats
+
+
+# -- round 20: contents, page-number fields, captions and cross-references ----------------------
+
+#: Edits of the reports with contents: the usual mix, and captions and lines of the contents
+#: inserted and deleted.
+CONTENTS_KINDS = ("text", "text", "cell", "insert", "delete", "row-insert", "row-delete", "break", "unbreak",
+                  "grow", *report_docs.FIELD_EDIT_KINDS)
+#: The reports with contents: a table of contents with a page break after it and without
+#: one; with captions numbered by SEQ, REF to them, PAGEREF and PAGE in the body; both.
+CONTENTS = [
+    {"toc": True},
+    {"toc": True, "toc_break": False},
+    {"fields": True},
+    {"toc": True, "fields": True},
+]
+
+
+@pytest.mark.parametrize("contents", CONTENTS, ids=["contents", "contents-no-break", "fields", "both"])
+def test_random_edits_of_reports_with_contents_lay_out_from_the_edit(contents):
+    # Every edit -- a heading moved across a page, lines of the contents added or removed, a
+    # caption added or removed (the numbers after it and the REF to them change), a page
+    # added or removed -- is laid out from where it reaches, as a full layout lays it out.
+    stats = _run(6, 31 + len(contents) * 7 + contents.get("toc_break", True), SIZES["contents"],
+                 contents=contents, kinds=CONTENTS_KINDS)
+    assert set(stats) == {None}, stats
+
+
+@pytest.mark.parametrize("pages", [16, 40])
+def test_random_edits_of_long_reports_with_contents(pages):
+    cases = SIZES[f"contents-{pages}"]
+    if not cases:
+        pytest.skip(f"the {pages}-page report with contents is in the full set only: RELAYOUT_FULL=1")
+    stats = _run(pages, 200 + pages, cases, contents={"toc": True, "fields": pages == 16}, kinds=CONTENTS_KINDS)
+    assert set(stats) == {None}, stats
+
+
+def _text(page) -> str:
+    return "\n".join("".join("".join(span.chars) for span in line.spans) for line in page.lines if line.story is None)
+
+
+@pytest.fixture(scope="module")
+def contents16():
+    blocks = report_docs.report(16, toc=True)
+    data = report_docs.package(blocks)
+    layout, data, fonts = lay_out_docx(data)
+    return blocks, layout, page_svgs(layout, data, fonts=fonts)
+
+
+def _heading_page(layout, block) -> int:
+    return layout.pages_of(block.para_id)[0]
+
+
+def test_a_paragraph_that_keeps_the_headings_on_their_pages_redraws_its_page_only(contents16):
+    # The production case: a template with contents on page 2, one paragraph lengthened.
+    blocks, layout, svgs = contents16
+    k = next(k for k in range(len(blocks) // 2, len(blocks)) if blocks[k].kind == "para")
+    page = layout.pages_of(blocks[k].para_id)
+    edited = list(blocks)
+    edited[k] = replace(edited[k], text=edited[k].text + " One more.")
+    again, _ = _check(edited, layout, svgs, "one word", {})
+    assert again.relaid is None and again.relaid_cause is None
+    assert again.changed_pages == page
+    assert len(again.state.laid) == 1
+
+
+def test_a_heading_moved_to_the_next_page_redraws_the_contents_page(contents16):
+    blocks, layout, svgs = contents16
+    contents = {block.target for block in blocks if block.kind == "toc"}
+    # A heading of the contents, mid-report, and the paragraph before it, grown by about
+    # thirty lines: the heading moves on to the next page.
+    h = next(h for h in range(len(blocks) // 2, len(blocks)) if blocks[h].kind == "heading"
+             and blocks[h].mark in contents and blocks[h - 1].kind == "para")
+    before = _heading_page(layout, blocks[h])
+    edited = list(blocks)
+    edited[h - 1] = replace(blocks[h - 1], text=blocks[h - 1].text + " Lantern meadow river stone." * 110)
+    again, again_svgs = _check(edited, layout, svgs, "heading moved", {})
+    assert again.relaid is None
+    assert _heading_page(again, edited[h]) == before + 1
+    # The contents page shows the heading's new page number; the pages after the heading's
+    # chapter are the previous layout's (the page break before the next chapter).
+    assert 2 in again.changed_pages
+    line = next(line for line in _text(again.pages[1]).split("\n") if line.startswith(edited[h].text))
+    # (the dotted leader is drawn after the line's words and number)
+    assert line.rstrip(".") == f"{edited[h].text}{before + 1}", line
+    # Laid out again: the contents page, and the heading's pages up to the next chapter's page
+    # break (the pages after it are the previous layout's, moved on, their footers drawn again).
+    fresh = sorted(k + 1 for k in again.state.fresh)
+    after_break = next(again.pages_of(edited[b + 1].para_id)[0] for b in range(h, len(edited))
+                       if edited[b].kind == "break")
+    assert fresh[0] == 2 and before - 1 <= fresh[1] and fresh[-1] < after_break, fresh
+    assert len(again.state.laid) > len(fresh)
+
+
+def test_a_page_break_after_the_edit_is_where_the_pages_line_up_again(contents16):
+    # A paragraph before a chapter's page break grown by a page: the pages after the break
+    # are the previous layout's moved on by one, their footers drawn again (Page N of M).
+    blocks, layout, svgs = contents16
+    b = next(b for b in range(len(blocks) // 2, len(blocks)) if blocks[b].kind == "break" and blocks[b - 1].kind == "para")
+    edited = list(blocks)
+    edited[b - 1] = replace(blocks[b - 1], text=blocks[b - 1].text + " Lantern meadow river stone harbour." * 80)
+    again, _ = _check(edited, layout, svgs, "a page more before a break", {})
+    assert again.relaid is None
+    assert len(again.pages) == len(layout.pages) + 1
+    after_break = again.pages_of(blocks[b + 1].para_id)[0]
+    # Laid out again: the contents page (the headings after the break moved on) and the
+    # pages up to the break; none after it.
+    assert again.state.laid.stop <= after_break
+    assert {k + 1 for k in again.state.redrawn} >= set(range(after_break, len(again.pages) + 1))
+
+
+def test_the_contents_without_a_page_break_after_them(contents16):
+    blocks = report_docs.report(8, toc=True, toc_break=False)
+    layout, data, fonts = lay_out_docx(report_docs.package(blocks))
+    svgs = page_svgs(layout, data, fonts=fonts)
+    edited = list(blocks)
+    # A line of the contents more: the report after it moves down.
+    t = next(t for t, block in enumerate(blocks) if block.kind == "toc" and not block.opens)
+    heading = next(block for block in blocks if block.kind == "heading" and block.mark)
+    edited.insert(t, report_docs.Block("toc", heading.text, para_id="4000AAAA", target=heading.mark))
+    again, _ = _check(edited, layout, svgs, "a line of the contents more", {})
+    assert again.relaid is None
+
+
+def test_a_caption_inserted_numbers_the_captions_after_it_again(contents16):
+    blocks = report_docs.report(6, fields=True)
+    layout, data, fonts = lay_out_docx(report_docs.package(blocks))
+    svgs = page_svgs(layout, data, fonts=fonts)
+    k = next(k for k, block in enumerate(blocks) if block.kind == "caption")
+    edited = list(blocks)
+    edited.insert(k, report_docs.Block("caption", "A made-up chart", para_id="5000AAAA", mark="_Ref9999"))
+    again, again_svgs = _check(edited, layout, svgs, "caption inserted", {})
+    assert again.relaid is None
+    texts = "\n".join(_text(page) for page in again.pages)
+    count = sum(1 for block in edited if block.kind == "caption")
+    assert f"Table {count}:" in texts and f"Table {count + 1}:" not in texts
+
+
+def test_editing_the_line_that_opens_the_contents_says_which_field(contents16):
+    # The contents' first line opens the TOC field and its closing paragraph closes it: an
+    # edit of either is laid out whole, and the cause names the element and the field.
+    blocks, layout, svgs = contents16
+    t = next(t for t, block in enumerate(blocks) if block.kind == "toc" and block.opens)
+    edited = list(blocks)
+    edited[t] = replace(blocks[t], text="Another made-up heading")
+    again, _ = _check(edited, layout, svgs, "the opening line", {})
+    assert again.relaid == "fields-open"
+    cause = again.relaid_cause
+    assert cause["reason"] == "fields-open"
+    assert cause["at"] == f"w:body/w:p[{t + 1}]" and cause["para_id"] == blocks[t].para_id
+    assert cause["field"].startswith("TOC \\o")
+
+
+def test_a_part_change_says_which_part(report16):
+    blocks, layout, _ = report16
+    again = lay_out_docx(report_docs.package(blocks, header="Another made-up header"), previous=layout)[0]
+    assert again.relaid_cause == {"reason": "headers-footers", "part": "word/header1.xml"}
+    plain = lay_out_docx(report_docs.package(blocks))[0]
+    assert plain.relaid_cause is None and plain.relaid is None

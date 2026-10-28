@@ -406,6 +406,20 @@ class Layout:
     #: ``numbering``, ``sections``, ``headers-footers``, ``page-count``...).  ``None`` for a
     #: layout made without one.
     relaid: str | None = None
+    #: Laid out whole from a previous layout (:attr:`relaid` is not ``None``): what caused
+    #: it, to explain a slow refresh -- ``{"reason": relaid}`` and, where one element or
+    #: part is why, ``"at"`` (the body element's path, ``w:body/w:p[12]``, in the new
+    #: document, or the previous one where it was deleted) with ``"para_id"`` (its first
+    #: paragraph's ``w14:paraId``, where it has one), ``"field"`` (the instruction of the field
+    #: an edited element opens and another closes, ``fields-open``) or ``"part"`` (the part
+    #: that changed: ``word/styles.xml``, ``word/footer1.xml``).  The reasons that remain
+    #: (:data:`docx2svg.relayout.FALLBACKS`): ``no-state``, ``version``, ``options``;
+    #: a part changed -- ``styles``, ``numbering``, ``settings``, ``theme``, ``fonts``,
+    #: ``headers-footers``, ``notes``, ``parts``; an edit of the body -- ``sections``,
+    #: ``note-references``, ``fields-open``, ``joined``, ``body``; what the document is --
+    #: ``footnote-restart``, ``line-numbers``, ``columns``, ``stopped``; and ``page-count``.
+    #: ``None`` otherwise.
+    relaid_cause: dict | None = None
     #: What a layout of this document from this one needs (:class:`docx2svg.relayout.State`):
     #: kept with the layout, so that it can be handed back as ``previous``.
     state: object = field(default=None, repr=False, compare=False)
