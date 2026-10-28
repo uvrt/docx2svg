@@ -425,7 +425,8 @@ class Layout:
     #: a part changed -- ``styles``, ``numbering``, ``settings``, ``theme``, ``fonts``,
     #: ``headers-footers``, ``notes``, ``parts``; an edit of the body -- ``sections``,
     #: ``note-references``, ``fields-open``, ``joined``, ``body``; what the document is --
-    #: ``footnote-restart``, ``line-numbers``, ``columns``, ``stopped``; and ``page-count``.
+    #: ``footnote-restart``, ``line-numbers``, ``columns``, ``stopped``; and ``page-count`` and
+    #: ``styleref-height`` (a header's ``STYLEREF`` makes it taller or shorter on some page).
     #: ``None`` otherwise.
     relaid_cause: dict | None = None
     #: What a layout of this document from this one needs (:class:`docx2svg.relayout.State`):
@@ -831,6 +832,7 @@ class _Placer:
         footnote_pages: dict | None = None
         document = with_footnotes(original)
         values: dict = {}
+        overrides: dict = {}
         #: Per pass, ``(document, items, result, approximations)`` (``None``: the items'):
         #: what a layout from this one goes on from
         #: (:mod:`docx2svg.relayout` lays each pass out again from the same pass of this one).
@@ -844,17 +846,21 @@ class _Placer:
             if memo is not None:
                 memo.bind(document, self.digests)
             items = paginate.flow(document, self.advances, self.metrics, features=features, memo=memo)
+            items.page_stories = overrides
             result = paginate.paginate(document, items)
             self.document, self.items = document, items
             self.passes.append((document, items, result, None))
             found = self._body_field_values(items, result)
             pages = _footnote_pages(items, result) if by_page else None
-            if found == values and pages == footnote_pages:
+            heights = self._story_heights(items, result)
+            if found == values and pages == footnote_pages and heights == overrides:
                 break
             # A computed field's value moves what it is measured in (a wider page number
             # can break its line elsewhere): lay the body out again with the values found,
-            # until they are the ones it was laid out with.  So does a note's number.
-            values, footnote_pages = found, pages
+            # until they are the ones it was laid out with.  So does a note's number, and a
+            # header's or footer's STYLEREF whose text on a page makes it taller or shorter
+            # (it moves the page's body: measured, round 21).
+            values, footnote_pages, overrides = found, pages, heights
             document = substitute_document(with_footnotes(original, footnote_pages), values)
         else:
             self.layout.warn("field-layout-unsettled", "the body's page-number fields did not settle on one "
@@ -898,6 +904,9 @@ class _Placer:
         # SEQ counted and REF replaced by its bookmark's text, once: neither depends on the
         # layout (``make_xref_field_probe.py``); PAGEREF is computed with PAGE, below.
         self.document = self._cross_references(self.document)
+        # STYLEREF in the body: the text of its style before it in the document, else after
+        # it -- the document's order, not its pages (round 21); computed once, as SEQ is.
+        self.document = self._style_references(self.document)
         original = self.document
         # A field is laid out now (its instruction is never text, and a computed field's
         # value is this layout's own): the renderer no longer stops at one.
@@ -1195,6 +1204,236 @@ class _Placer:
                 out[(block, k)] = text
         return out
 
+    # -- STYLEREF (round 21) ------------------------------------------------------------------
+
+    def _styleref_target(self, run, where: str):
+        """A ``STYLEREF`` run's :class:`fields.StyleReference` and what it searches for
+        (:func:`fields.style_reference_target`), or ``None`` with a warning."""
+        from .fields import Uncomputable, style_reference, style_reference_target
+
+        instruction = run.field.instruction
+        try:
+            reference = style_reference(instruction)
+            return reference, style_reference_target(reference, self.document.styles, self.document.locale.language)
+        except Uncomputable as why:
+            self.layout.warn("field-not-computed:STYLEREF",
+                             f"a STYLEREF field {where} is drawn as Word cached it ({why.args[0]})")
+            return None
+
+    def _occurrences(self, document: Document, kind: str, ids: frozenset) -> list:
+        """:func:`fields.style_occurrences` of the body of ``document``, the notes placed in
+        its flow left out (a note is not searched: not measured), kept per document."""
+        from .fields import style_occurrences
+
+        held: tuple[Document, dict] | None = self.__dict__.get("_styleref_occurrences")
+        if held is None or held[0] is not document:
+            held = (document, {})
+            self.__dict__["_styleref_occurrences"] = held
+        cache = held[1]
+        key = (kind, ids)
+        if key not in cache:
+            placed: set = getattr(self, "placed_notes", set())
+            skip: set[int] = set()
+            index = 0
+            for block in document.body:
+                count = len(_all_paragraphs([block]))
+                if id(block) in placed:
+                    skip.update(range(index, index + count))
+                index += count
+            styles = document.styles
+            default = styles.default("paragraph") if styles is not None else None
+            cache[key] = style_occurrences(_all_paragraphs(document.body), kind, ids,
+                                           default.style_id if default is not None else None, frozenset(skip))
+        return cache[key]
+
+    def _style_references(self, document: Document) -> Document:
+        """The body with every ``STYLEREF`` field's text computed (Word's, measured, round
+        21): the last text of its style **before** the field in the document, else the first
+        after it -- whatever the pages (``\\l`` changes nothing in the body); ``\\p`` draws
+        ``above`` or ``below`` (in en-US).  A warning for each drawn as cached."""
+        from .fields import Uncomputable, style_reference_text
+
+        paragraphs = _all_paragraphs(document.body)
+        keys = [(block, k) for block, paragraph in enumerate(paragraphs) for k, run in enumerate(paragraph.runs)
+                if run.field is not None and run.field.keyword == "STYLEREF"]
+        if not keys:
+            return document
+        values: dict = {}
+        for block, k in keys:
+            run = paragraphs[block].runs[k]
+            assert run.field is not None  # ``keys`` are STYLEREF runs
+            found_instruction = run.field.instruction
+            found = self._styleref_target(run, "in the body")
+            if found is None:
+                continue
+            reference, target = found
+            occurrence = None
+            before = True
+            if not isinstance(target, str):
+                at = (block, sum(len(r.text) for r in paragraphs[block].runs[:k]))
+                occurrences = self._occurrences(document, *target)
+                earlier = [o for o in occurrences if (o.block, o.offset) < at]
+                later = [o for o in occurrences if (o.block, o.offset) >= at]
+                occurrence = earlier[-1] if earlier else (later[0] if later else None)
+                before = bool(earlier)
+            if reference.position and occurrence is not None:
+                if document.locale.language != "en-US":
+                    text: str | Uncomputable = Uncomputable("\\p says where the text is in the application's "
+                                                            "language")
+                else:
+                    text = "above" if before else "below"
+            else:
+                text = style_reference_text(found_instruction, occurrence, target, document.locale.language)
+            if isinstance(text, Uncomputable):
+                self.layout.warn("field-not-computed:STYLEREF",
+                                 f"a STYLEREF field in the body is drawn as Word cached it ({text.args[0]})")
+                continue
+            values[(block, k)] = text
+        self.__dict__.pop("_styleref_occurrences", None)
+        return substitute_document(document, values) if values else document
+
+    def _occurrence_pages(self, items, result, occurrences: list) -> list:
+        """The pages (0-based) each of ``occurrences`` is drawn on: a paragraph's, every page
+        a line of it is on; a character style's run, its first character's page."""
+        held: tuple | None = self.__dict__.get("_styleref_pages")
+        if held is None or held[0] is not result or held[1] is not items:
+            held = (result, items, {})
+            self.__dict__["_styleref_pages"] = held
+        cache = held[2]
+        key = id(occurrences)
+        if key in cache:
+            return cache[key][1]
+        drawn = paginate.drawn_pages(items, result)
+        self._flow_of = {item.block: index for index, item in enumerate(items) if isinstance(item, paginate.Para)}
+        details = None
+        out = []
+        for occurrence in occurrences:
+            if occurrence.offset == 0:
+                out.append(frozenset(drawn.get(occurrence.block, ())))
+                continue
+            if details is None:
+                details = self._details(items, lazy=True)
+            page = self._page_of(items, result, details, drawn, occurrence.block, occurrence.offset)
+            out.append(frozenset(() if page is None else (page,)))
+        cache[key] = (occurrences, out)
+        return out
+
+    def _story_reference(self, run, page: int, where: str, warn: bool = True) -> str | None:
+        """A header's or footer's ``STYLEREF`` on the 0-based page ``page`` (measured, round
+        21): the first text of its style on the page -- with ``\\l`` the last -- else the
+        last before the page, else the first after it; a paragraph is on every page a line of
+        it is on, a table cell's too, a text box's never.  ``\\p`` changes nothing here.
+        ``None`` (the cached result) where it cannot be computed, with a warning."""
+        from .fields import Uncomputable, style_reference_text
+
+        found = self._styleref_target(run, where) if warn else self._quiet_target(run)
+        if found is None:
+            return None
+        reference, target = found
+        occurrence = None
+        if not isinstance(target, str):
+            occurrences = self._occurrences(self.document, *target)
+            pages = self._occurrence_pages(self.items, self.result, occurrences)
+            on = [o for o, found_on in zip(occurrences, pages) if page in found_on]
+            if on:
+                occurrence = on[-1] if reference.last else on[0]
+            else:
+                earlier = [o for o, found_on in zip(occurrences, pages) if found_on and min(found_on) < page]
+                later = [o for o, found_on in zip(occurrences, pages) if not found_on or min(found_on) > page]
+                occurrence = earlier[-1] if earlier else (later[0] if later else None)
+        text = style_reference_text(run.field.instruction, occurrence, target, self.document.locale.language)
+        if isinstance(text, Uncomputable):
+            if warn:
+                self.layout.warn("field-not-computed:STYLEREF",
+                                 f"a STYLEREF field {where} is drawn as Word cached it ({text.args[0]})")
+            return None
+        return text
+
+    def _quiet_target(self, run):
+        from .fields import Uncomputable, style_reference, style_reference_target
+
+        try:
+            reference = style_reference(run.field.instruction)
+            return reference, style_reference_target(reference, self.document.styles, self.document.locale.language)
+        except Uncomputable:
+            return None
+
+    def _story_has_styleref(self) -> bool:
+        found = self.__dict__.get("_has_styleref")
+        if found is None:
+            found = any(run.field is not None and run.field.keyword == "STYLEREF"
+                        for blocks in self.document.stories.values() for paragraph in _all_paragraphs(blocks)
+                        for run in paragraph.runs)
+            self._has_styleref = found
+        return found
+
+    def story_references_on(self, page: int, info) -> tuple:
+        """The text of every ``STYLEREF`` of the header and footer page ``page`` shows (``None``
+        where it is not computed), in order: what the page's stories are drawn with beyond
+        their part (:mod:`docx2svg.relayout` compares it)."""
+        if info is None or info.blank or not self._story_has_styleref():
+            return ()
+        headers, footers = self.references[info.section] if info.section < len(self.references) else ({}, {})
+        out = []
+        for references in (headers, footers):
+            relationship = references.get(info.story)
+            for paragraph in _all_paragraphs(self.document.stories.get(relationship) or []) if relationship else ():
+                for run in paragraph.runs:
+                    if run.field is not None and run.field.keyword == "STYLEREF":
+                        out.append(self._story_reference(run, page, "", warn=False))
+        return tuple(out)
+
+    def _story_heights(self, items, result) -> dict:
+        """Page (0-based) -> its ``(header, footer)`` heights where a ``STYLEREF`` in them,
+        computed for the page, makes either differ from the height the story has with its
+        cached results (:func:`paginate._stories`): what the next pass lays that page out with
+        (``paginate.Flow.page_stories``).  Empty where no story holds a ``STYLEREF``."""
+        if not self._story_has_styleref():
+            return {}
+        saved: tuple = (self.__dict__.get("items"), self.__dict__.get("result"), self.__dict__.get("references"))
+        self.items, self.result = items, result
+        self.references = paginate.story_references(self.document)
+        heights = self.__dict__.setdefault("_styleref_heights", {})
+        out: dict = {}
+        try:
+            for page, info in sorted(result.info.items()):
+                if info.blank:
+                    continue
+                section = self.document.sections[info.section]
+                base = items.stories.get(info.section, {}).get(info.story, (Fraction(0), Fraction(0)))
+                found = []
+                for references, height in zip(self.references[info.section], base):
+                    relationship = references.get(info.story)
+                    blocks = self.document.stories.get(relationship) if relationship else None
+                    if not blocks or not any(run.field is not None and run.field.keyword == "STYLEREF"
+                                             for paragraph in _all_paragraphs(blocks) for run in paragraph.runs):
+                        found.append(height)
+                        continue
+                    texts: dict = {}
+
+                    def text_of(block: int, k: int, run, texts=texts) -> str | None:
+                        if run.field.keyword != "STYLEREF":
+                            return None
+                        text = self._story_reference(run, page, "", warn=False)
+                        texts[(block, k)] = text
+                        return text
+
+                    substituted = substitute_blocks(blocks, text_of)
+                    key = (relationship, section.page_size, section.margins, tuple(sorted(texts.items())))
+                    if key not in heights:
+                        heights[key] = paginate.story_height(self.document, substituted, section, self.advances,
+                                                             self.metrics) or Fraction(0)
+                    found.append(heights[key])
+                if tuple(found) != tuple(base):
+                    out[page] = tuple(found)
+        finally:
+            self.__dict__["items"], self.__dict__["result"], references = saved
+            if references is None:
+                self.__dict__.pop("references", None)
+            else:
+                self.references = references
+        return out
+
     # -- headers and footers -------------------------------------------------------------------
 
     def _draw_stories(self, page: Page, info) -> None:
@@ -1219,7 +1458,10 @@ class _Placer:
         texts: dict = {}
 
         def text_of(block: int, k: int, run) -> str | None:
-            text = self._field_text(run, info, where)
+            if run.field.keyword == "STYLEREF":
+                text = self._story_reference(run, page.number, where)
+            else:
+                text = self._field_text(run, info, where)
             if text is not None:
                 texts[(block, k)] = text
             return text
@@ -1587,7 +1829,10 @@ class _Placer:
         section = self.document.sections[section_number]
         width_pt = device_page_extent_pt(section.page_size.width_twips)
         height_pt = device_page_extent_pt(section.page_size.height_twips)
-        top, bottom = paginate._geometry(self.document, section_number, self.items, story=story or "default")
+        story = story or "default"
+        top, bottom = paginate._geometry(self.document, section_number, self.items,
+                                         story=(story, number) if number in getattr(self.items, "page_stories", {})
+                                         else story)
         # The text column starts at the left margin (and gutter) rounded to a whole device
         # pixel -- every line of the page, the body's and its header's and footer's
         # (``make_margin_probe.py``: margins 1440-1449 twips and gutters, every line's

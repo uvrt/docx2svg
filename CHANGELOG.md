@@ -5,7 +5,24 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
-## 0.8.0 -- unreleased
+## 0.9.0 -- unreleased
+
+- **`STYLEREF` per page** (production round 21, T2). A header or footer's `STYLEREF` shows
+  each page's text of its style -- the first on the page, the last with `\l`, else the last
+  before the page, else the first after it -- and one in the body the last before it in the
+  document, else the first after it, `\p` as `above` / `below`; the style found by its name,
+  case ignored, or a heading level (`fields.find_style`, one function for a shared resolver
+  to replace), Word's English error texts where there is none (ROADMAP.md, H.9; measured on
+  eleven made-up documents, `tools/make_styleref_probe.py`, 475 of 475 values Word's). The
+  paragraph number switches (`\n`, `\r`, `\w`) and a few cases are drawn as cached, warned
+  `field-not-computed:STYLEREF`. A header whose `STYLEREF` text makes it taller on a page
+  moves that page's body, as in Word: the layout's passes lay such a page out under its own
+  header (`paginate.Flow.page_stories`). A layout from a previous one redraws the kept pages
+  whose header text changed (`relayout.State.story_refs`, `STATE_FORMAT` 3), and lays a
+  document whose header height varies whole (`relaid` `styleref-height`). Documents without
+  `STYLEREF` draw byte for byte as before (74 documents, 430 pages).
+
+## 0.8.0
 
 - **A body with page-number fields is laid out from the edit too** (production round 20,
   S1). A table of contents (its lines' `PAGEREF`s), `PAGE`, `NUMPAGES`, `SECTIONPAGES`,

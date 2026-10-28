@@ -5642,6 +5642,58 @@ beyond anti-aliasing.
   shapes in a header with no wrap, which should leave the header's text where it is, so
   the text after them could be laid out before their outlines are drawn.
 
+### H.9 `STYLEREF` per page (`make_styleref_probe.py`, production round 21, T2)
+
+A header "`STYLEREF Title` | `STYLEREF "Chapter title"`" was drawn with its cached text on
+every page; Word shows each page's. Measured with Word for Mac 16 in English (and Dutch),
+eleven made-up documents of nine pages split by page breaks, every probe field cached as
+`?`, Word's PDF read after it updated every field (`tests/fixtures/styleref-observations.json`;
+docx-agent's `tools/styleref_probe.py` ran Word). **The rules** (`fields.style_reference`,
+`fields.find_style`, `fields.style_occurrences`, `layout._Placer._story_reference`,
+`_style_references`):
+
+* **In a header or footer** (first-page, even and odd ones alike; a footer as a header):
+  the first text of the style **on the page**, top down; with `\l` the last; with none on
+  the page, the last **before** it, else the first **after** it (a style first used on page
+  3 shows on pages 1 and 2). A paragraph is on every page a line of it is on (a chapter
+  title split across pages 8 and 9 by a page break in it counts on both, the break drawn as
+  a space); a table cell's paragraphs count, a text box's never, a header's own never (the
+  `header` style: "no text"). An empty paragraph of the style is text: empty.
+* **In the body**: the last text of the style **before the field** in the document, else the
+  first after it -- the pages do not matter, nor does `\l`; `\p` draws `above` or `below`
+  (en-US words). Computed once, as `SEQ` is.
+* **The style**: by its stored name (`w:name`), case ignored (`heading 1`, `Heading 1`,
+  `HEADING 1`); not its id (`Heading1`), not with spaces around it (`" Chapter title "` is
+  Word's error); `STYLEREF 1` .. `9` is `heading N`. A character style's text is each run of
+  runs in it (two words of it with others between are two). Dutch Word matches built-in
+  styles by their Dutch names (`Kop 1`, not `Heading 1`): the lookup is one function,
+  `fields.find_style`, for a shared resolver to replace.
+* **The result** is drawn in the field's own format (the header's), not the heading's: the
+  list label is not part of it (`Part 1.` numbering: the heading's words only).
+* **Errors**, in the application's language (an `nl-NL` document in English Word: English):
+  `Error! No text of specified style in document.` (the style exists, nothing has it -- a
+  `heading 3` by number too); `Error! Use the Home tab to apply <name> to the text that you
+  want to appear here.` (no style of that name, built-in ones not in the styles part too);
+  `Error! No style name given.`. Drawn for the conversion's locale `en-US`; Dutch Word's
+  first is `Fout! Geen tekst met de opgegeven stijl in het document.`; other languages and
+  Dutch names not computed.
+* **Not computed, drawn as cached and warned `field-not-computed:STYLEREF`**: the paragraph
+  number switches `\n`, `\r`, `\w` (and `\s`, `\t` with them: Word draws the list label --
+  `Part 1`, `1-a)` -- by rules not modelled), `\*` formats other than `Upper`, `Lower`,
+  `FirstCap`, `Caps`, `MERGEFORMAT` and `CHARFORMAT`, an unknown switch (Word's error naming
+  nothing), the default character style (Word drew text of other runs), and a text holding a
+  tab, a break other than a page break, an inline object, hidden text or a page-number field.
+  `\t` alone and `\p` in a header change nothing (measured). 475 of 475 values compared on
+  the probe agree; 112 more are the ones above.
+* **A header's height follows its text on the page** (`height`): a header one line taller on
+  page 2 than on the others moved page 2's body 5.2 pt down, and only page 2's, whatever the
+  cached result (`heightlong`). The layout's passes find it: a pass lays each page out under
+  its own header where a `STYLEREF` makes that header's height differ from its cached one
+  (`paginate.Flow.page_stories`), until the pages and their headers agree (the same four
+  passes as the page-number fields). A layout from a previous one lays such a document out
+  whole (`relaid` `styleref-height`); a document whose `STYLEREF` headers keep their height
+  is laid out from the edit, and the pages kept whose header text changed are drawn again.
+
 ### H.8 `PAGEREF`, `REF` and `SEQ` computed (`make_xref_field_probe.py`)
 
 docx-agent writes these fields' results from docx2svg's layout (its E4, 143 of 143 cases

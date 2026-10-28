@@ -48,9 +48,9 @@ FULL = os.environ.get("RELAYOUT_FULL", "") not in ("", "0")
 #: pages).
 SIZES = {
     True: {"small": 96, "notes": 12, "sections": 8, 16: 6, 40: 2, "fields": 6, "contents": 24,
-           "contents-16": 8, "contents-40": 3},
+           "contents-16": 8, "contents-40": 3, "styleref": 32, "styleref-wrap": 16},
     False: {"small": 8, "notes": 2, "sections": 2, 16: 1, 40: 0, "fields": 2, "contents": 3,
-            "contents-16": 0, "contents-40": 0},
+            "contents-16": 0, "contents-40": 0, "styleref": 6, "styleref-wrap": 3},
 }[FULL]
 #: Edits of the small reports; ``RELAYOUT_CASES`` sets another number.
 CASES = int(os.environ.get("RELAYOUT_CASES", SIZES["small"]))
@@ -502,3 +502,83 @@ def test_the_last_block_deleted_from_a_report_with_contents():
     svgs = page_svgs(layout, data, fonts=fonts)
     again, _ = _check(blocks[:-1], layout, svgs, "the last block deleted", {})
     assert again.relaid is None
+
+
+# -- round 21: STYLEREF in the header ---------------------------------------------------------
+
+#: The header's fields: the page's first heading and its last (``\\l``).
+STYLEREF = ('STYLEREF "heading 1"', "STYLEREF 1 \\l")
+#: Edits of a report whose header shows its headings: the usual mix, headings' words
+#: changed, and paragraphs made headings and headings paragraphs.
+STYLEREF_KINDS = ("text", "insert", "delete", "break", "unbreak", "cell", "row-insert",
+                  *report_docs.STYLE_EDIT_KINDS, *report_docs.STYLE_EDIT_KINDS)
+
+
+def _headings(page) -> list[str]:
+    return [line for line in _text_of(page, "header").split("\n") if line]
+
+
+def _text_of(page, story) -> str:
+    return "\n".join("".join("".join(span.chars) for span in line.spans) for line in page.lines if line.story == story)
+
+
+def test_random_edits_of_reports_with_a_styleref_header_lay_out_from_the_edit():
+    # A heading moved to another page, its words changed, a paragraph made a heading or a
+    # heading a paragraph: the header of every page showing it is drawn again, the rest kept.
+    stats = _run(6, 2101, SIZES["styleref"], kinds=STYLEREF_KINDS, styleref=STYLEREF[:1], header="")
+    assert set(stats) == {None}, stats
+
+
+def test_a_styleref_header_that_wraps_on_some_pages_lays_out_as_a_full_layout():
+    # A long title: a long heading's text wraps the header onto a second line on its pages,
+    # which moves their body down (measured): laid out whole, and the same as a full layout.
+    stats = _run(6, 2102, SIZES["styleref-wrap"], kinds=("grow", "text", "restyle"), styleref=STYLEREF[:1],
+                 title="Made-up quarterly report of the river stone lantern orchard meadow")
+    assert set(stats) <= {None, "styleref-height"}, stats
+    if FULL:
+        assert "styleref-height" in stats, stats
+
+
+def test_a_page_whose_header_wraps_has_its_body_lower():
+    # Measured (round 21): Word lays a page out under its own header, a STYLEREF's text on
+    # that page included -- a header taller there than its margin moves that page's body only.
+    blocks = report_docs.report(6)
+    k = next(k for k, block in enumerate(blocks) if block.kind == "heading" and k > len(blocks) // 2)
+    # Four lines in the header: past the top margin.
+    blocks[k] = replace(blocks[k], text="Part made up with words enough to run the header on past its margin "
+                                        "on every page that shows this heading" * 3)
+    package = {"styleref": STYLEREF[:1]}
+    layout, data, fonts = lay_out_docx(report_docs.package(blocks, **package))
+    tops = [page.column[2] for page in layout.pages]
+    wrapped = [k for k, page in enumerate(layout.pages) if len([line for line in page.lines
+                                                                if line.story == "header"]) > 1]
+    assert wrapped and all(tops[k] > min(tops) for k in wrapped)
+    assert all(tops[k] == min(tops) for k in range(len(tops)) if k not in wrapped)
+    svgs = page_svgs(layout, data, fonts=fonts)
+    edited = list(blocks)
+    edited[1] = replace(blocks[1], text=blocks[1].text + " One more.")
+    again, _ = _check(edited, layout, svgs, "a word more", {}, package)
+    assert again.relaid == "styleref-height"
+
+
+def test_the_header_shows_each_pages_heading_and_follows_an_edit_of_it():
+    blocks = report_docs.report(8)
+    layout, data, fonts = lay_out_docx(report_docs.package(blocks, styleref=STYLEREF))
+    svgs = page_svgs(layout, data, fonts=fonts)
+    headings = [(layout.pages_of(block.para_id), block.text) for block in blocks if block.kind == "heading"]
+    for index, page in enumerate(layout.pages):
+        on = [text for pages, text in headings if index + 1 in pages]
+        before = [text for pages, text in headings if pages and pages[0] < index + 1]
+        first = on[0] if on else before[-1]
+        last = on[-1] if on else before[-1]
+        assert _text_of(page, "header") == f"Made-up quarterly report | {first} | {last}", index
+    # A heading's words changed: its pages and those after it up to the next heading's are
+    # drawn again; nothing is laid out but its own page.
+    h = next(k for k in range(len(blocks) // 2, len(blocks)) if blocks[k].kind == "heading"
+             and blocks[k].text in _text_of(layout.pages[layout.pages_of(blocks[k].para_id)[0] - 1], "header"))
+    edited = list(blocks)
+    edited[h] = replace(blocks[h], text="Part made up anew")
+    again, _ = _check(edited, layout, svgs, "heading words", {}, {"styleref": STYLEREF})
+    assert again.relaid is None
+    shown = [k + 1 for k, page in enumerate(again.pages) if "Part made up anew" in _text_of(page, "header")]
+    assert shown and set(shown) <= set(again.changed_pages)

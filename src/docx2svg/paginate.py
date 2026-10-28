@@ -688,6 +688,10 @@ class Flow(list):
         self.measure = ()
         self.areas = {}
         self.labels = {}
+        #: Page (0-based) -> its ``(header, footer)`` heights where they are not its story
+        #: kind's (:attr:`stories`): a ``STYLEREF`` in them whose text on that page makes
+        #: them taller or shorter (:meth:`docx2svg.layout._Placer._story_heights`, round 21).
+        self.page_stories: dict = {}
         #: What the paginator laid out by an approximate rule rather than stop
         #: (:data:`CARRY_ON`), as messages: reported by the layout.
         self.approximated = []
@@ -1727,7 +1731,7 @@ class Rules:
 
 
 def _geometry(document: Document, section: int, items: list | None = None,
-              first_page: bool = False, story: str | None = None) -> tuple[Fraction, Fraction]:
+              first_page: bool = False, story: str | tuple | None = None) -> tuple[Fraction, Fraction]:
     """Where the page's text starts and ends: the margins, pushed in by the page's header
     or footer where it reaches past them (:func:`story_height`).  ``story`` is the kind
     the page shows (:func:`story_kind`); without it, ``first`` on a section's first page
@@ -1738,7 +1742,10 @@ def _geometry(document: Document, section: int, items: list | None = None,
     header = footer = Fraction(0)
     if story is None:
         story = "first" if first_page and s.title_page else "default"
-    if stories is not None:
+    if isinstance(story, tuple):
+        # A page whose header or footer has its own height (:attr:`Flow.page_stories`).
+        header, footer = getattr(items, "page_stories", {}).get(story[1], (Fraction(0), Fraction(0)))
+    elif stories is not None:
         header, footer = stories[story]
     top = twips_to_px(abs(s.margins.top))
     if s.margins.top >= 0 and header:
@@ -1815,14 +1822,14 @@ def page_end(document: Document, items: Flow, start: Position, rules: Rules | No
 
 
 def lay_page(document: Document, items: Flow, start: Position, rules: Rules | None = None,
-             carry: tuple = (), story: str | None = None) -> tuple[Position, tuple]:
+             carry: tuple = (), story: str | tuple | None = None) -> tuple[Position, tuple]:
     """:func:`page_end`, and the lines of a footnote that go on to the next page."""
     end, carry, _, _ = _lay_page(document, items, start, rules, carry, story)
     return end, carry
 
 
 def _lay_page(document: Document, items: Flow, start: Position, rules: Rules | None, carry: tuple,
-              story: str | None = None, page: int = 0, bands_out: list | None = None,
+              story: str | tuple | None = None, page: int = 0, bands_out: list | None = None,
               wraps_out: list | None = None, frames_out: list | None = None):
     """A page, laid out once without the bands of its ``wrapTopAndBottom`` drawings and
     the drawings text wraps beside, which are positioned from that layout, and again with
@@ -1853,7 +1860,7 @@ def _lay_page(document: Document, items: Flow, start: Position, rules: Rules | N
 
 
 def _stacked_bands(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple,
-                   story: str | None, page: int, bands: list) -> list:
+                   story: str | tuple | None, page: int, bands: list) -> list:
     """The page's ``wrapTopAndBottom`` bands, each drawing positioned from the page as laid
     out with the bands of the drawings **before** it -- not its own, nor those after it
     (ROADMAP.md, F.24): a drawing anchored in the paragraph after another's stands below
@@ -1876,7 +1883,7 @@ def _stacked_bands(document: Document, items: Flow, start: Position, rules: Rule
 
 
 def _lay_columns_page(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple,
-                      story: str | None, page: int, bands_out: list | None, wraps_out: list | None,
+                      story: str | tuple | None, page: int, bands_out: list | None, wraps_out: list | None,
                       frames_out: list | None):
     """:func:`_lay_page` for a document with a section of several columns: the page as its
     regions (:func:`_lay_columns`), laid out once without its drawings' bands and wraps and
@@ -1939,7 +1946,7 @@ def _lay_columns_page(document: Document, items: Flow, start: Position, rules: R
     return end, _carried(placed, end), forced, notes
 
 
-def _lay_noted(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple, story: str | None,
+def _lay_noted(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple, story: str | tuple | None,
                tops: dict, frames: list):
     """:func:`_lay_columns`, with the room of the page's note area in mode 15 found
     (:func:`_lay_columns_page`): ``(end, placed, forced, room)``."""
@@ -2073,7 +2080,7 @@ def note_area(document: Document, items: Flow, section_number: int, ids: tuple) 
 
 
 def _lay_columns(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple,
-                 story: str | None, *, bands=(), tops: dict | None = None, wraps=(), frames: list,
+                 story: str | tuple | None, *, bands=(), tops: dict | None = None, wraps=(), frames: list,
                  note_room: Fraction = Fraction(0)):
     """One page from ``start`` as Word lays a page of text columns out
     (``make_columns_probe.py``; ROADMAP.md, "Phase 4 -- measured", 4.14): ``(end, placed,
@@ -2176,7 +2183,7 @@ def region_foot(document: Document, items: Flow, frames: list) -> tuple[Fraction
     return top + height - after, previous
 
 
-def _fill(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple, story: str | None,
+def _fill(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple, story: str | tuple | None,
           top: Fraction, bottom: Fraction, previous, first_on_page: bool, section_number: int, done: list,
           **kw) -> tuple[list, list]:
     """One region from ``start``: its section's columns filled in turn, each from ``top``
@@ -2221,7 +2228,7 @@ def _fill(document: Document, items: Flow, start: Position, rules: Rules, carry:
     return frames, placed_all
 
 
-def _balance(document: Document, items: Flow, start: Position, rules: Rules, story: str | None, top: Fraction,
+def _balance(document: Document, items: Flow, start: Position, rules: Rules, story: str | tuple | None, top: Fraction,
              bottom: Fraction, previous, first_on_page: bool, section_number: int, done: list, laid: list,
              placed: list, kw: dict) -> tuple[list, list]:
     """A region whose section ends on the page, a continuous section after it, laid out
@@ -2428,7 +2435,7 @@ def _heights(lines) -> Fraction:
     return sum((line.height for line in lines), Fraction(0))
 
 
-def _scan(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple, story: str | None = None,
+def _scan(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple, story: str | tuple | None = None,
           bands=(), tops: dict | None = None, wraps=(), frame: "Frame | None" = None):
     """Lay one page out from ``start``: ``(end, placed, forced)``, ``placed`` holding per
     line kept ``(position, the page foot's notes after it)``.
@@ -3270,7 +3277,8 @@ def paginate(document: Document, items: Flow, rules: Rules | None = None, *,
             wraps: list = []
             frames: list = []
             carried = carry
-            end, carry, forced, notes = _lay_page(document, items, position, rules, carry, kind, page, bands, wraps,
+            story: str | tuple = (kind, page) if page in getattr(items, "page_stories", {}) else kind
+            end, carry, forced, notes = _lay_page(document, items, position, rules, carry, story, page, bands, wraps,
                                                   frames)
             if frames:
                 out.frames[page] = frames

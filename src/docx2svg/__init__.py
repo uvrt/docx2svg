@@ -23,7 +23,7 @@ colour, underline and strikethrough, highlight and shading, list labels, paragra
 borders, inline pictures, superscripts and subscripts.  Tables, headers and
 footers, and page-number fields (``PAGE``, ``NUMPAGES``, ``SECTIONPAGES``, computed from
 the layout's own pages, and in the body ``PAGEREF``, ``REF`` and ``SEQ`` from its pages and
-bookmarks; every other field is drawn as Word cached it).  Floating
+bookmarks; ``STYLEREF`` per page in a header or footer, and in the body; every other field is drawn as Word cached it).  Floating
 drawings that text does not wrap around (behind or in front of the text): pictures,
 shapes, groups and text boxes, positioned and stacked as Word does, and those text wraps
 above and below (``wrapTopAndBottom``), and those text wraps beside.  A drop cap is drawn
@@ -71,7 +71,7 @@ if TYPE_CHECKING:
     from .measure import Advances
     from .vertical import FaceMetrics
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 __all__ = [
     "Conversion",
