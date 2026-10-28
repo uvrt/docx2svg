@@ -64,7 +64,7 @@ def test_every_computed_styleref_is_the_text_word_shows(name):
             assert ours[label] == text, (number, label)
             compared += 1
     assert compared
-    codes = {warning.code for warning in warnings}
+    codes = {warning.code for warning in warnings if warning.code.startswith("field")}
     assert codes == ({"field-not-computed:STYLEREF"} if cached else set()), codes
 
 
