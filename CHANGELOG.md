@@ -22,12 +22,15 @@ snapshot commit; the development history before it is summarised here.
 - **`STYLEREF` names in other languages** (production round 21, D1). `fields.find_style`
   goes through `ooxml_common.stylenames.find_style`, untrimmed as Word reads `STYLEREF`:
   besides a stored name (case ignored) or a heading level, the built-in style Word shows
-  under the name in the conversion's language (`ConvertOptions(locale=...)`, standing for
-  Word's interface language) -- Dutch Word's "Kop 1", German Word's "Überschrift 1" --
-  for the languages ooxml-common measured (en, nl, fr, de, es, it). Such a name was left
-  as Word cached it in a non-English conversion; now it is computed. The document's
-  language does not count (measured: English Word did not take "Kop 1" in a Dutch
-  document). Needs ooxml-common 0.34.0.
+  under the name -- Dutch Word's "Kop 1", German Word's "Überschrift 1" -- for the
+  languages ooxml-common measured (en, nl, fr, de, es, it), read in the conversion's
+  language when the caller gave one (`ConvertOptions(locale=...)`), else the document's
+  (`w:themeFontLang`, then `w:docDefaults`' `w:lang`; `fields.names_language`), as
+  docx-agent reads a table of contents' `\t`. Word reads its interface language's names,
+  which a file does not say: English Word gave its error for "Kop 1" in a Dutch document,
+  where this shows the heading -- documents are written in their own Word's language. Such
+  names were left as Word cached them in a non-English conversion; now they are computed.
+  Error texts stay in the conversion's language. Needs ooxml-common 0.34.0.
 
 ## 0.9.0 -- unreleased
 
