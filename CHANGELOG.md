@@ -5,6 +5,30 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.10.0 -- unreleased
+
+- **Theme colours drawn as Word draws them** (production round 21, D2). A run's `w:color`
+  with `w:themeColor` (and `w:themeTint` / `w:themeShade`), and a paragraph's, table's or
+  cell's `w:shd` with `w:themeFill` (and `w:themeFillTint` / `w:themeFillShade`), are drawn
+  in the theme's colour -- `text1` and the other three through `w:clrSchemeMapping` --
+  not in the `w:val` / `w:fill` written beside it: measured, Word never drew a decoy value
+  there. The tint and shade are `ooxml_common.themetint.word_theme_tint` (Windows' integer
+  HLS on a scale of 1530; every measured swatch to the level). Read while the package is
+  parsed (`parse.properties.theme_colours`, set by `parse_package`); a part parsed alone
+  reads the stated value as before. A run's shading and borders keep their stated colour
+  (not measured). On the local corpus (74 documents, 430 pages) one page changed: a
+  hyperlink whose style states `0563C1` beside `w:themeColor="hyperlink"` is drawn in the
+  theme's `467886`, as Word draws it.
+- **`STYLEREF` names in other languages** (production round 21, D1). `fields.find_style`
+  goes through `ooxml_common.stylenames.find_style`, untrimmed as Word reads `STYLEREF`:
+  besides a stored name (case ignored) or a heading level, the built-in style Word shows
+  under the name in the conversion's language (`ConvertOptions(locale=...)`, standing for
+  Word's interface language) -- Dutch Word's "Kop 1", German Word's "Überschrift 1" --
+  for the languages ooxml-common measured (en, nl, fr, de, es, it). Such a name was left
+  as Word cached it in a non-English conversion; now it is computed. The document's
+  language does not count (measured: English Word did not take "Kop 1" in a Dutch
+  document). Needs ooxml-common 0.34.0.
+
 ## 0.9.0 -- unreleased
 
 - **`STYLEREF` per page** (production round 21, T2). A header or footer's `STYLEREF` shows

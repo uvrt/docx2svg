@@ -97,8 +97,13 @@ def test_find_style_by_name_case_ignored_or_by_heading_level():
     assert fields.find_style("key term", sheet) == ("character", frozenset({"Keyterm"}))
     assert fields.find_style("Chaptertitle", sheet) is None  # a style id is not a name
     assert fields.find_style(" Chapter title ", sheet) is None
-    # In a language whose error texts are not measured, an unknown name is not computed.
+    # Word's display names in the conversion's or the document's language (ooxml-common's
+    # stylenames, measured): Dutch Word's "Kop 1" is heading 1; English's still counts.
     reference = fields.style_reference('STYLEREF "Kop 1"')
+    assert fields.style_reference_target(reference, sheet, "nl-NL") == ("paragraph", frozenset({"Heading1"}))
     assert fields.style_reference_target(reference, sheet, "en-US").startswith("Error! Use the Home tab")
+    assert fields.find_style("Überschrift 1", sheet, ("de-DE",)) == ("paragraph", frozenset({"Heading1"}))
+    assert fields.find_style(" Kop 1", sheet, ("nl-NL",)) is None          # not trimmed
+    # In a language whose error texts are not measured, an unknown name is not computed.
     with pytest.raises(fields.Uncomputable):
-        fields.style_reference_target(reference, sheet, "nl-NL")
+        fields.style_reference_target(fields.style_reference('STYLEREF "Geen stijl"'), sheet, "nl-NL")

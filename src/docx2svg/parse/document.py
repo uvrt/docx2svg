@@ -59,7 +59,7 @@ from ..paths import Steps, row_level
 from ..xmlutil import attr_bool, attr_int
 from .drawing import PictureRef, drawing_element, picture_crop, read_anchor, read_graphic_data
 from .vml import read_vml
-from .properties import read_paragraph_properties, read_run_properties, read_table_properties
+from .properties import read_paragraph_properties, read_run_properties, read_table_properties, text_colour, theme_colours
 from .styles import (
     parse_compat_options, parse_compat_settings, parse_compatibility_mode, parse_default_tab_stop,
     parse_color_map, parse_endnote_settings, parse_even_and_odd_headers, parse_hyphenation, parse_numbering, parse_picture_bullets, parse_settings,
@@ -164,7 +164,7 @@ def _run_properties(properties: Element | None) -> RunProperties | None:
         italic=attr_bool(italic) if italic is not None else None,
         strike=attr_bool(strike) if strike is not None else None,
         underline=attr(underline, "val"),
-        color=attr(color, "val"),
+        color=text_colour(color),
         character_spacing=attr_int(spacing, "val"),
         vertical_align=attr(vertical, "val"),
         style_id=attr(style, "val"),
@@ -978,9 +978,45 @@ def image_pixels(data: bytes) -> tuple[int, int] | None:
 
 
 def parse_package(source: str | bytes | BinaryIO) -> Document:
-    """Open a ``.docx`` and parse its main document part."""
+    """Open a ``.docx`` and parse its main document part.  Theme colours (``w:themeColor``,
+    ``w:themeFill`` with their tints and shades) read as Word draws them
+    (:func:`docx2svg.parse.properties.theme_colours`)."""
     package = OpcPackage.open(source)
     main = main_part(package)
+    theme_parts = package.related_parts_of_type(main, REL_THEME)
+    settings_parts = package.related_parts_of_type(main, REL_SETTINGS)
+    colours = parse_theme_colors(read_part(package, theme_parts[0])) if theme_parts else {}
+    mapping = parse_color_map(read_part(package, settings_parts[0])) if settings_parts else {}
+    with theme_colours(word_theme_colour(colours, mapping)):
+        return _parse_package(package, main)
+
+
+#: ``w:themeColor`` / ``w:themeFill`` values -> the theme slot (``a:clrScheme``'s child).
+_THEME_SLOTS = {"dark1": "dk1", "light1": "lt1", "dark2": "dk2", "light2": "lt2", "hyperlink": "hlink",
+                "followedHyperlink": "folHlink", **{f"accent{k}": f"accent{k}" for k in range(1, 7)}}
+#: The four names ``w:clrSchemeMapping`` maps, its attribute for each, and its default.
+_MAPPED = {"text1": ("t1", "dark1"), "background1": ("bg1", "light1"),
+           "text2": ("t2", "dark2"), "background2": ("bg2", "light2")}
+
+
+def word_theme_colour(theme_colors: dict, color_map: dict):
+    """``(name, tint, shade) -> RRGGBB``: a WordprocessingML theme colour -- ``text1`` and
+    the other three through ``w:clrSchemeMapping`` -- with its tint or shade as Word draws
+    it (``ooxml_common.themetint.word_theme_tint``, measured); ``None`` for a name the
+    theme does not define."""
+    from ooxml_common.themetint import word_theme_tint
+
+    def resolve(name: str, tint: str | None, shade: str | None) -> str | None:
+        if name in _MAPPED:
+            key, default = _MAPPED[name]
+            name = color_map.get(key) or default
+        base = theme_colors.get(_THEME_SLOTS.get(name, ""))
+        return word_theme_tint(base, tint, shade) if base else None
+
+    return resolve
+
+
+def _parse_package(package: OpcPackage, main: str) -> Document:
     styles_parts = package.related_parts_of_type(main, REL_STYLES)
     styles_xml = read_part(package, styles_parts[0]) if styles_parts else None
     document = parse_document(read_part(package, main), styles_xml)

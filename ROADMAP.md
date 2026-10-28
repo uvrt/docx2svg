@@ -3654,7 +3654,7 @@ borders and shading, alignment, tabs; Word's filled rectangles read by
 
 | What | Rule | Evidence | Score |
 | --- | --- | --- | --- |
-| Text | the resolved face, size, weight, slant and colour (`w:color`'s value; a theme colour's `w:val` is its resolved RGB) at the model's pen position and baseline | every committed document (5.3) | every glyph |
+| Text | the resolved face, size, weight, slant and colour (`w:color`'s value; a theme colour's from the theme with its tint or shade, 0.10.0) at the model's pen position and baseline | every committed document (5.3) | every glyph |
 | List labels | the label's glyphs (the mark's properties and the level's `w:rPr`) from the breaker's pieces, and the tab after them to the hanging stop | the committed documents' bullets and numbers | every glyph |
 | Centred lines | half the slack **truncated to the layout unit** | two centred quotes of `style-document.docx` drawn at 754006 and 757515 units, the middles 754006.5 and 757515.5 | exact |
 | Right-aligned, justified (`both`) | the slack after the line's last non-space; justified: spread over the spaces after the last tab, not on the last line or one a break ends | the render probe, no `settings.xml` | every glyph |
@@ -6384,8 +6384,10 @@ colour Word drew it in (each page's glyphs counted per fill colour, Word's PDF a
 the layout's spans: no colour where the counts differ but by the spaces Word writes as
 glyphs). Their run colours state a theme colour with a tint or shade whose cached
 `w:val` is the theme's own, so the model's `w:val` is Word's colour there; a document
-whose `w:val` disagrees with its `w:themeColor` was not found, and Word's choice between
-them is not measured.
+whose `w:val` disagrees with its `w:themeColor` was not found here. Measured since (round 21,
+D2, 0.10.0): Word draws the theme colour, never the `w:val` / `w:fill` beside it, its tint or
+shade by `ooxml_common.themetint` (Windows' integer HLS on a scale of 1530), and so does
+docx2svg for text colour and paragraph, table and cell shading.
 
 ### F.13 A text box's text area — measured
 

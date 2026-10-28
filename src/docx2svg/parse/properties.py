@@ -62,7 +62,10 @@ for a table, its table style and the style's conditional formats (Phase 6, table
 
 from __future__ import annotations
 
+import contextlib
+from contextvars import ContextVar
 from dataclasses import dataclass
+from typing import Callable, Iterator
 from xml.etree.ElementTree import Element
 
 from ooxml_common.drawingml import read
@@ -115,6 +118,51 @@ class FontRef:
         return repr(self.face)
 
 
+#: How a theme colour reads while a package is parsed (:func:`theme_colours`): ``(w:themeColor
+#: or w:themeFill, tint, shade)`` -> ``RRGGBB``, or ``None`` for a name the theme lacks.
+_THEME_COLOUR: ContextVar[Callable[[str, str | None, str | None], str | None] | None] = ContextVar(
+    "docx2svg_theme_colour", default=None)
+
+
+@contextlib.contextmanager
+def theme_colours(resolve: Callable[[str, str | None, str | None], str | None]) -> Iterator[None]:
+    """Read theme colours with ``resolve`` while parsing: **Word draws a text colour's
+    ``w:themeColor`` (with ``w:themeTint`` / ``w:themeShade``) and a paragraph's or table
+    cell's shading ``w:themeFill`` (with ``w:themeFillTint`` / ``w:themeFillShade``), not
+    the ``w:val`` / ``w:fill`` beside them** (measured, production round 21: decoy values
+    never drawn; ``ooxml_common.themetint``).  Outside it -- a part parsed without its
+    package's theme -- the stated value is read, as before.  A run's shading and borders keep
+    their stated colour: not measured."""
+    token = _THEME_COLOUR.set(resolve)
+    try:
+        yield
+    finally:
+        _THEME_COLOUR.reset(token)
+
+
+def _theme_colour(node: Element, name: str, tint: str, shade: str) -> str | None:
+    resolve = _THEME_COLOUR.get()
+    theme = attr(node, name)
+    if resolve is None or not theme:
+        return None
+    return resolve(theme, attr(node, tint), attr(node, shade))
+
+
+def text_colour(node: Element | None) -> str | None:
+    """A ``w:color``'s colour: its theme colour where it names one (:func:`theme_colours`),
+    else its ``w:val``."""
+    if node is None:
+        return None
+    return _theme_colour(node, "themeColor", "themeTint", "themeShade") or attr(node, "val")
+
+
+def _shading(node: Element) -> tuple:
+    """A paragraph's or table's ``w:shd``: (pattern, pattern colour, fill), the fill the
+    theme's where it names one."""
+    fill = _theme_colour(node, "themeFill", "themeFillTint", "themeFillShade") or attr(node, "fill")
+    return (attr(node, "val"), attr(node, "color"), fill)
+
+
 def _on(element: Element) -> bool:
     return attr_bool(element)
 
@@ -151,7 +199,7 @@ def read_run_properties(element: Element | None) -> dict[str, object]:
             if number is not None:
                 out[name] = number
         elif name in _RUN_STRINGS:
-            value = attr(node, "val")
+            value = text_colour(node) if name == "color" else attr(node, "val")
             if value is not None:
                 out[name] = value
         elif name == "textFill":
@@ -223,7 +271,7 @@ def read_paragraph_properties(element: Element | None) -> dict[str, object]:
                     attr(side, "color"),
                 )
         elif name == "shd":
-            out[name] = (attr(node, "val"), attr(node, "color"), attr(node, "fill"))
+            out[name] = _shading(node)
         elif name in ("jc", "textAlignment"):
             text = attr(node, "val")
             if text is not None:
@@ -290,7 +338,7 @@ def read_table_properties(element: Element | None) -> dict[str, object]:
         elif name == "vMerge":
             out[name] = attr(node, "val") or "continue"
         elif name == "shd":
-            out[name] = (attr(node, "val"), attr(node, "color"), attr(node, "fill"))
+            out[name] = _shading(node)
         elif name == "tblpPr":
             out[name] = {local_name(key): value for key, value in node.attrib.items()}
         elif name in _TABLE_STRINGS:
