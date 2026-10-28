@@ -14,8 +14,8 @@ snapshot commit; the development history before it is summarised here.
   fields -- and a new test makes one edit of every kind (`report_docs.EDIT_KINDS`) in turn;
   every fallback test runs as before. The full set (96 edits of the small reports, the 16-
   and the 40-page report, ...) runs with `RELAYOUT_FULL=1`, in a new workflow
-  (`.github/workflows/relayout-full.yml`: ubuntu, Python 3.15; nightly, on push to main and
-  on demand). The assertions are unchanged; only the number of edits differs. Locally the
+  (`.github/workflows/relayout-full.yml`: ubuntu, Python 3.15; nightly, on push to main, on
+  demand, and on a pull request that changes the relayout code or its tests). The assertions are unchanged; only the number of edits differs. Locally the
   module takes about 100 s instead of 245 s. Rendering is unchanged.
 
 ## 0.7.0 -- unreleased
