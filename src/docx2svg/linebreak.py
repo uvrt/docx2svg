@@ -139,11 +139,12 @@ class TabStop:
 
 @dataclass(frozen=True)
 class Geometry:
-    """Where a paragraph's lines start and end, from the column's left edge, in 1/4096 pt."""
+    """Where a paragraph's lines start and end, from the column's left edge, in 1/4096 pt
+    (whole units, but a fraction in a segment beside a floating drawing: :mod:`docx2svg.wrap`)."""
 
-    first_start: int
-    start: int
-    right: int
+    first_start: int | Fraction
+    start: int | Fraction
+    right: int | Fraction
     tabs: tuple[TabStop, ...] = ()
     default_tab: int = twips_to_units(APPLICATION_DEFAULT_TAB)
     #: ``w:ind/@w:left`` when the paragraph hangs: an implicit stop on its first line.
@@ -328,7 +329,7 @@ def squeeze(space: Piece) -> int:
     return math.floor(Fraction(space.width, 4) + Fraction(1, 2))
 
 
-def next_tab(x: int | Fraction, geometry: Geometry, first_line: bool) -> tuple[int, str, bool]:
+def next_tab(x: int | Fraction, geometry: Geometry, first_line: bool) -> tuple[int | Fraction, str, bool]:
     """The stop a tab at ``x`` jumps to, its alignment, and whether it is a default stop.
 
     Custom stops first; the hanging indent is a stop on the first line; beyond the last
@@ -366,7 +367,8 @@ def pieces(document: Document, paragraph: Paragraph, advances, metrics=None,
     out: list[Piece] = list(label or [])
     source = 0
     cache: dict = {}
-    hyphenating = document.hyphenation is not None and not resolve_paragraph(document, paragraph).get(
+    hyphenation = document.hyphenation
+    hyphenating = hyphenation is not None and not resolve_paragraph(document, paragraph).get(
         "suppressAutoHyphens")
     #: Per run, for automatic hyphenation: its language, ``w:noProof``, and its hyphen.
     run_info: dict[int, tuple] = {}
@@ -468,9 +470,9 @@ def pieces(document: Document, paragraph: Paragraph, advances, metrics=None,
         for piece in out[first_new:]:
             piece.run = run_index
         source += len(run.text)
-    if hyphenating:
+    if hyphenating and hyphenation is not None:
         out = auto_hyphens(out, run_info, mode15=(document.compatibility_mode or 0) >= 15,
-                           no_caps=document.hyphenation.no_caps)
+                           no_caps=hyphenation.no_caps)
     return out
 
 
@@ -844,7 +846,7 @@ def break_line(items: list[Piece], i: int, geometry: Geometry, advances, *, firs
     text_end: int | Fraction = x
     line = None
     #: A right or centre stop past the edge carries the text after it there.
-    limit = geometry.right
+    limit: int | Fraction | float = geometry.right
     #: How far past the edge the spaces on the line since its last tab let it run;
     #: how many spaces there are; and, at the last run of spaces, where the text
     #: before it ended and how many spaces were before that (:func:`squeezes`).
@@ -900,8 +902,9 @@ def break_line(items: list[Piece], i: int, geometry: Geometry, advances, *, firs
                 geometry.squeeze and squeezes(x_new - limit, room, spaces, limit - before_x, before_spaces)):
             chosen = None
             for at, at_word, at_text in reversed(breaks):
+                proof_end = items[at].proof_end
                 if items[at].auto and (not auto_hyphen_allowed(geometry, at_word, at_text, at + 1 < j, hyphens_before)
-                                       or (items[at].proof_end is not None and piece.source >= items[at].proof_end)):
+                                       or (proof_end is not None and piece.source >= proof_end)):
                     continue
                 chosen = at
                 break

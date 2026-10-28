@@ -34,6 +34,7 @@ Standard library only.
 from __future__ import annotations
 
 import re
+from typing import TypedDict
 from xml.etree.ElementTree import Element
 
 from ooxml_common.xmlutil import attr, local_name
@@ -123,7 +124,9 @@ def vml_shape(node: Element) -> tuple[Element, str] | None:
     if name == "AlternateContent":
         fallback = child(node, "Fallback")
         inner = next((c for c in children(fallback) if local_name(c.tag) in ("pict", "object")), None)
-        found = vml_shape(inner) if inner is not None else None
+        if inner is None:
+            return None
+        found = vml_shape(inner)
         return (found[0], f"mc:Fallback/w:{local_name(inner.tag)}[1]/{found[1]}") if found else None
     if name not in ("pict", "object"):
         return None
@@ -145,7 +148,16 @@ _SHAPE_TYPES = {"_x0000_t1": "rect", "_x0000_t202": "rect", "_x0000_t2": "roundR
 _INSETS = (91440, 45720, 91440, 45720)
 
 
-def _shape(shape: Element, preset: str, path: str, blocks, common: dict) -> Graphic:
+class _Common(TypedDict):
+    """What every VML :class:`Graphic` carries, whatever its kind (:func:`_graphic`)."""
+
+    rotation: int
+    flip_h: bool
+    flip_v: bool
+    path: str
+
+
+def _shape(shape: Element, preset: str, path: str, blocks, common: _Common) -> Graphic:
     """A VML rectangle, rounded rectangle, oval or text box as the DrawingML shape it is:
     its fill (``fillcolor``, ``filled``, ``v:fill/@opacity``; white by default), its
     outline (``strokecolor``, ``strokeweight``, ``stroked``; black, 0.75 pt by default)
@@ -154,6 +166,7 @@ def _shape(shape: Element, preset: str, path: str, blocks, common: dict) -> Grap
     from ooxml_common.drawingml.model import ColorTransform, SrgbColor
 
     fill_element = child(shape, "fill")
+    fill: s.SourceNoFill | s.SourceSolidFill
     if attr(shape, "filled") in ("f", "false") or attr(fill_element, "on") in ("f", "false"):
         fill = s.SourceNoFill()
     else:
@@ -210,7 +223,7 @@ def _graphic(shape: Element, path: str, blocks=None, types: dict | None = None) 
     except ValueError:
         rotation = 0
     flip = style.get("flip", "")
-    common = {"rotation": rotation, "flip_h": "x" in flip, "flip_v": "y" in flip, "path": path}
+    common: _Common = {"rotation": rotation, "flip_h": "x" in flip, "flip_v": "y" in flip, "path": path}
     image = child(shape, "imagedata")
     if image is not None and (image.get(_R_ID) or attr(image, "id")):
         return Graphic("picture", relationship=image.get(_R_ID) or attr(image, "id"), **common)
@@ -235,7 +248,7 @@ def _graphic(shape: Element, path: str, blocks=None, types: dict | None = None) 
     return Graphic("other", uri=f"vml:{local_name(shape.tag)}", path=path)
 
 
-def read_vml(node: Element, path: str, blocks=None) -> tuple[str, object] | None:
+def read_vml(node: Element, path: str, blocks=None) -> tuple[str, Anchor | tuple[str, str | Graphic | None]] | None:
     """A run's VML object: ``("anchor", Anchor)`` for an absolutely positioned shape,
     ``("inline", (mark, picture relationship or None))`` for one in the line, or
     ``None`` where it is not VML or states no size.  ``blocks(element, path)`` reads a

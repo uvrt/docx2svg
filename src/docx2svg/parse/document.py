@@ -40,6 +40,7 @@ from ..model import (
     Anchor,
     Document,
     Field,
+    Graphic,
     Table,
     Indent,
     PageMargins,
@@ -204,10 +205,10 @@ def _object(node: Element) -> str:
     line breaker and the line height use -- and ``drawing`` for anything else (an
     anchored, floating object, :attr:`Run.anchors`; VML; an embedded object).  A drawing
     inside ``mc:AlternateContent`` is its DrawingML choice (:func:`drawing.drawing_element`)."""
-    node = drawing_element(node)
-    if node is None:
+    drawing = drawing_element(node)
+    if drawing is None:
         return "drawing"
-    inline = [child_ for child_ in node if local_name(child_.tag) == "inline"]
+    inline = [child_ for child_ in drawing if local_name(child_.tag) == "inline"]
     if len(inline) != 1:
         return "drawing"
     extent = child(inline[0], "extent")
@@ -235,16 +236,17 @@ def _anchor(node: Element, path: str, fields: "_Fields") -> Anchor | None:
 def _picture(node: Element) -> str | None:
     """The relationship id of the picture an inline ``w:drawing`` shows, or ``None``; with
     its crop where ``a:srcRect`` cuts it (:class:`~docx2svg.parse.drawing.PictureRef`)."""
-    node = drawing_element(node)
-    if node is None or child(node, "inline") is None:
+    drawing = drawing_element(node)
+    if drawing is None or child(drawing, "inline") is None:
         return None
-    for element in node.iter():
+    for element in drawing.iter():
         if local_name(element.tag) == "pic":
             blip = child(child(element, "blipFill"), "blip")
-            if blip is not None and blip.get(_R_EMBED):
+            embed = blip.get(_R_EMBED) if blip is not None else None
+            if embed:
                 crop = picture_crop(element)
-                return PictureRef(blip.get(_R_EMBED), crop) if crop else blip.get(_R_EMBED)
-    for element in node.iter():
+                return PictureRef(embed, crop) if crop else embed
+    for element in drawing.iter():
         if local_name(element.tag) == "blip" and element.get(_R_EMBED):
             return element.get(_R_EMBED)
     return None
@@ -253,8 +255,8 @@ def _picture(node: Element) -> str | None:
 def _inline_graphic(node: Element, path: str, fields: "_Fields"):
     """What an inline ``w:drawing`` that is not a picture shows -- a shape, a group, a
     chart or SmartArt (:class:`docx2svg.model.Graphic`) -- or ``None``."""
-    node = drawing_element(node)
-    inline = child(node, "inline") if node is not None else None
+    drawing = drawing_element(node)
+    inline = child(drawing, "inline") if drawing is not None else None
     graphic_data = child(child(inline, "graphic"), "graphicData")
     if graphic_data is None:
         return None
@@ -346,8 +348,8 @@ def _runs(element: Element, path: str = "", fields: _Fields | None = None) -> li
     out: list[Run] = []
     text_parts: list[str] = []
     marks: list[tuple[int, str]] = []
-    drawings: list[str | None] = []
-    anchors: list[tuple] = []
+    drawings: list[str | PictureRef | Graphic | None] = []
+    anchors: list[Anchor] = []
     length = 0
     properties = child(element, "rPr")
     plain = fields.visible()
@@ -444,8 +446,8 @@ def _runs(element: Element, path: str = "", fields: _Fields | None = None) -> li
             if vml is not None:
                 # VML (:mod:`docx2svg.parse.vml`): a watermark's text path, an embedded
                 # object's picture, an older shape -- floating, or a character of its line.
-                kind, value = vml
-                if kind == "anchor":
+                _kind, value = vml
+                if isinstance(value, Anchor):  # ``_kind`` "anchor"
                     marks.append((length, f"anchor:{len(anchors)}"))
                     anchors.append(value)
                 else:
@@ -621,7 +623,8 @@ def _blocks(parent: Element, table_style: str | None = None,
     return _join(_block_list(parent, table_style, conditions, path, fields))
 
 
-def _following_properties(blocks: list, following: ParagraphProperties | None = None) -> tuple[list, object]:
+def _following_properties(blocks: list, following: ParagraphProperties | None = None
+                          ) -> tuple[list, ParagraphProperties | None]:
     """``blocks`` with each paragraph whose mark is deleted and that joined nothing drawn
     under the paragraph properties of the paragraph after it in the story -- the first of
     a table's first cell, of the next cell, of the body after the table -- or under none of
@@ -826,8 +829,8 @@ _R_ID = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id
 
 
 def _references(section_properties: Element, name: str) -> tuple[tuple[str, str], ...]:
-    return tuple((attr(node, "type") or "default", node.get(_R_ID))
-                 for node in children(section_properties, name) if node.get(_R_ID))
+    return tuple((attr(node, "type") or "default", rid)
+                 for node in children(section_properties, name) if (rid := node.get(_R_ID)))
 
 
 def _sections(body: Element, paragraphs: list[Paragraph]) -> list[Section]:

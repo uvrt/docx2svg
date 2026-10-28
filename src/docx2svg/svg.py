@@ -41,7 +41,7 @@ import re
 from fractions import Fraction
 from xml.sax.saxutils import escape, quoteattr
 
-from .layout import Layout, Page, Span
+from .layout import Layout, Page, Span, Stop
 from .vertical import PX_PER_PT
 
 #: What the glyph outlines are scaled to.  ``device``: the size rounded to whole device
@@ -122,6 +122,7 @@ def _paint(span: Span, size_px, defs) -> str:
     from ooxml_common.drawingml.svg import Defs
 
     defs = defs if defs is not None else Defs()
+    assert span.paint is not None, "a span with text effects"
     fill, outline = span.paint
     box = (float(span.xs[0]), float(span.y - size_px * Fraction(4, 5)), float(span.end - span.xs[0]), float(size_px))
     if fill is None:
@@ -193,9 +194,9 @@ def render_page(page: Page, *, glyph_size: str = "device", images=None, width: i
         size = (f' width="{number(Fraction(page.width_pt).limit_denominator(1000))}pt"'
                 f' height="{number(Fraction(page.height_pt).limit_denominator(1000))}pt"')
     else:
-        if width is None:
+        if width is None and height is not None:
             width = round(Fraction(height * page.width_px, page.height_px))
-        if height is None:
+        if height is None and width is not None:
             height = round(Fraction(width * page.height_px, page.width_px))
         size = f' width="{width}" height="{height}"'
     out = [
@@ -231,7 +232,7 @@ def render_page(page: Page, *, glyph_size: str = "device", images=None, width: i
     if defs.defs:
         out.insert(head, "<defs>" + "".join(defs.defs) + "</defs>")
     if page.stop is not None:
-        out.append(_stop(page))
+        out.append(_stop(page, page.stop))
     out.append("</svg>")
     return "\n".join(out) + "\n"
 
@@ -383,11 +384,10 @@ def _box(box) -> str:
     return "".join(parts)
 
 
-def _stop(page: Page) -> str:
-    """Where the layout stopped: a hatched band from the obstacle to the foot of the text
-    area, across the column, saying what the obstacle is and that nothing after it is
-    drawn -- rather than a page that looks finished and is not."""
-    stop = page.stop
+def _stop(page: Page, stop: Stop) -> str:
+    """Where the layout stopped (``stop``, the page's): a hatched band from the obstacle to
+    the foot of the text area, across the column, saying what the obstacle is and that
+    nothing after it is drawn -- rather than a page that looks finished and is not."""
     left, right, _top, bottom = page.column
     y = stop.y
     height = max(Fraction(bottom) - y, Fraction(60))

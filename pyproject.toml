@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "docx2svg"
-version = "0.7.1"
+version = "0.7.2"
 description = "Render Word (.docx) documents to SVG in pure Python"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -55,6 +55,8 @@ dev = [
   "resvg-py>=0.5",
   # The linter (CI's build job runs it, at the same pin; [tool.ruff] below).
   "ruff==0.17.2",
+  # The type checker (CI's build job runs it, at the same pin; [tool.mypy] below).
+  "mypy==2.4.0",
 ]
 # The fidelity instrument's converter (tools/pdf_svg.py): Word's PDF page to SVG, so that
 # resvg rasterises both sides of the score.  Development only, and deliberately not in
@@ -97,6 +99,20 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = ["F", "E9", "B006", "B008", "B012", "B015", "PLE"]
+
+# `mypy` (CI's build job): the package, not strict -- the annotations as written are
+# checked, an unannotated function's body is not.  The optional imports (the rasterisers
+# for docx2svg.png, fontTools for docx2svg.fonts' measure path) are found only where they
+# are installed.
+[tool.mypy]
+python_version = "3.10"
+files = ["src/docx2svg"]
+mypy_path = "src"
+disable_error_code = ["annotation-unchecked"]
+
+[[tool.mypy.overrides]]
+module = ["fontTools.*", "resvg_py", "cairosvg"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

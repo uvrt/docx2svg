@@ -31,6 +31,7 @@ import math
 from dataclasses import dataclass, field
 from fractions import Fraction
 from types import SimpleNamespace
+from typing import TYPE_CHECKING, Callable
 
 from ooxml_common.locales import Locale
 
@@ -43,6 +44,13 @@ from .resolve import (
 from .resolve.cascade import Resolved
 from .units import device_page_extent_pt
 from .vertical import LAYOUT_UNIT_PX, PX_PER_PT, LineBox, baseline_in_box, round_half_up, twips_to_px
+
+if TYPE_CHECKING:
+    from ooxml_common.drawingml import model as dml
+    from ooxml_common.drawingml.svg import Defs
+
+    from .coverage import Coverage
+    from .relayout import State
 
 #: Device px per half point: a raised or lowered run moves by whole half points.
 PX_PER_HALF_POINT = PX_PER_PT / 2
@@ -110,7 +118,7 @@ class Span:
     kind: str = "text"
     #: The run's text effects, ``(fill, outline)`` as ``ooxml_common.drawingml.model``
     #: values (either ``None``: the colour's fill, no outline), or ``None`` for plain text.
-    paint: object = None
+    paint: tuple[dml.Fill | None, dml.Outline | None] | None = None
     #: The line's baseline (before any script or position offset).
     line_baseline: int = 0
     #: The line's text extent about its baseline, device px, for highlight and shading.
@@ -254,13 +262,13 @@ class Page:
     #: section, whether the section starts on it, its story kind, whether it is a blank
     #: page Word inserts): :class:`docx2svg.paginate.PageInfo`, public; ``None`` on a
     #: page made after the layout stopped.
-    info: object = None
+    info: paginate.PageInfo | None = None
     #: Floating drawings (:class:`Float`), in the order they were placed.
     floats: list = field(default_factory=list)
     #: What the drawings' paint refers to -- gradients, patterns, filters -- as SVG
     #: definitions, with the ids they are referred to by (``ooxml_common.drawingml.svg.Defs``);
     #: ``None`` until a drawing needs one.
-    defs: object = None
+    defs: Defs | None = None
     #: Where the body's stack ends on the page (``None`` for a blank page): the top of
     #: its footnotes under ``w:pos`` ``beneathText``.
     body_end: Fraction | None = None
@@ -341,7 +349,7 @@ class Layout:
     warnings: list[tuple[str, str, int | None]] = field(default_factory=list)
     #: How much of the document this covers (:class:`docx2svg.coverage.Coverage`): set by
     #: :func:`docx2svg.convert_docx_to_layout` and its siblings, ``None`` from :func:`lay_out`.
-    coverage: object = None
+    coverage: Coverage | None = None
     #: ``(code, message, 1-based page, element path)`` of every place laid out by a rule
     #: no probe measured, without stopping (``layout-approximate:<reason>``), in order.
     approximations: list[tuple[str, str, int | None, str | None]] = field(default_factory=list)
@@ -408,7 +416,7 @@ class Layout:
     relaid: str | None = None
     #: What a layout of this document from this one needs (:class:`docx2svg.relayout.State`):
     #: kept with the layout, so that it can be handed back as ``previous``.
-    state: object = field(default=None, repr=False, compare=False)
+    state: State | None = field(default=None, repr=False, compare=False)
     #: While placing pages: the warnings, approximations and placeholders recorded, in
     #: order, as ``(kind, ...arguments)``, so a page placed once is warned of again when it
     #: is kept (:mod:`docx2svg.relayout`).  ``None`` otherwise.
@@ -553,9 +561,9 @@ def line_positions(items, line: linebreak.Line, geometry: linebreak.Geometry, ad
         last -= 1
     if last < line.start:
         return out
-    content_end = out[last] + (items[last].hyphen if items[last].kind == linebreak.SOFT_HYPHEN else
-                               items[last].width if items[last].kind != linebreak.TAB else 0)
-    slack = geometry.right - content_end
+    text_end = out[last] + (items[last].hyphen if items[last].kind == linebreak.SOFT_HYPHEN else
+                            items[last].width if items[last].kind != linebreak.TAB else 0)
+    slack = geometry.right - text_end
     alignment = alignment or "left"
     if alignment in ("center",) and slack > 0:
         # Half the slack, truncated to the layout unit: an odd slack puts the line half a
@@ -683,7 +691,7 @@ class _Lazy(dict):
     """A dict whose entries are found when first asked for: ``find(key)``, ``None`` for a
     key it has none for (:meth:`_Placer._details` with ``lazy``)."""
 
-    find = None
+    find: Callable[..., object] | None = None
 
     def __init__(self) -> None:
         super().__init__()
@@ -718,6 +726,13 @@ class _Lazy(dict):
 
 
 class _Placer:
+    #: Set on a header's, footer's or note area's placer only (read with ``getattr``): the
+    #: part its story is from, the right edge its separator's line ends at, and the
+    #: tables already reported as laid out by an approximate rule.
+    story_part: str | None
+    separator_clip: Fraction | None
+    approximated_tables: set[int]
+
     def __init__(self, document: Document, package: bytes | None, advances, metrics, decorations) -> None:
         self.document = document
         self.advances = advances
@@ -758,7 +773,7 @@ class _Placer:
         index = 0
         out: list[str | None] = []
 
-        placed = getattr(self, "placed_notes", set())
+        placed: set[int] = getattr(self, "placed_notes", set())
 
         def walk(item, section, in_table, note=False):
             nonlocal index
@@ -908,7 +923,8 @@ class _Placer:
             start, end = result.starts[index], ends[index]
             first = page_number
             floats = self.__dict__.setdefault("_float_count", [0])[0]
-            self.layout.log = log = []
+            log: list = []
+            self.layout.log = log
             number = drawn_pages[index] if index < len(drawn_pages) else paginate._page_number(result, index)
             # Blank pages Word inserts (an ``oddPage`` / ``evenPage`` section on the wrong
             # parity, a footnote continuation page) have no lines, and no header or footer
@@ -1007,9 +1023,10 @@ class _Placer:
         from .resolve import character_format
 
         fmt = character_format(resolved, text[0], source)
+        face = fmt.face
         units = []
         for char in text:
-            advance = self.advances.advance(fmt.face, fmt.bold, fmt.italic, char) if fmt.face else None
+            advance = self.advances.advance(face, fmt.bold, fmt.italic, char) if face else None
             if advance is None:
                 self.layout.warn("line-numbers-not-drawn", "a line number whose face has no advances is not drawn")
                 return None
@@ -1020,7 +1037,8 @@ class _Placer:
         for width in units:
             xs.append(x)
             x += width
-        return Span(f"w:sectPr[{section + 1}]/w:lnNumType", list(text), xs, line.baseline, x, fmt.face, fmt.bold,
+        assert face  # each character's advance was found in it (``text``, a number, is not empty)
+        return Span(f"w:sectPr[{section + 1}]/w:lnNumType", list(text), xs, line.baseline, x, face, fmt.bold,
                     fmt.italic, fmt.half_points, _color(resolved.get("color")), kind="line-number")
 
     # -- fields ------------------------------------------------------------------------------
@@ -1139,6 +1157,7 @@ class _Placer:
         out = {}
         for block, k in keys:
             run = paragraphs[block].runs[k]
+            assert run.field is not None  # ``keys`` are computed fields' runs
             if run.field.keyword == "PAGEREF":
                 if targets is None:
                     targets = self._bookmark_pages(items, result, details, drawn)
@@ -1481,7 +1500,8 @@ class _Placer:
 
         def resolved_body(k: int):
             if k not in resolved:
-                resolved[k] = resolve_paragraph(document, body[k]) if not isinstance(body[k], Table) else None
+                block = body[k]
+                resolved[k] = resolve_paragraph(document, block) if not isinstance(block, Table) else None
             return resolved[k]
 
         if not lazy:
@@ -1489,7 +1509,8 @@ class _Placer:
                 resolved_body(k)
         position_of = {id(b): k for k, b in enumerate(body)}
         memo = self.memo if lazy else None
-        neighbours = self.box_neighbours = _Lazy() if lazy else {}
+        neighbours: dict = _Lazy() if lazy else {}
+        self.box_neighbours = neighbours
 
         def one(flow_index: int) -> _Paragraph | None:
             item = items[flow_index] if 0 <= flow_index < len(items) else None
@@ -1529,6 +1550,7 @@ class _Placer:
         if lazy:
             out = _Lazy()
             out.find = one
+            assert isinstance(neighbours, _Lazy)
             neighbours.find = lambda flow_index: (out.get(flow_index), neighbours.data.get(flow_index))[1]
             return out
         found: dict[int, _Paragraph] = {}
@@ -1847,6 +1869,7 @@ class _Placer:
                 if placeholder is not None:
                     box_top = y if box_top is None else box_top
                 elif number_ not in item.undrawn:
+                    assert info is not None  # a paragraph laid out (not a placeholder) has its details
                     self._line(page, info, item, number_, y, height, baseline, band)
                 y += height.pitch
                 first_on_page = False
@@ -1855,7 +1878,7 @@ class _Placer:
             ends_here = paginate.Position(index, item.count) <= end
             if ends_here:
                 y += item.border
-            if band_top is not None and info is not None:
+            if band_top is not None and band_bottom is not None and info is not None:
                 self._paragraph_rules(page, info, index, band_top, band_bottom, y_gap, y,
                                       starts_here=starts_here, ends_here=ends_here)
             previous = item
@@ -2024,7 +2047,7 @@ class _Placer:
         from .floating import EMU_PER_TWIP
 
         body = graphic.body
-        insets = [Fraction(body.get(key, default), EMU_PER_TWIP) for key, default in
+        stated = [Fraction(body.get(key, default), EMU_PER_TWIP) for key, default in
                   (("lIns", 91440), ("tIns", 45720), ("rIns", 91440), ("bIns", 45720))]
         if body.get("vert", "horz") not in ("horz",) or body.get("rot", "0") not in ("0",):
             self.layout.warn("drawing-not-drawn", f"a text box's vertical or rotated text is not laid out ({path})",
@@ -2040,7 +2063,7 @@ class _Placer:
         # distance in from the shape's edge, rounded to the nearest twip, a half up
         # (``make_text_box_top_probe.py``: ``ins``, ``line`` and ``edge`` sweeps by a fifth
         # of a twip; a custom text rectangle on a half twip goes up).
-        insets = [round_half_up(inset + edge / EMU_PER_TWIP) for inset, edge in zip(insets, edges)]
+        insets = [round_half_up(inset + edge / EMU_PER_TWIP) for inset, edge in zip(stated, edges)]
         inner_width = width / TWIP_PX - insets[0] - insets[2]
         section = self.document.sections[0]
         width_twips = max(1, math.floor(inner_width))
@@ -2096,8 +2119,8 @@ class _Placer:
         moved = vertical.quantise(top + offset)
         story_bottom += moved - top
         top = moved
-        left = round_half_up(vertical.quantise(origin_x * TWIP_PX))
-        left = round_half_up(left / LAYOUT_UNIT_PX) * LAYOUT_UNIT_PX
+        pixel = round_half_up(vertical.quantise(origin_x * TWIP_PX))
+        left = round_half_up(pixel / LAYOUT_UNIT_PX) * LAYOUT_UNIT_PX
         scratch = Page(page.number, page.width_px, page.height_px, page.width_pt, page.height_pt,
                        (left, left + width - (insets[0] + insets[2]) * TWIP_PX, top, top + room))
         scratch.info = page.info
@@ -2640,6 +2663,7 @@ class _Placer:
                 if level is not None:
                     values.update(level.run)
                 resolved = Resolved(values, dict(mark.origins))
+                key: tuple
                 path, kind, key = f"{paragraph.path}/label", "label", ("label",)
                 if piece.char == linebreak.PICTURE_BULLET and level is not None:
                     current = None
@@ -2777,6 +2801,7 @@ class _Placer:
         its width left of it, rounded (``make_drop_cap_probe.py``: 172 px for a 128.17 px
         letter against a column at 300)."""
         drop = item.drop_cap
+        assert drop is not None, "called for a paragraph a drop cap drops into"
         section = self.document.sections[item.section]
         info = _Paragraph(drop.paragraph, drop.pp, drop.pieces, drop.lines,
                           linebreak.geometry(self.document, drop.paragraph, section, drop.pp), None)
@@ -2809,6 +2834,7 @@ class _Placer:
         pieces, lines = linebreak.break_paragraph(self.document, paragraph, section, self.advances, self.metrics)
         info = _Paragraph(paragraph, pp, pieces, lines, linebreak.geometry(self.document, paragraph, section, pp), None)
         height = item.continuation
+        assert height is not None, "called for a paragraph under the continuation separator"
         box = height.box()
         self._line(page, info, None, 0, y, height, baseline_in_box(y, box), text_band(y, box))
         return y + height.pitch
@@ -3019,8 +3045,11 @@ def paragraph_rects(pp, path: str, left: Fraction, right: Fraction, band_top: in
     text_right = math.floor(right)
     inner_left = text_left - _space_px(sides["left"]) - BORDER_OUTSET_PX if drawn["left"] else None
     inner_right = text_right + _space_px(sides["right"]) + BORDER_OUTSET_PX if drawn["right"] else None
-    outer_left = inner_left - _border_width_px(sides["left"]) if drawn["left"] else text_left - BORDER_OUTSET_PX
-    outer_right = inner_right + _border_width_px(sides["right"]) if drawn["right"] else text_right + BORDER_OUTSET_PX
+    # (``inner_left`` and ``inner_right`` are ``None`` exactly where their side is not drawn.)
+    outer_left = (inner_left - _border_width_px(sides["left"]) if inner_left is not None
+                  else text_left - BORDER_OUTSET_PX)
+    outer_right = (inner_right + _border_width_px(sides["right"]) if inner_right is not None
+                   else text_right + BORDER_OUTSET_PX)
 
     def line(kind: str, side, y0: int) -> None:
         out.append(Rule(kind, path, Fraction(outer_left), Fraction(y0), Fraction(outer_right - outer_left),
@@ -3040,22 +3069,22 @@ def paragraph_rects(pp, path: str, left: Fraction, right: Fraction, band_top: in
     if top_side and drawn["top"]:
         outer_top = box_top - _border_width_px(sides["top"])
     if bottom_side and drawn["bottom"]:
-        inner = band_bottom + _space_px(sides["bottom"])
-        line("border-bottom", sides["bottom"], inner)
-        box_bottom = inner
-        outer_bottom = inner + _border_width_px(sides["bottom"])
+        inner_bottom = band_bottom + _space_px(sides["bottom"])
+        line("border-bottom", sides["bottom"], inner_bottom)
+        box_bottom = inner_bottom
+        outer_bottom = inner_bottom + _border_width_px(sides["bottom"])
     elif not bottom_side and any(drawn.values()):
         box_bottom = outer_bottom = round_half_up(y_after)
-    for name, inner, width_sign in (("left", inner_left, -1), ("right", inner_right, 1)):
-        if drawn[name]:
+    for name, inner_side, width_sign in (("left", inner_left, -1), ("right", inner_right, 1)):
+        if inner_side is not None:
             width = _border_width_px(sides[name])
-            x0 = inner - width if width_sign < 0 else inner
+            x0 = inner_side - width if width_sign < 0 else inner_side
             out.append(Rule(f"border-{name}", path, Fraction(x0), Fraction(outer_top), Fraction(width),
                             Fraction(outer_bottom - outer_top), _color(sides[name][3]) or "000000", sides[name][0]))
     fill = _shading(pp.get("shd"))
     if fill:
-        x0 = inner_left if drawn["left"] else text_left - BORDER_OUTSET_PX
-        x1 = inner_right if drawn["right"] else text_right + BORDER_OUTSET_PX
+        x0 = inner_left if inner_left is not None else text_left - BORDER_OUTSET_PX
+        x1 = inner_right if inner_right is not None else text_right + BORDER_OUTSET_PX
         out.append(Rule("paragraph-shading", path, Fraction(x0), Fraction(box_top), Fraction(x1 - x0),
                         Fraction(box_bottom - box_top), fill))
     return out
@@ -3223,7 +3252,7 @@ def substitute_blocks(blocks, text_of) -> list:
 
 def _footnote_pages(items, result) -> dict:
     """Footnote id -> the page its reference's line is on."""
-    out = {}
+    out: dict = {}
     for index, item in enumerate(items):
         if isinstance(item, paginate.Para) and item.notes:
             found = result.pages.get(index, [])

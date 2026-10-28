@@ -37,7 +37,7 @@ def paragraph_features(package: bytes) -> list[str | None]:
     out: list[str | None] = []
 
     # List levels whose label is a picture (``w:lvlPicBulletId``): a drawing on the line.
-    pictures: set[tuple[str, str]] = set()
+    pictures: set[tuple[str | None, str | None]] = set()
     if "word/numbering.xml" in archive.namelist():
         numbering = ElementTree.fromstring(archive.read("word/numbering.xml"))
         abstract = {a.get(w + "abstractNumId"): {lvl.get(w + "ilvl") for lvl in a.findall(w + "lvl")

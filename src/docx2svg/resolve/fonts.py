@@ -199,6 +199,7 @@ def character_format(resolved: Resolved, char: str, document: Document) -> Chara
     format: it is made once per slot, and found once per character, and kept on
     ``resolved`` (whose values nothing changes once it is made) -- the layout asks for
     every character, several times."""
+    kept: tuple[dict[str, tuple[Document, CharacterFormat]], dict[str, tuple[Document, CharacterFormat]]] | None
     kept = resolved.__dict__.get("_formats")
     if kept is None:
         kept = ({}, {})

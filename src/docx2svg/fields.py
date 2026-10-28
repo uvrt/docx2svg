@@ -327,9 +327,10 @@ def sequence_step(instruction: str, name: str, found: list[tuple[str, str | None
         return Uncomputable(f"the sequence {name!r} restarts at heading levels (\\s)")
     flags = dict(found)
     if "r" in flags:
-        if not (flags["r"] or "").isdigit():
+        restart = flags["r"]
+        if restart is None or not restart.isdigit():
             return Uncomputable("\\r takes a number")
-        counts[name] = int(flags["r"])
+        counts[name] = int(restart)
     elif "c" not in flags:
         counts[name] = counts.get(name, 0) + 1
     value = counts.get(name, 0)
@@ -352,7 +353,10 @@ def reference_runs(paragraphs: list[Paragraph], run: Run, marks: dict) -> tuple[
     """What Word draws for a ``REF`` field's run: the bookmark's text as runs (see the
     module docstring), each with the field's path.  ``marks`` is :func:`bookmarks`.
     Raises :class:`Uncomputable`."""
-    instruction = run.field.instruction
+    field = run.field
+    if field is None:
+        raise Uncomputable("the run is not a field's")
+    instruction = field.instruction
     name = _argument(instruction)
     if not name or name not in marks:
         raise Uncomputable("its bookmark is not in the body (Word draws an error in the application's language)")
@@ -380,9 +384,9 @@ def reference_runs(paragraphs: list[Paragraph], run: Run, marks: dict) -> tuple[
         chars = [run.properties] * len(text)
     else:
         chars = [piece.properties for piece in source for _ in piece.text]
-        if "mergeformat" in words and run.field.cached:
-            old = [properties for piece, properties in run.field.cached for _ in piece]
-            old_text = "".join(piece for piece, _ in run.field.cached)
+        if "mergeformat" in words and field.cached:
+            old = [properties for piece, properties in field.cached for _ in piece]
+            old_text = "".join(piece for piece, _ in field.cached)
             old_words = [old[match.start()] for match in re.finditer(r"\S+", old_text)]
             for index, match in enumerate(re.finditer(r"\S+", text)):
                 if index < len(old_words):
@@ -411,8 +415,8 @@ def cross_references(blocks) -> tuple[list, list[tuple[str, str]]]:
         if isinstance(value, Uncomputable):
             problems.append(("SEQ", value.args[0]))
             continue
-        runs = replaced.setdefault(block, list(paragraphs[block].runs))
-        runs[k] = dataclasses.replace(runs[k], text=value)
+        edited = replaced.setdefault(block, list(paragraphs[block].runs))
+        edited[k] = dataclasses.replace(edited[k], text=value)
     counted = [dataclasses.replace(p, runs=tuple(replaced[b])) if b in replaced else p
                for b, p in enumerate(paragraphs)]
     marks = bookmarks(counted)

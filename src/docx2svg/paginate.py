@@ -35,6 +35,7 @@ import dataclasses
 import math
 from dataclasses import dataclass, field
 from fractions import Fraction
+from typing import TYPE_CHECKING, Callable
 
 from . import lines as line_model
 from . import table as table_model
@@ -45,6 +46,12 @@ from .vertical import (
     PX_PER_PT, autospace_kept, keeps_space_before_at_page_top, page_top_gap_px, paragraph_borders_px, paragraph_gap_px,
     twips_to_px,
 )
+
+if TYPE_CHECKING:
+    from .linebreak import Geometry
+    from .measure import Advances
+    from .model import Section
+    from .resolve.cascade import Resolved
 
 #: What of a line must be above the bottom margin for the line to stay on the page
 #: (:func:`fits`): its pitch less an ``auto`` multiple's extra, and on a paragraph's last
@@ -252,6 +259,7 @@ class Para:
     def set_lines(self, lines: list, plain_from: int) -> bool:
         """Take ``lines`` as the paragraph's (:class:`ParaSource`: every quantity that
         follows from them again); ``False`` where a line's height cannot be measured."""
+        assert self.source is not None, "only a paragraph with a source is broken again"
         derived = self.source.derive(lines)
         if derived is None:
             return False
@@ -275,6 +283,7 @@ class Para:
         """Line ``line`` ends a page in an automatic hyphen and Word moves only the word
         (:func:`hyphen_at_page_end`, ``"word"``): the line ends before the word, and the
         paragraph is broken again from it.  ``False`` where the word is the whole line."""
+        assert self.source is not None, "only a paragraph with a source is broken again"
         broken = self.lines[line]
         pieces = self.source.pieces
         k = broken.end - 1  # the automatic hyphen
@@ -304,7 +313,7 @@ class TableItem:
     #: The index of its first cell paragraph in ``tools/baselines.blocks`` order.
     block: int
     section: int
-    flow: object
+    flow: table_model.TableFlow
     section_start: bool = False
     # What the stack asks of any item, none of which a table has.
     before: int = 0
@@ -322,7 +331,7 @@ class TableItem:
     notes: dict = field(default_factory=dict)
     #: The table laid out again in a narrower column (``(section) -> TableFlow``), for a
     #: room beside a drawing (:func:`table_beside`); ``None`` where it cannot be.
-    reflow: object = None
+    reflow: Callable[[Section], table_model.TableFlow] | None = None
     #: A page's first position -> where the table goes beside the drawings text wraps
     #: around on that page (:class:`TableBeside`), as the paginator last placed it.
     beside: dict = field(default_factory=dict)
@@ -376,11 +385,11 @@ class ParaSource:
 
     document: Document
     paragraph: Paragraph
-    pp: object
+    pp: Resolved
     pieces: list
-    geometry: object
-    advances: object
-    metrics: object
+    geometry: Geometry
+    advances: Advances
+    metrics: Callable
     cache: dict
     one_column: bool
     #: ``(text index, the footnote's laid-out lines)`` for every footnote reference.
@@ -390,7 +399,7 @@ class ParaSource:
     chars: dict = field(default_factory=dict)
     #: The section, where its columns are of unequal widths: a line broken for a column
     #: other than the first is a :class:`ColumnLine` (:meth:`rest`).
-    section: object = None
+    section: Section | None = None
 
     def _resolved(self) -> dict:
         """:attr:`chars`, found when first asked for: most paragraphs are never broken again
@@ -480,7 +489,7 @@ class ColumnLine(BrokenLine):
     """A line broken for a column other than its paragraph's first (one of unequal
     columns): a line with the column's geometry, which the renderer sets it in."""
 
-    geometry: object = None
+    geometry: Geometry | None = None
     width: int = 0
 
 
@@ -583,7 +592,7 @@ class Frame:
     first_on_page: bool = True
     #: The item before its first, where it goes on from a region above (``None`` at a
     #: column's top).
-    previous: object = None
+    previous: Para | TableItem | None = None
     #: Whether its section has several columns.
     multi: bool = False
     #: Its column's offset from the text area's left edge and its width, twips.
@@ -602,7 +611,7 @@ class Frame:
     first_top: Fraction | None = None
     #: The item the stack's next paragraph spaces itself from (a paragraph holding only a
     #: section break is passed over).
-    last: object = None
+    last: Para | TableItem | None = None
     #: Below mode 15, the footnotes at the column's own foot (:func:`_scan`'s
     #: ``(lines, how many of them are in the column)``), and the lines of notes the column
     #: before (or the page before) could not hold, which open it under the continuation
@@ -662,7 +671,7 @@ class Flow(list):
     #: ``(note id, section, width in twips) ->`` a footnote's lines broken in a column of
     #: that width (``None`` where it cannot be measured): what a column of unequal ones
     #: holds of it at its foot.
-    note_at: object
+    note_at: Callable[..., list | None] | None
     #: ``(advances, metrics)`` the flow was measured with: a page's note area in mode 15
     #: (:func:`note_area`) is a flow of its own.
     measure: tuple
@@ -751,7 +760,7 @@ def stack_height(document: Document, items: list) -> Fraction:
     of two lines with 240 twips after starts the body 57 twips below the margin, one line
     with 480 before 29.  An obstacle ends the stack."""
     y = Fraction(0)
-    previous = None
+    previous: Para | TableItem | None = None
     first = True
     for item in items:
         if isinstance(item, Obstacle):
@@ -774,6 +783,7 @@ def stack_height(document: Document, items: list) -> Fraction:
                 elif isinstance(previous, TableItem):
                     gap = twips_to_px(item.before)
                 else:
+                    assert previous is not None  # not the first item
                     same = item.style == previous.style
                     own_before = 0 if (item.contextual and same) else item.before
                     prev_after = 0 if (previous.contextual and same) else previous.after
@@ -894,7 +904,7 @@ def _note_lines(document: Document, paragraphs: list, section, advances, metrics
     them, with the note's own spacing (:func:`note_spacing`) above its first line;
     ``None`` when a paragraph cannot be measured."""
     out: list[NoteLine] = []
-    previous_after = None
+    previous_after = 0  # read from the second paragraph on
     first_before = last_after = 0
     for index, paragraph in enumerate(paragraphs):
         pp = resolve_paragraph(document, paragraph)
@@ -910,8 +920,8 @@ def _note_lines(document: Document, paragraphs: list, section, advances, metrics
                 first_before, gap = before, Fraction(0)
             else:
                 gap = paragraph_gap_px(previous_after, before)[0]
-            for number, height in enumerate(heights):
-                out.append(NoteLine(height + (gap if number == 0 else 0), number, len(heights), False, note, index,
+            for number, estimated in enumerate(heights):
+                out.append(NoteLine(estimated + (gap if number == 0 else 0), number, len(heights), False, note, index,
                                     len(out)))
             previous_after = last_after = pp.get("spacing.after", 0) or 0
             continue
@@ -995,7 +1005,7 @@ def shares_page(document: Document, section_number: int) -> bool:
     return section_number + 1 < len(sections) and sections[section_number + 1].start_type == "continuous"
 
 
-def _blocks_of_body(document: Document) -> list[tuple[object, int]]:
+def _blocks_of_body(document: Document) -> list[tuple[Paragraph | Table, int]]:
     """Each top-level item with its index in ``baselines.blocks`` order."""
     out = []
     index = 0
@@ -1121,7 +1131,7 @@ class DropCap:
     above the frame's foot).  The text beside it starts after it (:meth:`text_start`)."""
 
     paragraph: Paragraph
-    pp: object
+    pp: Resolved
     pieces: list
     lines: list
     heights: list
@@ -1129,7 +1139,8 @@ class DropCap:
     #: How far its widest line reaches from the column's start, its indent included, in
     #: the layout unit.
     width: int | Fraction
-    kind: str
+    #: ``w:framePr/@w:dropCap``: ``drop`` or ``margin``.
+    kind: str | None
     hspace: int
     anchor: str
 
@@ -1204,7 +1215,7 @@ def drop_cap_of(document: Document, paragraph: Paragraph, pp, section, advances,
 
 
 def flow(document: Document, advances, metrics, *, features: list[str | None] | None = None,
-         memo=None) -> list:
+         memo=None) -> Flow:
     """The document's top-level items as :class:`Para` and :class:`Obstacle`.
 
     ``features`` -- per block, why the parsed model cannot stand for a paragraph (a
@@ -1306,10 +1317,10 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
             section_number = _section_of(document, top_level)
             section_start = section_number not in section_seen
             position = body_index[id(item)]
-            before = document.body[position - 1] if position else None
+            preceding = document.body[position - 1] if position else None
             mode: dict = {}
             approximation = None
-            key = memo.table_key(item, section_number, block, labels, features, before) if memo is not None else None
+            key = memo.table_key(item, section_number, block, labels, features, preceding) if memo is not None else None
             found = memo.get(key) if key is not None else None
             try:
                 if found is not None:
@@ -1321,11 +1332,12 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
                 laid = laid if found is not None else table_model.flow_table(
                     document, item, document.sections[section_number], advances, metrics,
                     block=block, labels=labels, features=features, cache=heights_cache,
-                    previous=before if isinstance(before, Paragraph) else None)
+                    previous=preceding if isinstance(preceding, Paragraph) else None)
                 if is_multi_column(document.sections[section_number]) and laid.floating is not None:
                     raise table_model.Unsupported("a floating table in a section of several text columns")
             except _Measured:
                 # Laid out by the approximate rules last time: as then.
+                assert found is not None  # raised only for what the memo held
                 mode = found[1]
                 laid.approximation = approximation
             except table_model.Unsupported as why:
@@ -1341,7 +1353,8 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
                     laid = table_model.flow_table(document, item, document.sections[section_number], advances,
                                                   metrics, block=block, labels=labels, features=features,
                                                   cache=heights_cache,
-                                                  previous=before if isinstance(before, Paragraph) else None, **mode)
+                                                  previous=preceding if isinstance(preceding, Paragraph) else None,
+                                                  **mode)
                 except table_model.Unsupported as again:
                     section_seen.add(section_number)
                     out.append(placeholder_item(document, item, block, section_number, "table",
@@ -1353,10 +1366,10 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
                 memo.put(key, (dataclasses.replace(laid, overflowed=set()), dict(mode), approximation))
             section_seen.add(section_number)
 
-            def reflow(section, item=item, block=block, before=before, mode=mode):
+            def reflow(section, item=item, block=block, preceding=preceding, mode=mode):
                 return table_model.flow_table(document, item, section, advances, metrics, block=block, labels=labels,
                                               features=features, cache=heights_cache,
-                                              previous=before if isinstance(before, Paragraph) else None, **mode)
+                                              previous=preceding if isinstance(preceding, Paragraph) else None, **mode)
 
             out.append(TableItem(block, section_number, laid, section_start=section_start,
                                  reflow=reflow if out.wraps or out.columns else None))
@@ -1778,8 +1791,9 @@ def section_start_number(document: Document, section: int, previous: int, physic
       eighth page puts page 1 on the ninth.
     """
     here = document.sections[section]
-    restarted = here.page_number_start is not None
-    number = here.page_number_start if restarted else previous + 1
+    start = here.page_number_start
+    restarted = start is not None
+    number = start if start is not None else previous + 1
     blanks = 0
     kind = here.start_type
     if kind in ("oddPage", "evenPage") and number % 2 != (1 if kind == "oddPage" else 0):
@@ -1792,7 +1806,7 @@ def section_start_number(document: Document, section: int, previous: int, physic
     return number, blanks
 
 
-def page_end(document: Document, items: list, start: Position, rules: Rules | None = None,
+def page_end(document: Document, items: Flow, start: Position, rules: Rules | None = None,
              carry: tuple = ()) -> Position:
     """The position the page starting at ``start`` ends before (``Position(len(items))``
     at the end of the document).  Raises :class:`Unplaceable` at an :class:`Obstacle`.
@@ -1800,14 +1814,14 @@ def page_end(document: Document, items: list, start: Position, rules: Rules | No
     return lay_page(document, items, start, rules, carry)[0]
 
 
-def lay_page(document: Document, items: list, start: Position, rules: Rules | None = None,
+def lay_page(document: Document, items: Flow, start: Position, rules: Rules | None = None,
              carry: tuple = (), story: str | None = None) -> tuple[Position, tuple]:
     """:func:`page_end`, and the lines of a footnote that go on to the next page."""
     end, carry, _, _ = _lay_page(document, items, start, rules, carry, story)
     return end, carry
 
 
-def _lay_page(document: Document, items: list, start: Position, rules: Rules | None, carry: tuple,
+def _lay_page(document: Document, items: Flow, start: Position, rules: Rules | None, carry: tuple,
               story: str | None = None, page: int = 0, bands_out: list | None = None,
               wraps_out: list | None = None, frames_out: list | None = None):
     """A page, laid out once without the bands of its ``wrapTopAndBottom`` drawings and
@@ -1838,7 +1852,7 @@ def _lay_page(document: Document, items: list, start: Position, rules: Rules | N
     return end, _carried(placed, end), forced, _page_notes(placed, end)
 
 
-def _stacked_bands(document: Document, items: list, start: Position, rules: Rules, carry: tuple,
+def _stacked_bands(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple,
                    story: str | None, page: int, bands: list) -> list:
     """The page's ``wrapTopAndBottom`` bands, each drawing positioned from the page as laid
     out with the bands of the drawings **before** it -- not its own, nor those after it
@@ -1861,7 +1875,7 @@ def _stacked_bands(document: Document, items: list, start: Position, rules: Rule
     return fixed
 
 
-def _lay_columns_page(document: Document, items: list, start: Position, rules: Rules, carry: tuple,
+def _lay_columns_page(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple,
                       story: str | None, page: int, bands_out: list | None, wraps_out: list | None,
                       frames_out: list | None):
     """:func:`_lay_page` for a document with a section of several columns: the page as its
@@ -1925,7 +1939,7 @@ def _lay_columns_page(document: Document, items: list, start: Position, rules: R
     return end, _carried(placed, end), forced, notes
 
 
-def _lay_noted(document: Document, items: list, start: Position, rules: Rules, carry: tuple, story: str | None,
+def _lay_noted(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple, story: str | None,
                tops: dict, frames: list):
     """:func:`_lay_columns`, with the room of the page's note area in mode 15 found
     (:func:`_lay_columns_page`): ``(end, placed, forced, room)``."""
@@ -1933,7 +1947,7 @@ def _lay_noted(document: Document, items: list, start: Position, rules: Rules, c
     seen: list = []
     while True:
         laid: list = []
-        found: dict = Tops()
+        found = Tops()
         try:
             end, placed, forced = _lay_columns(document, items, start, rules, carry, story, tops=found, frames=laid,
                                                note_room=room)
@@ -2010,13 +2024,13 @@ class NoteArea:
     line: what the page keeps free above its foot."""
 
     story: Document
-    items: list
+    items: Flow
     frames: list
     height: Fraction
     room: Fraction
 
 
-def note_area(document: Document, items: list, section_number: int, ids: tuple) -> NoteArea | None:
+def note_area(document: Document, items: Flow, section_number: int, ids: tuple) -> NoteArea | None:
     """The page's note area for the notes ``ids`` in section ``section_number``'s columns
     (:class:`NoteArea`); ``None`` where a note cannot be laid out.  Cached on the flow."""
     cache = getattr(items, "areas", None)
@@ -2058,7 +2072,7 @@ def note_area(document: Document, items: list, section_number: int, ids: tuple) 
     return area
 
 
-def _lay_columns(document: Document, items: list, start: Position, rules: Rules, carry: tuple,
+def _lay_columns(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple,
                  story: str | None, *, bands=(), tops: dict | None = None, wraps=(), frames: list,
                  note_room: Fraction = Fraction(0)):
     """One page from ``start`` as Word lays a page of text columns out
@@ -2130,7 +2144,7 @@ def _ended_after(items: list, frame: Frame) -> tuple[Fraction, object]:
     return Fraction(0), None
 
 
-def region_foot(document: Document, items: list, frames: list) -> tuple[Fraction, object]:
+def region_foot(document: Document, items: Flow, frames: list) -> tuple[Fraction, object]:
     """Where the stack goes on under a region of several columns, and the item the next
     paragraph's space before collapses with (``make_columns_probe.py``, ``regions``):
 
@@ -2162,7 +2176,7 @@ def region_foot(document: Document, items: list, frames: list) -> tuple[Fraction
     return top + height - after, previous
 
 
-def _fill(document: Document, items: list, start: Position, rules: Rules, carry: tuple, story: str | None,
+def _fill(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple, story: str | None,
           top: Fraction, bottom: Fraction, previous, first_on_page: bool, section_number: int, done: list,
           **kw) -> tuple[list, list]:
     """One region from ``start``: its section's columns filled in turn, each from ``top``
@@ -2207,7 +2221,7 @@ def _fill(document: Document, items: list, start: Position, rules: Rules, carry:
     return frames, placed_all
 
 
-def _balance(document: Document, items: list, start: Position, rules: Rules, story: str | None, top: Fraction,
+def _balance(document: Document, items: Flow, start: Position, rules: Rules, story: str | None, top: Fraction,
              bottom: Fraction, previous, first_on_page: bool, section_number: int, done: list, laid: list,
              placed: list, kw: dict) -> tuple[list, list]:
     """A region whose section ends on the page, a continuous section after it, laid out
@@ -2414,7 +2428,7 @@ def _heights(lines) -> Fraction:
     return sum((line.height for line in lines), Fraction(0))
 
 
-def _scan(document: Document, items: list, start: Position, rules: Rules, carry: tuple, story: str | None = None,
+def _scan(document: Document, items: Flow, start: Position, rules: Rules, carry: tuple, story: str | None = None,
           bands=(), tops: dict | None = None, wraps=(), frame: "Frame | None" = None):
     """Lay one page out from ``start``: ``(end, placed, forced)``, ``placed`` holding per
     line kept ``(position, the page foot's notes after it)``.
@@ -2454,13 +2468,14 @@ def _scan(document: Document, items: list, start: Position, rules: Rules, carry:
         left = twips_to_px(section.margins.left + section.margins.gutter + frame.offset)
         right = left + twips_to_px(frame.width)
         bands = [band for band in bands if band.span is None or (band.span[0] < right and band.span[1] > left)]
-    unequal_notes = in_column and getattr(items, "note_at", None) is not None and len(
+    note_at = getattr(items, "note_at", None)
+    unequal_notes = frame is not None and in_column and note_at is not None and len(
         {width for _, width, _ in column_boxes(document.sections[frame.section])}) > 1
     y = top
     if isinstance(first, Para) and first.continuation is not None and (frame is None or frame.page_top):
         # A page the endnotes go on to: the continuation separator's line first.
         y += first.continuation.pitch
-    previous: Para | None = None if frame is None else frame.previous
+    previous: Para | TableItem | None = None if frame is None else frame.previous
     first_on_page = True if frame is None else frame.first_on_page
     #: Where the stack ends after each line placed (for a :class:`Frame`'s foot).
     stack_ends: list = []
@@ -2501,7 +2516,8 @@ def _scan(document: Document, items: list, start: Position, rules: Rules, carry:
             # paragraph after it (the top of that paragraph: where the one before ends
             # after its space after), and the lines beside it go around it
             # (:func:`page_wraps`).
-            if not first_on_page and item.section != previous.section and _new_page_section(document, item.section):
+            if not first_on_page and previous is not None and item.section != previous.section and \
+                    _new_page_section(document, item.section):
                 return done(Position(index), True, "page")
             paragraph_top = y
             if not first_on_page and isinstance(previous, Para):
@@ -2513,8 +2529,8 @@ def _scan(document: Document, items: list, start: Position, rules: Rules, carry:
             index, line = index + 1, 0
             continue
         if isinstance(item, TableItem):
-            if not first_on_page and line == 0 and not start.part and item.section != previous.section and \
-                    _new_page_section(document, item.section):
+            if not first_on_page and line == 0 and not start.part and previous is not None and \
+                    item.section != previous.section and _new_page_section(document, item.section):
                 return done(Position(index), True, "page")
             if line == 0 and not first_on_page:
                 y += table_gap_px(previous, item)
@@ -2536,8 +2552,8 @@ def _scan(document: Document, items: list, start: Position, rules: Rules, carry:
                     # line does, its notes under it at the page's foot (``make_cell_footnote_probe.py``).
                     laid, notes, foot = _table_notes(document, items, item, laid, y, bottom, foot, notes, carry,
                                                      separator, start, line, part, first_on_page)
-            except table_model.Overflow as overflow:
-                raise Unplaceable(index, overflow.args[0]) from None
+            except table_model.Overflow as exceeded:
+                raise Unplaceable(index, exceeded.args[0]) from None
             for piece in laid.pieces:
                 if not piece.header:
                     placed.append((Position(index, piece.row, piece.start if piece.continued else ()), list(notes)))
@@ -2557,7 +2573,7 @@ def _scan(document: Document, items: list, start: Position, rules: Rules, carry:
             index, line = index + 1, 0
             continue
         if not first_on_page and line == 0:
-            if item.section != previous.section and _new_page_section(document, item.section):
+            if previous is not None and item.section != previous.section and _new_page_section(document, item.section):
                 return done(Position(index), True, "page")
             if item.page_break_before:
                 return done(Position(index), True, "page")
@@ -2593,6 +2609,7 @@ def _scan(document: Document, items: list, start: Position, rules: Rules, carry:
                         # After a table, a paragraph's space before is kept whole.
                         gap = twips_to_px(item.before)
                     else:
+                        assert previous is not None  # not the page's first line
                         same = item.style == previous.style
                         own_before = 0 if (item.contextual and same) else item.before
                         prev_after = 0 if (previous.contextual and same) else previous.after
@@ -2620,9 +2637,9 @@ def _scan(document: Document, items: list, start: Position, rules: Rules, carry:
             elif border_ends_every_page(document.compatibility_mode):
                 border = item.border
             new_notes = item.notes.get(number, [])
-            if new_notes and unequal_notes:
+            if new_notes and unequal_notes and note_at is not None and frame is not None:
                 # Broken in this column's width.
-                new_notes = [items.note_at(lines[0].note, item.section, frame.width) or lines
+                new_notes = [note_at(lines[0].note, item.section, frame.width) or lines
                              for lines in new_notes]
             below = foot
             if new_notes and pooled:
@@ -2748,6 +2765,7 @@ def table_wrap(document: Document, item: TableItem, paragraph_top: Fraction, pag
 
     flow = item.flow
     floating = flow.floating
+    assert floating is not None, "a floating table's"
     mode15 = (document.compatibility_mode or 0) >= 15
     far = Fraction(10 ** 7)
     height = table_model.place_table(flow, Fraction(0), far, first_on_page=False, mode15=mode15).end
@@ -2803,6 +2821,7 @@ def fit_beside(document: Document, item: "Para", number: int, y: Fraction, wraps
     from .linebreak import Line, break_line
 
     src = item.source
+    assert src is not None, "a paragraph beside a drawing keeps its source"
     pieces = src.pieces
     n = len(pieces)
     start = item.lines[number].start
@@ -2870,7 +2889,7 @@ class TableBeside:
     column."""
 
     row: int
-    flow: object = None
+    flow: table_model.TableFlow | None = None
     drop: Fraction | None = None
 
 
@@ -2925,6 +2944,7 @@ def table_beside(document: Document, item: TableItem, y: Fraction, wraps, first_
     pieces = [piece for piece in laid.pieces if not piece.header]
     if not pieces:
         return None
+    start: int | None
     if mode15:
         start = 0
         if not free_spans(wraps, y, laid.end, column)[1]:
@@ -3203,7 +3223,7 @@ def _keeps(items: list, start: Position, overflow: Position, rules: Rules,
     return target
 
 
-def paginate(document: Document, items: list, rules: Rules | None = None, *,
+def paginate(document: Document, items: Flow, rules: Rules | None = None, *,
              start: Position = Position(0), resume: tuple | None = None,  # noqa: B008 -- Position is frozen
              until=None) -> Pagination:
     """Every page of ``items`` (:func:`flow`) from ``start``, until the end or an obstacle.

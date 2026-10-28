@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
+from typing import Literal
 
 from ooxml_common.chart import layout as chart_layout
 from ooxml_common.chart import read as chart_read
@@ -331,7 +332,8 @@ AXIS_TITLE_REASONS = {"default": "axis title in Word's own words", "chart": "axi
 CHART_STYLE_LINE = "#898989"
 
 
-def title_text(document, colours: Colours, style, rich, text: str, size: float, align: str,
+def title_text(document, colours: Colours, style, rich, text: str, size: float,
+               align: Literal["l", "ctr", "r", "just"] | None,
                stated: list[bool] | None = None, base_size: float | None = None) -> m.TextBody:
     """A chart's or an axis' title text in Word: each run's own face, size and weight over
     its paragraph's ``a:defRPr``, over Word's defaults for a title -- which depend on
