@@ -830,7 +830,8 @@ def windows(old_sigs: list, sigs: list, old_texts: list, texts: list) -> list[tu
     a, b = _common(old_sigs, sigs)
     offset = n - o
     marks: list[tuple[int, int]] = []
-    if a < n - b or a < o - b:
+    edit = a < n - b or a < o - b
+    if edit:
         marks.append((a, n - b))
     for index in range(a):
         if old_texts[index] != texts[index]:
@@ -845,8 +846,16 @@ def windows(old_sigs: list, sigs: list, old_texts: list, texts: list) -> list[tu
             joined[-1][1] = max(joined[-1][1], high)
         else:
             joined.append([low, high])
-    return [(low, high, low if low <= a else low - offset, high if high <= a else high - offset)
-            for low, high in joined]
+    out = []
+    for low, high in joined:
+        if edit and low <= a and high >= n - b:
+            # The window holding the edit: before it as it was, after it moved.
+            out.append((low, high, low, high - offset))
+        elif high <= a:
+            out.append((low, high, low, high))
+        else:
+            out.append((low, high, low - offset, high - offset))
+    return out
 
 
 @dataclass

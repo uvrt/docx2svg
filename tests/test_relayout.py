@@ -492,3 +492,13 @@ def test_a_part_change_says_which_part(report16):
     assert again.relaid_cause == {"reason": "headers-footers", "part": "word/header1.xml"}
     plain = lay_out_docx(report_docs.package(blocks))[0]
     assert plain.relaid_cause is None and plain.relaid is None
+
+
+def test_the_last_block_deleted_from_a_report_with_contents():
+    # The edit is empty in the new document and at its end: the stretch it makes reaches the
+    # previous document's end (a deleted last paragraph once fell back to "body").
+    blocks = report_docs.report(4, toc=True, fields=True)
+    layout, data, fonts = lay_out_docx(report_docs.package(blocks))
+    svgs = page_svgs(layout, data, fonts=fonts)
+    again, _ = _check(blocks[:-1], layout, svgs, "the last block deleted", {})
+    assert again.relaid is None
