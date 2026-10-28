@@ -5,6 +5,19 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.7.1 -- unreleased
+
+- **CI time: the relayout property tests in two sizes.** Round 19's seeded random edits
+  (`tests/test_relayout.py`) took about four minutes of each CI leg. A pull request's run now
+  makes a small seeded set -- two edits per seed of the small reports, two of the reports
+  with footnotes and with sections, one of the 16-page report, two of the report with
+  fields -- and a new test makes one edit of every kind (`report_docs.EDIT_KINDS`) in turn;
+  every fallback test runs as before. The full set (96 edits of the small reports, the 16-
+  and the 40-page report, ...) runs with `RELAYOUT_FULL=1`, in a new workflow
+  (`.github/workflows/relayout-full.yml`: ubuntu, Python 3.15; nightly, on push to main and
+  on demand). The assertions are unchanged; only the number of edits differs. Locally the
+  module takes about 100 s instead of 245 s. Rendering is unchanged.
+
 ## 0.7.0 -- unreleased
 
 - **Laying a document out again from a previous layout** (production round 19, R1):

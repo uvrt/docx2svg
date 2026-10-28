@@ -104,11 +104,20 @@ def report(pages: int, seed: int = 0, *, notes: bool = False, sections: bool = F
 # -- edits -------------------------------------------------------------------------------------
 
 
-def edit(blocks: list[Block], rng: random.Random) -> tuple[list[Block], str]:
+#: Every kind of edit :func:`edit` makes.
+EDIT_KINDS = ("text", "grow", "cell", "insert", "delete", "row-insert", "row-delete", "break", "unbreak")
+
+
+def edit(blocks: list[Block], rng: random.Random, kind: str | None = None) -> tuple[list[Block], str]:
     """One random edit of ``blocks``: change a paragraph's or a cell's text, insert or delete
-    a paragraph, a table row or a page break.  ``(new blocks, what was done)``."""
+    a paragraph, a table row or a page break.  ``(new blocks, what was done)``.  ``kind``
+    (one of :data:`EDIT_KINDS`) makes an edit of that kind only; ``unbreak`` then needs a
+    page break in ``blocks`` and ``cell``, ``row-insert`` and ``row-delete`` a table."""
     blocks = list(blocks)
-    kinds = ["text", "text", "cell", "insert", "delete", "row-insert", "row-delete", "break", "unbreak", "grow"]
+    if kind is not None and kind not in EDIT_KINDS:
+        raise ValueError(f"no edit of kind {kind!r}: one of {', '.join(EDIT_KINDS)}")
+    kinds = [kind] if kind else ["text", "text", "cell", "insert", "delete", "row-insert", "row-delete", "break",
+                                 "unbreak", "grow"]
     while True:
         kind = rng.choice(kinds)
         k = rng.randrange(len(blocks))

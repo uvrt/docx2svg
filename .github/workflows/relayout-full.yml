@@ -1,0 +1,45 @@
+name: Relayout (full set)
+
+# The full seeded set of tests/test_relayout.py: 96 random edits of the small reports, the
+# 16- and the 40-page report, and more edits of the reports with footnotes, sections and
+# fields.  A pull request's CI (ci.yml) runs the small set, which has every edit kind and
+# every fallback; this runs the rest, with the same assertions (the module's docstring).
+# One leg -- ubuntu, the newest Python -- nightly after CI's own (02:47 UTC), on push to
+# main (a few minutes, so a merge that breaks the property shows at once), and on demand.
+# Not a required check: branch protection requires ci.yml's jobs only.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "57 3 * * *"
+
+jobs:
+  relayout-full:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.15"
+          # As in ci.yml: a final 3.15 whenever setup-python lists one.
+          allow-prereleases: true
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "ooxml-common @ git+https://github.com/uvrt/ooxml-common@main"
+          python -m pip install -e .[dev]
+
+      # The reports are set in Calibri, laid out with Carlito where it is absent (ci.yml).
+      - name: Install the open substitute fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-crosextra-carlito fonts-crosextra-caladea fonts-liberation
+
+      - name: Relayout, full set
+        env:
+          RELAYOUT_FULL: "1"
+        run: python -m pytest -q --durations=10 tests/test_relayout.py
