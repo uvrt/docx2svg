@@ -9,8 +9,19 @@ not have.  Held over seeded random edits (:func:`report_docs.edit`: a paragraph'
 cell's text changed or grown, paragraphs, rows and page breaks inserted and deleted) of
 made-up reports with headings, a list, tables with a header row, side panels text wraps
 beside, a header and a ``Page N of M`` footer, each layout made from the one before.
-``RELAYOUT_CASES`` (an environment variable) sets how many edits of the small reports
-run (CI's default: :data:`CASES`); the 16- and 40-page reports take :data:`LONG_CASES`.
+Every kind of edit is also made on its own, one after another on one report.
+
+**Two sizes.**  A pull request's CI runs a small seeded set (about a minute per leg): a few
+edits per test, every edit kind, every fallback.  ``RELAYOUT_FULL=1`` (an environment
+variable) runs the full set -- 96 edits of the small reports, the 16- and the 40-page
+report, every fallback with more edits after it -- as the nightly workflow
+(``.github/workflows/relayout-full.yml``) does on ubuntu with the newest Python::
+
+    RELAYOUT_FULL=1 python -m pytest -q tests/test_relayout.py
+
+The assertions are the same in both; only the number of edits differs (:data:`SIZES`).
+``RELAYOUT_CASES`` and ``RELAYOUT_LONG_CASES`` set the small reports' and the long reports'
+numbers outright, in either size.
 
 Every document is made up (``tools/report_docs.py``).
 """
@@ -28,11 +39,19 @@ import report_docs
 from docx2svg import ConvertOptions, lay_out_docx, page_svgs
 from docx2svg.relayout import FALLBACKS
 
-#: Edits of the small reports CI runs; ``RELAYOUT_CASES`` sets another number.
-CASES = int(os.environ.get("RELAYOUT_CASES", "96"))
-#: Edits of the 16-page and the 40-page report.
-LONG_CASES = {16: int(os.environ.get("RELAYOUT_LONG_CASES", "6")), 40: int(os.environ.get("RELAYOUT_LONG_CASES",
-                                                                                        "2"))}
+#: Whether the full set runs (``RELAYOUT_FULL=1``; the nightly workflow) or a pull request's.
+FULL = os.environ.get("RELAYOUT_FULL", "") not in ("", "0")
+#: How many edits each test makes, in the full set and in a pull request's: of the small
+#: reports (over the four seeds), of the reports with footnotes and with sections (each
+#: variant), of the 16- and the 40-page report, and of the report with fields.
+SIZES = {
+    True: {"small": 96, "notes": 12, "sections": 8, 16: 6, 40: 2, "fields": 6},
+    False: {"small": 8, "notes": 2, "sections": 2, 16: 1, 40: 0, "fields": 2},
+}[FULL]
+#: Edits of the small reports; ``RELAYOUT_CASES`` sets another number.
+CASES = int(os.environ.get("RELAYOUT_CASES", SIZES["small"]))
+#: Edits of the 16-page and the 40-page report; ``RELAYOUT_LONG_CASES`` sets both.
+LONG_CASES = {pages: int(os.environ.get("RELAYOUT_LONG_CASES", SIZES[pages])) for pages in (16, 40)}
 #: How many edits are made in a row, each layout from the one before, before starting again.
 CHAIN = 8
 
@@ -94,7 +113,7 @@ def test_random_edits_of_small_reports_lay_out_as_a_full_layout(seed):
 
 def test_random_edits_of_reports_with_footnotes_lay_out_as_a_full_layout():
     # Adding or deleting a footnote's paragraph numbers the notes again: laid out whole.
-    stats = _run(6, 7, max(CASES // 8, 4), notes=True)
+    stats = _run(6, 7, SIZES["notes"], notes=True)
     assert set(stats) <= {None, "notes", "note-references"}, stats
 
 
@@ -106,14 +125,31 @@ def test_random_edits_of_reports_with_footnotes_lay_out_as_a_full_layout():
 def test_random_edits_of_reports_with_sections_and_their_own_headers(variant):
     # Pages that move on keep their headers only where no section starts among them and,
     # where even pages have their own, by an even number: laid out to the end otherwise.
-    stats = _run(6, 11 + len(variant), max(CASES // 12, 4), **variant)
+    stats = _run(6, 11 + len(variant), SIZES["sections"], **variant)
     assert set(stats) <= {None, "sections"}, stats
 
 
 @pytest.mark.parametrize("pages", [16, 40])
 def test_random_edits_of_long_reports_lay_out_as_a_full_layout(pages):
+    if not LONG_CASES[pages]:
+        pytest.skip(f"the {pages}-page report is in the full set only: RELAYOUT_FULL=1")
     stats = _run(pages, 100 + pages, LONG_CASES[pages])
     assert stats.get(None, 0) >= 1, stats
+
+
+def test_every_kind_of_edit_lays_out_as_a_full_layout():
+    # One edit of each kind in turn, each layout made from the one before: whatever the
+    # number of random edits, every kind is held to the property.
+    rng = random.Random(23)
+    blocks = report_docs.report(4, seed=23)
+    layout, data, fonts = lay_out_docx(report_docs.package(blocks))
+    svgs = page_svgs(layout, data, fonts=fonts)
+    stats: dict = {}
+    for kind in report_docs.EDIT_KINDS:
+        blocks, what = report_docs.edit(blocks, rng, kind)
+        assert what.split()[0] == kind, what
+        layout, svgs = _check(blocks, layout, svgs, f"each kind, {what}", stats)
+    assert stats.get(None, 0) >= sum(stats.values()) // 3, stats
 
 
 @pytest.fixture(scope="module")
@@ -288,7 +324,7 @@ def test_edits_of_a_report_with_fields_lay_out_as_a_full_layout():
     svgs = page_svgs(layout, data, fonts=fonts)
     rng = random.Random(5)
     stats: dict = {}
-    for _ in range(6):
+    for _ in range(SIZES["fields"]):
         blocks, what = report_docs.edit(blocks, rng)
         layout, svgs = _check(blocks, layout, svgs, f"fields, {what}", stats)
     assert set(stats) <= {"page-fields", "cross-references"}, stats

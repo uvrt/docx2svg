@@ -13,7 +13,9 @@ The **oracle tests are local-only**: they need Microsoft Word (driven by AppleSc
 macOS), its faces, or Word's exports outside the tree, and they skip wherever those are
 absent -- including on every CI runner. Tests marked `faces` lay a document out in faces
 only an Office machine has (Georgia, Cambria, ...) and skip where one is not installed.
-`--run-slow` adds the raster fidelity scores.
+`--run-slow` adds the raster fidelity scores. `RELAYOUT_FULL=1` runs the full set of
+relayout property tests (`tests/test_relayout.py`), which CI runs nightly rather than on
+every pull request.
 More in [docs/development.md](docs/development.md).
 
 ## What never goes into the repository

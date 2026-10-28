@@ -7382,7 +7382,9 @@ which blocks, and -- after each small edit -- which pages to draw again.
   layout is the same computation, made from the page an edit reaches until the pagination's
   state -- the flow position, the page and its number, a footnote carried over -- is again
   the previous layout's at a page start, and the previous layout's pages after that. The
-  rules that keep it exact, each held by `tests/test_relayout.py` over random edits:
+  rules that keep it exact, each held by `tests/test_relayout.py` over random edits (a
+  small seeded set on every pull request, the full set nightly and on push to main:
+  `.github/workflows/relayout-full.yml`):
   - *what changed* is decided by bytes (every part's digest; each body element's), and by
     what the flow reads beyond a block's XML (list labels, the flow's features); a block's
     neighbours are laid out with it (borders, spacing, a drop cap and a table read them);

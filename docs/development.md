@@ -5,7 +5,10 @@
 `python -m pytest` runs everything that needs nothing but the repository (about five
 minutes; tests that need Word, its faces or `scratch/` skip where those are absent).
 `--run-slow` adds the raster fidelity scores (`tools/fidelity.py`), which need Word's
-exports and faces and take several minutes more.  The fidelity instrument rasterises Word's
+exports and faces and take several minutes more.  `RELAYOUT_FULL=1 python -m pytest
+tests/test_relayout.py` runs the full set of seeded relayout edits (a few minutes); a bare
+run makes a small set with every edit kind and every fallback, and the full set runs in
+its own workflow (`.github/workflows/relayout-full.yml`) nightly and on push to main.  The fidelity instrument rasterises Word's
 page with the same engine as ours (resvg) after converting it to SVG with PyMuPDF
 (`tools/pdf_svg.py`), a development-only tool behind the `fidelity` extra; install it into
 a project virtual environment and run the suite from there:
