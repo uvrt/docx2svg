@@ -5,6 +5,43 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.8.0 -- unreleased
+
+- **A body with page-number fields is laid out from the edit too** (production round 20,
+  S1). A table of contents (its lines' `PAGEREF`s), `PAGE`, `NUMPAGES`, `SECTIONPAGES`,
+  `SEQ` and `REF` in the body no longer make `lay_out_docx(..., previous=layout)` lay the
+  whole document out (`relaid` `"page-fields"` and `"cross-references"` are gone). A full
+  layout lays such a body out in passes -- the fields' cached results, then the values each
+  pass finds, until they settle, four passes at most -- and a layout from a previous one
+  makes the same passes, each from the same pass of the previous layout
+  (`relayout.State.passes`), in stretches (`relayout.windows`): the blocks the edit changed,
+  and every other block whose text the pass sets differs (a contents line whose page number
+  changed, the captions after an inserted one and the `REF` to them, a `PAGE` on a page that
+  moved). Each stretch is laid out until a page starts in step with the previous pass again
+  -- a page break after it, typically, even where pages were added or removed before it
+  (the pages after it are then moved on, their footers drawn again) -- so every pass, its
+  fields' values and the number of passes are a full layout's, and every page's SVG is byte
+  for byte a full layout's. `changed_pages` holds the contents page where a number on it
+  changed; `State.fresh` the pages laid out again. Timings (made-up reports with contents,
+  16 / 40 pages, warm, against 0.7.2): a sentence more in a paragraph 2.31 -> 0.28 s / 6.13 ->
+  0.49 s; a heading of the contents moved on a page 2.59 -> 0.65 s / 6.30 -> 0.96 s; a page
+  more before a page break 2.82 -> 0.73 s / 6.99 -> 1.43 s.
+- **A full layout of a body with fields is faster**: every field pass after the first takes
+  the measurements of the paragraphs whose text it did not change from the first (they were
+  measured afresh), and the fields' values are found from only the paragraphs that hold a
+  field or a bookmark (warm, 40 pages with contents: 6.8 -> 5.0 s). Rendering is unchanged
+  (57 documents, 412 pages compared page for page).
+- **What caused a full layout** (S2): `Layout.relaid_cause` -- `None`, or `{"reason": ...}`
+  with `at` (the body element's path) and `para_id` (its `w14:paraId`) where one element is
+  why, `field` (the instruction of the field an edited element opens and another closes:
+  editing the contents' first line, which holds the `TOC` field's start, is `fields-open`)
+  and `part` (the part that changed: `word/styles.xml`). The remaining reasons are listed in
+  `Layout.relaid_cause`'s documentation and `relayout.FALLBACKS`.
+- Made-up reports with contents, captions and cross-references
+  (`tools/report_docs.report(toc=, toc_break=, fields=)`, `FIELD_EDIT_KINDS`) and the seeded
+  relayout tests over them (with and without a page break after the contents), a small set
+  per pull request and more under `RELAYOUT_FULL=1`.
+
 ## 0.7.2 -- unreleased
 
 - **Type checking** (mypy, as ooxml-common's): `mypy` checks the package (`[tool.mypy]` in
