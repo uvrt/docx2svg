@@ -42,7 +42,12 @@ the break are the previous pass's, moved by the pages added or removed before it
 pass's pagination, and the values its fields find, are those of a full layout's same
 pass; and as many passes are made.  ``SEQ`` and ``REF``, which depend on the document's
 order and not on the pages, are found once from the new document: a block whose value
-changed is a stretch like an edited one.
+changed is a stretch like an edited one; so is a ``STYLEREF`` in the body (round 21).  A
+``STYLEREF`` in a header or footer shows text of the page's own (:class:`State`'s
+``story_refs``): a page kept from the previous layout whose header or footer text changed --
+a heading edited, restyled or moved -- is drawn again.  Where such a header's height on some
+page differs from its cached one, the full layout's passes lay that page out under it, and
+a layout from a previous one is a whole one (``styleref-height``).
 
 The result is the layout a full layout of the new bytes makes, page for page, byte for
 byte in every page's SVG (``tests/test_relayout.py`` holds it to that over random edits).
@@ -95,6 +100,8 @@ FALLBACKS = {
     "joined": "an edited block's paragraph mark is deleted as a revision (it joins the paragraph after it)",
     "body": "the body's elements could not be read for comparing",
     "page-count": "the page count changed and a header or footer shows NUMPAGES or SECTIONPAGES",
+    "styleref-height": "a header's or footer's STYLEREF makes it taller or shorter on a page than with its cached "
+                       "result, which moves that page's body",
 }
 
 #: Parts that do not change what is drawn: properties, custom XML, comments.
@@ -113,7 +120,7 @@ _PART_REASONS = (
 )
 
 #: The version of what :class:`State` keeps; a state of another is not read.
-STATE_FORMAT = 2
+STATE_FORMAT = 3
 
 
 def _digest(data: bytes) -> bytes:
@@ -432,6 +439,10 @@ class State:
     #: The 0-based pages laid out again, exactly (:attr:`laid` spans them: from a previous
     #: layout, the stretches laid out again may be apart -- a table of contents and an edit).
     fresh: frozenset = frozenset()
+    #: Page (0-based) -> the text of each ``STYLEREF`` its header and footer show
+    #: (:meth:`docx2svg.layout._Placer.story_references_on`): a page kept by the next layout
+    #: is drawn again where they differ.
+    story_refs: dict = field(default_factory=dict)
 
 
 def options_key(options) -> tuple | None:
@@ -548,10 +559,14 @@ def record(placer, layout, data: bytes, parts: dict, main: bytes | None, fonts, 
               for document, items, found, messages in getattr(placer, "passes", ())]
     if not passes or passes[-1].result is not result:
         reason = reason or "body"
+    if any(getattr(items, "page_stories", None) for _, items, _, _ in getattr(placer, "passes", ())):
+        reason = reason or "styleref-height"
+    story_refs = {index: placer.story_references_on(index, page.info) for index, page in enumerate(layout.pages)}
     return State(_version(), options, data, parts, relationships(_read_rels(data)), segs, sigs,
                  list(memo.elements), _item_blocks(placer.items, ordinal), _chains(placer.items), result,
                  [entry[1:] for entry in placer.placed], list(approximated), dict(memo.kept), fonts,
-                 _story_fields(placer.document), len(layout.pages), section_pages, reason, passes)
+                 _story_fields(placer.document), len(layout.pages), section_pages, reason, passes,
+                 story_refs={k: v for k, v in story_refs.items() if v})
 
 
 def _read_rels(data: bytes) -> bytes | None:
@@ -967,6 +982,9 @@ class Again:
             placer.document, placer.items = document, items
             placer.passes.append((document, items, spliced.result, spliced.messages))
             found = placer._body_field_values(items, spliced.result)
+            if placer._story_heights(items, spliced.result):
+                # A full layout's next pass lays some page out with its own header height.
+                raise Relaid("styleref-height")
             self.passes = attempt + 1
             if found == values:
                 break
@@ -1240,9 +1258,12 @@ class Again:
                 first_page, end_page, log, floats_before, marks = state.iterations[index]
                 pages = [renumbered(page, moves) for page in self.previous.pages[first_page:end_page]]
                 log = renumbered(log, moves)
-                if delta or counted:
+                # A STYLEREF in its header or footer whose text there changed (round 21).
+                styled = state.story_refs.get(end_page - 1, ()) != placer.story_references_on(
+                    end_page - 1 + delta, merged.info.get(end_page - 1 + delta))
+                if delta or counted or styled:
                     self.redrawn.update(range(first_page + delta, end_page + delta))
-                    if delta and not numbered and not counted:
+                    if delta and not numbered and not counted and not styled:
                         pages, log = _moved(pages, delta), _moved_log(log, delta)
                     else:
                         pages, log, marks = self._restoried(placer, pages, log, marks, delta)

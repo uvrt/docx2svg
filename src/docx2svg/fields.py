@@ -454,3 +454,213 @@ def _rebuilt(blocks, paragraphs):
         return next(paragraphs)
 
     return [walk(block) for block in blocks]
+
+
+# -- STYLEREF ----------------------------------------------------------------------------
+
+#: Word's texts for a ``STYLEREF`` it cannot resolve, in the application's language
+#: (measured with Word for Mac 16 in English and in Dutch, round 21's ``styleref``
+#: probes; the document's own language changes nothing): ``none`` -- the style is in the
+#: document's styles but no paragraph of the body has it; ``undefined`` -- no style of
+#: that name (``{name}`` is the name as the instruction writes it); ``unnamed`` -- the
+#: instruction names none.  A text not measured in a language is not computed.
+STYLEREF_ERRORS = {
+    "en-US": {
+        "none": "Error! No text of specified style in document.",
+        "undefined": "Error! Use the Home tab to apply {name} to the text that you want to appear here.",
+        "unnamed": "Error! No style name given.",
+    },
+    "nl-NL": {
+        "none": "Fout! Geen tekst met de opgegeven stijl in het document.",
+    },
+}
+
+
+@dataclasses.dataclass(frozen=True)
+class StyleReference:
+    """A ``STYLEREF`` instruction read: the style ``name`` as written (quotes removed, not
+    trimmed -- Word does not trim it), whether ``\\l`` searches a page from its foot up, and
+    whether ``\\p`` asks where the text is (``above`` / ``below`` in the body)."""
+
+    name: str
+    last: bool = False
+    position: bool = False
+
+
+#: The paragraph number switches -- ``\\n``, ``\\r``, ``\\w`` (and ``\\s``, which Word
+#: reads as one of them) -- draw a list label's text in its own ways, not computed.
+_NUMBER_SWITCHES = frozenset("nrws")
+
+
+def style_reference(instruction: str) -> StyleReference:
+    """A ``STYLEREF`` instruction (:class:`StyleReference`).  Raises :class:`Uncomputable`
+    for a switch that is not computed: the paragraph number ones (``\\n`` ``\\r`` ``\\w``
+    ``\\s``), a ``\\*`` format other than ``Upper``, ``Lower``, ``FirstCap``, ``Caps``,
+    ``MERGEFORMAT`` and ``CHARFORMAT``, an unknown one, or a name not written first."""
+    tokens = re.findall(r'"[^"]*"|\\\S|[^\s"\\]+', instruction)
+    k = 1 if tokens and tokens[0].upper() == "STYLEREF" else 0
+    name: str | None = None
+    last = position = False
+    first = True
+    while k < len(tokens):
+        token = tokens[k]
+        k += 1
+        if not token.startswith("\\"):
+            if name is not None or not first:
+                raise Uncomputable("its style name is not the first thing after STYLEREF, or is not one word")
+            name = token[1:-1] if token.startswith('"') and token.endswith('"') and len(token) > 1 else token
+            first = False
+            continue
+        first = False
+        key = token[1]
+        if key == "*":
+            argument = tokens[k].strip('"').lower() if k < len(tokens) else ""
+            k += 1
+            if argument not in ("mergeformat", "charformat", "upper", "lower", "firstcap", "caps"):
+                raise Uncomputable(f"the switch \\* {argument} is not measured on STYLEREF")
+        elif key.lower() == "l":
+            last = True
+        elif key.lower() == "p":
+            position = True
+        elif key.lower() == "t":
+            pass  # alone it changes nothing (measured); with a number switch, not computed
+        elif key.lower() in _NUMBER_SWITCHES:
+            raise Uncomputable(f"the paragraph number switch \\{key} is not computed")
+        else:
+            raise Uncomputable(f"the switch \\{key} is not measured on STYLEREF")
+    return StyleReference(name or "", last, position)
+
+
+def find_style(name: str, styles) -> tuple[str, frozenset[str]] | None:
+    """The style a ``STYLEREF`` names: ``(kind, style ids)`` -- ``paragraph`` or
+    ``character`` -- or ``None`` where no style has that name.  ``styles`` is the document's
+    :class:`~docx2svg.model.StyleSheet` (or ``None``).
+
+    The one place a field's style name is looked up.  Measured (English Word): the stored
+    name (``w:name``), case ignored -- ``heading 1``, ``Heading 1`` and ``HEADING 1`` alike
+    -- not the style id, not with spaces around it; a number ``1`` .. ``9`` is the built-in
+    ``heading N``.  Dutch Word matches a built-in style by its Dutch name instead (``Kop 1``):
+    the conversion's locale decides whether a lookup that finds nothing is Word's error
+    (:func:`style_reference_target`)."""
+    wanted = name.lower()
+    if name.isdigit() and 1 <= int(name) <= 9:
+        wanted = f"heading {int(name)}"
+    kinds: dict[str, set] = {}
+    for style_id, style in (styles.styles.items() if styles is not None else ()):
+        if style.name is not None and style.name.lower() == wanted and style.kind in ("paragraph", "character"):
+            kinds.setdefault(style.kind, set()).add(style_id)
+    if not kinds:
+        if name.isdigit() and 1 <= int(name) <= 9:
+            return "paragraph", frozenset()
+        return None
+    kind = "paragraph" if "paragraph" in kinds else "character"
+    return kind, frozenset(kinds[kind])
+
+
+def style_reference_target(reference: StyleReference, styles, language: str) -> tuple[str, frozenset[str]] | str:
+    """What a ``STYLEREF`` searches for (:func:`find_style`), or Word's error text where it
+    finds no style (:data:`STYLEREF_ERRORS`).  Raises :class:`Uncomputable` for the error
+    text of a language not measured, a style found by a name Word may not match in the
+    conversion's language (built-in names are its interface language's), and the default
+    character style (Word draws text of the page's other runs: not computed)."""
+    errors = STYLEREF_ERRORS.get(language, {})
+    if not reference.name:
+        if "unnamed" not in errors:
+            raise Uncomputable("the instruction names no style: Word's error text, in the application's language")
+        return errors["unnamed"]
+    found = find_style(reference.name, styles)
+    if found is None:
+        if "undefined" not in errors:
+            raise Uncomputable("no style has that name in English: Word's interface language decides")
+        return errors["undefined"].format(name=reference.name)
+    kind, ids = found
+    if kind == "character" and styles is not None and any(styles.styles[i].default for i in ids):
+        raise Uncomputable("STYLEREF to the default character style is not measured")
+    return kind, ids
+
+
+@dataclasses.dataclass(frozen=True)
+class Occurrence:
+    """Text in the style a ``STYLEREF`` searches for: the paragraph (:func:`body_paragraphs`
+    index) it is in, the character it starts at, and its text -- an :class:`Uncomputable`
+    where it holds what is not text."""
+
+    block: int
+    offset: int
+    text: str | Uncomputable
+
+
+#: Fields whose text in a paragraph depends on the page it is drawn on.
+_PAGED = frozenset({"PAGE", "NUMPAGES", "SECTIONPAGES", "PAGEREF", "STYLEREF"})
+
+
+def _occurrence_text(runs) -> str | Uncomputable:
+    """The text of ``runs`` as ``STYLEREF`` shows it: a page break is a space (measured: a
+    heading split by one), list labels are not part of it, a floating drawing's anchor is
+    nothing; a tab, another break or an inline object is not measured."""
+    out = []
+    for run in runs:
+        if run.field is not None and run.field.keyword in _PAGED:
+            return Uncomputable("its text holds a page-number field")
+        if run.properties is not None and run.properties.declared.get("vanish"):
+            return Uncomputable("its text holds hidden text")
+        text = run.text
+        for position, kind in sorted(run.breaks, reverse=True):
+            if kind.startswith("anchor:"):
+                continue  # a floating drawing: not text (measured: a text box's anchor)
+            if kind != "page":
+                return Uncomputable("its text holds a tab, a break or an object")
+            text = text[:position] + " " + text[position:]
+        out.append(text)
+    return "".join(out)
+
+
+def style_occurrences(paragraphs: list[Paragraph], kind: str, ids: frozenset[str], default_paragraph: str | None,
+                      skip: frozenset[int] = frozenset()) -> list[Occurrence]:
+    """Every stretch of ``paragraphs`` (:func:`body_paragraphs`) in the style ``ids`` in
+    document order: a paragraph of a paragraph style, whole (an empty one too: measured, its
+    text is empty), or each run of runs of a character style (measured: two words of it
+    with others between are two).  ``default_paragraph``: the id of the paragraph style a
+    paragraph naming none has; ``skip``: paragraphs not searched (notes placed in the flow)."""
+    out: list[Occurrence] = []
+    for block, paragraph in enumerate(paragraphs):
+        if block in skip:
+            continue
+        if kind == "paragraph":
+            style = paragraph.properties.style_id if paragraph.properties is not None else None
+            if (style or default_paragraph) in ids:
+                out.append(Occurrence(block, 0, _occurrence_text(paragraph.runs)))
+            continue
+        offset = 0
+        stretch: list = []
+        start = 0
+        for run in [*paragraph.runs, None]:
+            inside = run is not None and run.properties is not None and run.properties.style_id in ids
+            if inside:
+                if not stretch:
+                    start = offset
+                stretch.append(run)
+            elif stretch:
+                out.append(Occurrence(block, start, _occurrence_text(stretch)))
+                stretch = []
+            if run is not None:
+                offset += len(run.text)
+    return out
+
+
+def style_reference_text(instruction: str, found: Occurrence | None, target: tuple | str,
+                         language: str) -> str | Uncomputable:
+    """A ``STYLEREF``'s text: the occurrence found, its case switches applied; Word's error
+    text where the target is one, or where nothing in the body has the style
+    (:data:`STYLEREF_ERRORS`)."""
+    if isinstance(target, str):
+        return target
+    if found is None:
+        errors = STYLEREF_ERRORS.get(language, {})
+        if "none" not in errors:
+            return Uncomputable("no text of the style in the document: Word's error text, in the application's "
+                                "language")
+        return errors["none"]
+    if isinstance(found.text, Uncomputable):
+        return found.text
+    return apply_case(found.text, instruction)

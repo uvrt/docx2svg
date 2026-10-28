@@ -10,7 +10,7 @@ strikethrough, highlight and shading; tab leaders; list labels; line numbers; pa
 inline pictures; superscripts and subscripts; tables; text columns, balanced and ruled as Word
 balances and rules them; footnotes and endnotes; headers and footers, with
 `PAGE`, `NUMPAGES` and `SECTIONPAGES` computed from its own pages, `PAGEREF`, `REF` and
-`SEQ` from its own pages and bookmarks, and every other field drawn as Word cached it; floating drawings, shapes and text boxes; charts, laid out as Word
+`SEQ` from its own pages and bookmarks, `STYLEREF` per page (a header's) or from the body's order, and every other field drawn as Word cached it; floating drawings, shapes and text boxes; charts, laid out as Word
 lays them out, and SmartArt, from the drawing Word caches for it, inline and floating; the
 content of content controls; and a document with tracked changes as Word's final (*No
 Markup*) view draws it -- moved text at its destination, paragraphs joined across deleted

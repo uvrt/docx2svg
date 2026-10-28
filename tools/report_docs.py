@@ -163,6 +163,9 @@ EDIT_KINDS = ("text", "grow", "cell", "insert", "delete", "row-insert", "row-del
 #: inserted or deleted (the ``SEQ`` numbers after it change, and the ``REF`` to them), a line
 #: of the contents inserted or deleted.
 FIELD_EDIT_KINDS = ("caption-insert", "caption-delete", "toc-insert", "toc-delete")
+#: The edits of a report whose header shows a ``STYLEREF`` (round 21): a paragraph made a
+#: heading (its first words), or a heading a paragraph (its style changed).
+STYLE_EDIT_KINDS = ("restyle",)
 #: The blocks whose words an edit changes.
 _WORDED = ("heading", "para", "bullet", "panel", "noted", "caption", "xref", "pageref", "pagefield")
 
@@ -182,8 +185,9 @@ def edit(blocks: list[Block], rng: random.Random, kind: str | None = None,
     ``toc-delete`` contents.  ``kinds``: the kinds to choose from (each as often as it is
     named), else the usual mix.  The contents' field is never split or emptied."""
     blocks = list(blocks)
-    if kind is not None and kind not in EDIT_KINDS + FIELD_EDIT_KINDS:
-        raise ValueError(f"no edit of kind {kind!r}: one of {', '.join(EDIT_KINDS + FIELD_EDIT_KINDS)}")
+    every = EDIT_KINDS + FIELD_EDIT_KINDS + STYLE_EDIT_KINDS
+    if kind is not None and kind not in every:
+        raise ValueError(f"no edit of kind {kind!r}: one of {', '.join(every)}")
     kinds = [kind] if kind else list(kinds or ["text", "text", "cell", "insert", "delete", "row-insert",
                                                "row-delete", "break", "unbreak", "grow"])
     while True:
@@ -225,6 +229,11 @@ def edit(blocks: list[Block], rng: random.Random, kind: str | None = None,
                 k = rng.choice(breaks)
                 del blocks[k]
                 return blocks, f"unbreak {k}"
+        if kind == "restyle" and block.kind in ("heading", "para") and not block.mark:
+            # A paragraph made a heading keeps its first words, as a heading's.
+            text = block.text if block.kind == "heading" else " ".join(block.text.split()[:5])
+            blocks[k] = replace(block, kind="para" if block.kind == "heading" else "heading", text=text)
+            return blocks, f"restyle {k}"
         if kind == "caption-insert":
             mark = f"_Ref{rng.randrange(1 << 20) + 5000:07d}"
             blocks.insert(k, Block("caption", _words(rng, 4)[:-1], para_id=f"5{rng.randrange(1 << 28):07X}",
@@ -437,12 +446,13 @@ NUMBERING = (
 
 
 def package(blocks: list[Block], *, title: str = "Made-up quarterly report", header: str | None = None,
-            styles: str = "", even_odd: bool = False, title_page: bool = False) -> bytes:
+            styles: str = "", even_odd: bool = False, title_page: bool = False, styleref: tuple = ()) -> bytes:
     """``blocks`` as a ``.docx``: A4, 2.5 cm margins, a header (``title``) and a footer
     (``Page N of M``), the footnotes of its ``noted`` paragraphs; ``styles``: more style
     definitions.  ``even_odd``: even pages have a header of their own
     (``w:evenAndOddHeaders``); ``title_page``: the first page has a header and a footer of its
-    own, with no page number (``w:titlePg``)."""
+    own, with no page number (``w:titlePg``).  ``styleref``: ``STYLEREF`` instructions the
+    header shows after its title, each after a bar (round 21), cached as ``Chapter``."""
     header = header if header is not None else title
     references = '<w:headerReference w:type="default" r:id="rIdH"/>'
     if even_odd:
@@ -459,7 +469,9 @@ def package(blocks: list[Block], *, title: str = "Made-up quarterly report", hea
         "word/document.xml": f'<w:document {ns}><w:body>{body_xml(blocks)}{sect}</w:body></w:document>',
         "word/styles.xml": STYLES.replace("</w:styles>", styles + "</w:styles>"),
         "word/numbering.xml": NUMBERING,
-        "word/header1.xml": f'<w:hdr {ns}>{_para(header, "Header")}</w:hdr>',
+        "word/header1.xml": f'<w:hdr {ns}>' + _para(header, "Header", runs=_run(header) + "".join(
+            _run(" | ") + _field(instruction, "Chapter") for instruction in styleref)
+            if styleref else "") + "</w:hdr>",
         "word/footer1.xml": (f'<w:ftr {ns}>' + _para("", "Footer", runs=(
             '<w:r><w:tab/></w:r>' + _run("Page ") + _field("PAGE", "1") + _run(" of ")
             + _field("NUMPAGES", "1"))) + "</w:ftr>"),

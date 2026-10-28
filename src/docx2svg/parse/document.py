@@ -272,8 +272,9 @@ _Paths = Steps
 
 #: Fields whose result the layout computes from its own pagination and the document; every
 #: other field's result is drawn as Word cached it (ROADMAP.md, "Headers, footers and
-#: fields").  :data:`CROSS_REFERENCES` are computed in the body only.
-COMPUTED_FIELDS = frozenset({"PAGE", "NUMPAGES", "SECTIONPAGES", "PAGEREF", "REF", "SEQ"})
+#: fields").  :data:`CROSS_REFERENCES` are computed in the body only; ``STYLEREF`` in the
+#: body and in headers and footers, not in a text box or a note (round 21).
+COMPUTED_FIELDS = frozenset({"PAGE", "NUMPAGES", "SECTIONPAGES", "PAGEREF", "REF", "SEQ", "STYLEREF"})
 #: Computed in the body's own text (cells included), from its bookmarks and its order
 #: (``make_xref_field_probe.py``); in a header, a footer, a note or a text box drawn as
 #: cached, as before.
@@ -316,13 +317,16 @@ class _Fields:
     """The complex fields open at this point of a part: a field's ``begin`` and ``end``
     may be in different runs, and a result (a table of contents) may span paragraphs."""
 
-    def __init__(self, cached: list[str] | None = None, *, cross_references: bool = False) -> None:
+    def __init__(self, cached: list[str] | None = None, *, cross_references: bool = False,
+                 styleref: bool = False) -> None:
         self.stack: list[_Open] = []
         #: The keyword of every field whose cached result is drawn.
         self.cached: list[str] = cached if cached is not None else []
         #: Whether :data:`CROSS_REFERENCES` are computed here: the body's own text, not a
         #: text box's.
         self.cross_references = cross_references
+        #: Whether ``STYLEREF`` is computed here: the body's own text, a header's, a footer's.
+        self.styleref = styleref
         #: The bookmarks met in the paragraph being read: ``(kind, id, name, run index)``.
         self.bookmarks: list | None = None
 
@@ -331,6 +335,8 @@ class _Fields:
 
     def computes(self, instruction: str) -> bool:
         keyword = field_keyword(instruction)
+        if keyword == "STYLEREF":
+            return self.styleref
         return keyword in COMPUTED_FIELDS and (keyword not in CROSS_REFERENCES or self.cross_references)
 
 
@@ -658,10 +664,12 @@ def _text_box_story(parent: Element, path: str, fields: _Fields) -> list:
     """A text box's blocks: the part's fields, but no cross-reference computed in it (its
     bookmarks are not the body's, nor are its sequences counted with the body's)."""
     outer, fields.cross_references = fields.cross_references, False
+    styleref, fields.styleref = fields.styleref, False
     try:
         return _story(parent, path=path, fields=fields)
     finally:
         fields.cross_references = outer
+        fields.styleref = styleref
 
 
 def _table(element: Element, path: str = "", fields: _Fields | None = None) -> Table:
@@ -895,7 +903,8 @@ def parse_document(document_xml: bytes, styles_xml: bytes | None = None) -> Docu
         return Document(warnings=["document-no-body"])
 
     cached: list[str] = []
-    body_blocks = _story(body, path="w:body", fields=_Fields(cached, cross_references=True))
+    body_blocks = _story(body, path="w:body", fields=_Fields(cached, cross_references=True,
+                                                                               styleref=True))
     paragraphs = [block for block in body_blocks if isinstance(block, Paragraph)]
     document = Document(
         paragraphs=paragraphs,
@@ -1002,7 +1011,7 @@ def parse_package(source: str | bytes | BinaryIO) -> Document:
                     root = parse_xml(read_part(package, part))
                     # Paragraphs and tables, with the fields open across them.
                     document.stories[relationship_id] = _story(root, path=local_name(root.tag).join(("w:", "")),
-                                                                fields=_Fields(document.cached_fields))
+                                                                fields=_Fields(document.cached_fields, styleref=True))
                     document.story_parts[relationship_id] = part
     footnote_parts = package.related_parts_of_type(main, REL_FOOTNOTES)
     if footnote_parts:
