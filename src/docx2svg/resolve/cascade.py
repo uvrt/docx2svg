@@ -299,14 +299,31 @@ def resolve_paragraph(document: Document, paragraph: Paragraph) -> Resolved:
     direct = paragraph.properties.declared if paragraph.properties else {}
 
     # Where the list's indent sits depends on where the numPr came from (case p02/p03).
-    direct_numbering = "numPr.numId" in direct
-    source = direct if direct_numbering else {k: v for k, (v, _) in style_layer.items()}
-    level = _numbering_level(document, source.get("numPr.numId"),
-                             direct.get("numPr.ilvl", source.get("numPr.ilvl")))
+    direct_numbering = _numbered_directly(direct)
+    styled = {k: v for k, (v, _) in style_layer.items()}
+    source = direct if "numPr.numId" in direct else styled
+    num_id, ilvl = source.get("numPr.numId"), direct.get("numPr.ilvl", source.get("numPr.ilvl")) or 0
+    level = _numbering_level(document, num_id, ilvl)
+    levels = document.numbering.get(num_id) if num_id else None
+    unnumbered = missing = single = False
+    if level is None and levels and levels.get(0) is not None and levels[0].single:
+        level, single = levels[0], True
+    elif level is None and levels:
+        missing = True
+    elif level is not None and level.style and not direct_numbering and level.style not in {
+            style.style_id for style in style_chain(sheet, style_id, "paragraph")}:
+        unnumbered = True
     numbering_layer = {}
     if level is not None:
-        detail = f"numId {source.get('numPr.numId')} level {level.level}"
+        detail = f"numId {num_id} level {level.level}"
         numbering_layer = _layer(level.paragraph, Origin(NUMBERING, detail=detail))
+    elif missing and direct_numbering:
+        # A level the definition does not have: the style's own list level, if any, below it.
+        styled_level = _numbering_level(document, styled.get("numPr.numId"), styled.get("numPr.ilvl"))
+        if styled_level is not None:
+            numbering_layer = _layer(styled_level.paragraph, Origin(
+                NUMBERING, detail=f"numId {styled.get('numPr.numId')} level {styled_level.level}"))
+        direct_numbering = False
 
     if not direct_numbering:
         _merge(layer, numbering_layer)
@@ -314,8 +331,45 @@ def resolve_paragraph(document: Document, paragraph: Paragraph) -> Resolved:
     if direct_numbering:
         _merge(layer, numbering_layer)
     _merge(layer, _layer(direct, Origin(DIRECT)))
+    _list_level(layer, num_id, missing=missing, single=single, unnumbered=unnumbered)
     _autospacing(document, layer)
     return _finish(layer)
+
+
+def _numbered_directly(direct: dict) -> bool:
+    """Whether a paragraph's list level is direct formatting, its indent above its style's:
+    a direct ``w:numPr`` with a ``w:numId`` -- or with only a ``w:ilvl``, the list its
+    style's (``make_list_level_probe.py``, ``ilvl only``: a List-Number-styled item with a
+    direct ``w:ilvl`` 1 is drawn at level 1's indent, 568/284, not the style's 284/284;
+    ``ilvl 0 on LNb``: at level 0's)."""
+    return "numPr.numId" in direct or "numPr.ilvl" in direct
+
+
+def _list_level(layer: _Layer, num_id, *, missing: bool, single: bool, unnumbered: bool) -> None:
+    """The list level a paragraph takes where its definition does not give it as named.
+    Measured by ``tools/make_list_level_probe.py`` (no settings and mode 15 alike):
+
+    * **a single-level definition** (``w:multiLevelType="singleLevel"``): any level is its
+      level 0, counted on with it -- a ``w:ilvl`` 1 or 3 item between level-0 items is
+      numbered ``3.`` after ``2.``, at level 0's indent;
+    * **a level the definition does not have** (a multilevel one): no number, and not
+      counted; the first line at the paragraph's left indent, with no hanging or first-line
+      indent (whatever states one: the style, its list level, direct formatting), the
+      left indent from the style and the style's own list level -- the direct
+      ``w:numPr`` gives none;
+    * **numbered by its style, the level tied to another style** (``w:lvl/w:pStyle`` naming
+      a style that is not the paragraph's or one it is based on): no number, and not
+      counted; the level's indent as for a style's list level.  A style based on the tied
+      one is numbered, also one with its own ``w:numPr``.
+    """
+    if single:
+        layer["numPr.ilvl"] = (0, Origin(NUMBERING, detail=f"numId {num_id}: a single-level definition"))
+    if missing:
+        origin = Origin(NUMBERING, detail=f"numId {num_id}: a level its definition does not have")
+        layer["ind.firstLine"] = (0, origin)
+        layer["ind.hanging"] = (0, origin)
+    if unnumbered:
+        layer["numPr.numId"] = (0, Origin(NUMBERING, detail=f"numId {num_id}: its level is tied to another style"))
 
 
 #: What ``w:beforeAutospacing`` / ``w:afterAutospacing`` make the space: 14 pt.

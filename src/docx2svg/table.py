@@ -889,7 +889,8 @@ def autofit_widths(document: Document, resolved: ResolvedTable, column_width: in
         return _edges([offset + left * part / sum(content) for offset, part in zip(offsets, content)],
                       nearest=not (compatible_mode(document) or resolved.nested))
     goal = target if target is not None else min(total, Fraction(room))
-    if target is not None and target > room and not (stated is not None and stated[1] == "pct"):
+    if target is not None and target > room and not (stated is not None and stated[1] == "pct") and not \
+            column_wide(document, resolved, target, column_width):
         raise Unsupported("autofit: a table width in dxa wider than the room (not measured)")
     if goal > total:
         grow = [c for c in range(columns) if auto[c]] or list(range(columns))
@@ -920,6 +921,16 @@ def autofit_widths(document: Document, resolved: ResolvedTable, column_width: in
         # twips over content of 952 and 1,534: 2,298, drawn a pixel right of 2,297).
         edges.append(round_half_up(x) if goal > total else math.floor(x))
     return tuple(b - a for a, b in zip([0] + edges, edges))
+
+
+def column_wide(document: Document, resolved: ResolvedTable, target: int, column_width: int) -> bool:
+    """Whether an autofit table's width in ``dxa``, wider than its room, is drawn as stated:
+    in mode 15 (and nested), where the room is the column less the outer borders' halves
+    (:func:`autofit_room`), one no wider than the column -- as wide as the body, as tables
+    made to fit it are.  Measured by ``make_narrow_text_probe.py`` (``autofit, one cell``,
+    mode 15): 6,940 twips in a 6,940-twip column, the first cell's indent and widest word
+    widening its column, the second giving way, the borders 6,940 twips apart."""
+    return bool(compatible_mode(document) or resolved.nested) and target <= column_width
 
 
 def _edges(widths, *, nearest: bool) -> tuple[int, ...]:
@@ -2123,6 +2134,27 @@ def header_rows(flow: TableFlow) -> int:
             break
         count += 1
     return count
+
+
+def keeps_with_next(row: RowFlow) -> bool:
+    """Whether a row stays on the page of what follows it -- the next row, or the
+    paragraph after the table for its last -- as a ``keepNext`` paragraph does: when the
+    **first paragraph of its first cell** keeps with the next (directly or by its style),
+    the first of a table nested there first.
+
+    Measured by ``make_table_keep_probe.py`` (no ``settings.xml`` and mode 15 alike): the
+    row goes to the next page with the row after it, whole (also one that could split),
+    and a chain of such rows together (``all``, ``but last``: a ten-row table near a
+    page's foot moves whole; ``rows 4-5``); the last row with the paragraph after the
+    table (``foot last row``).  With only the second cell's paragraph kept, or only the
+    last of two paragraphs in each cell, or the outer cell's paragraph after a nested
+    table, the row stays."""
+    if not row.cells or not row.cells[0].paragraphs:
+        return False
+    first = row.cells[0].paragraphs[0]
+    if first.table is not None:
+        return bool(first.table.rows) and keeps_with_next(first.table.rows[0])
+    return bool(first.resolved.get("keepNext"))
 
 
 def slice_height(cell: CellFlow, start: int, end: int, continued: bool = False) -> Fraction:

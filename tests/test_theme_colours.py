@@ -36,6 +36,19 @@ def test_text_and_shading_take_the_theme_colour():
     assert read_paragraph_properties(paragraph)["shd"][2] == "00FF00"
 
 
+def test_a_runs_shading_takes_the_theme_colour():
+    # Round 24 (measured: a character style's and a direct run's w:themeFill drawn, the
+    # decoy w:fill beside it not): accent1 tint 66 -> 83CAEB, accent2 shade BF -> BF4E14.
+    tinted = element('<w:rPr><w:shd w:val="clear" w:color="auto" w:fill="00FF00" w:themeFill="accent1"'
+                     ' w:themeFillTint="66"/></w:rPr>')
+    shaded = element('<w:rPr><w:shd w:val="clear" w:color="auto" w:fill="FF00FF" w:themeFill="accent2"'
+                     ' w:themeFillShade="BF"/></w:rPr>')
+    with theme_colours(word_theme_colour(THEME, {})):
+        assert read_run_properties(tinted)["shd"] == ("clear", "auto", "83CAEB")
+        assert read_run_properties(shaded)["shd"] == ("clear", "auto", "BF4E14")
+    assert read_run_properties(tinted)["shd"][2] == "00FF00"
+
+
 def test_the_text_and_background_names_go_through_the_mapping():
     resolve = word_theme_colour(THEME, {"t1": "light1", "bg1": "dark1"})
     assert resolve("text1", None, None) == "FFFFFF"

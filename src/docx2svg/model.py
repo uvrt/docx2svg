@@ -525,6 +525,11 @@ class NumberingLevel:
     #: ``w:lvlPicBulletId``: the label is the picture of that ``w:numPicBullet``
     #: (:attr:`Document.picture_bullets`), not its text.
     picture_bullet: int | None = None
+    #: ``w:pStyle``: the paragraph style the level is tied to (``None``: none).
+    style: str | None = None
+    #: Its definition says ``w:multiLevelType="singleLevel"``: every level of a paragraph
+    #: numbered by it is this one (:func:`docx2svg.resolve.cascade.resolve_paragraph`).
+    single: bool = False
 
 
 @dataclass(frozen=True)
