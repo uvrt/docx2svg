@@ -130,9 +130,11 @@ def theme_colours(resolve: Callable[[str, str | None, str | None], str | None]) 
     ``w:themeColor`` (with ``w:themeTint`` / ``w:themeShade``) and a paragraph's or table
     cell's shading ``w:themeFill`` (with ``w:themeFillTint`` / ``w:themeFillShade``), not
     the ``w:val`` / ``w:fill`` beside them** (measured, production round 21: decoy values
-    never drawn; ``ooxml_common.themetint``).  Outside it -- a part parsed without its
-    package's theme -- the stated value is read, as before.  A run's shading and borders keep
-    their stated colour: not measured."""
+    never drawn; ``ooxml_common.themetint``) -- **a run's shading too**, direct or from a
+    character style (round 24: ``accent1`` tint 66 drawn 83CAEB, ``accent2`` shade BF
+    BF4E14, ``accent2`` E97132, beside decoy fills).  Outside it -- a part parsed without
+    its package's theme -- the stated value is read, as before.  A run's borders keep their
+    stated colour: not measured."""
     token = _THEME_COLOUR.set(resolve)
     try:
         yield
@@ -157,8 +159,8 @@ def text_colour(node: Element | None) -> str | None:
 
 
 def _shading(node: Element) -> tuple:
-    """A paragraph's or table's ``w:shd``: (pattern, pattern colour, fill), the fill the
-    theme's where it names one."""
+    """A ``w:shd`` -- a run's, a paragraph's, a table's or a cell's: (pattern, pattern colour,
+    fill), the fill the theme's where it names one."""
     fill = _theme_colour(node, "themeFill", "themeFillTint", "themeFillShade") or attr(node, "fill")
     return (attr(node, "val"), attr(node, "color"), fill)
 
@@ -191,7 +193,7 @@ def read_run_properties(element: Element | None) -> dict[str, object]:
         elif name == "bdr":
             out[name] = (attr(node, "val"), attr_int(node, "sz", 0) or 0, attr_int(node, "space", 0) or 0)
         elif name == "shd":
-            out[name] = (attr(node, "val"), attr(node, "color"), attr(node, "fill"))
+            out[name] = _shading(node)
         elif name in _RUN_BOOLS:
             out[name] = _on(node)
         elif name in _RUN_INTS:

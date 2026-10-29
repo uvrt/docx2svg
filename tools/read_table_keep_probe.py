@@ -37,7 +37,7 @@ from docx2svg import paginate, parse_package  # noqa: E402
 OBSERVATIONS = probe_documents.FIXTURES / "table-keep-observations.json"
 #: What a case draws that is followed: anchors, rows' cells, nested tables, the paragraphs
 #: around the table (the body lines that fill the page, ``F<k>``, and wrapped words not).
-MARKER = re.compile(r"Case \d+|After \d+|Lead|[RC]\d+[ab]\d?|N\d+|H[ab]|C[ab]")
+MARKER = re.compile(r"Case \d+|After \d+|Lead|Broken|[RC]\d+[ab]\d?|N\d+|H[ab]|C[ab]")
 
 
 def _cases(found: list[tuple[int, str]]) -> dict[str, dict[str, int]]:

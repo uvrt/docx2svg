@@ -24,7 +24,9 @@ after it.  With no keeps the table's first six rows stay (``plain``).  Cases:
 * ``nested`` -- row 5's first cell holding a one-row table: its paragraph ``keepNext``
   and the outer cell's not (``inner``), or the reverse (``outer``);
 * ``in a cell`` -- a one-row table whose cell holds a 10-row table of ``keepNext`` rows
-  across the page's foot (``all``), and the same rows plain.
+  across the page's foot (``all``), and the same rows plain;
+* ``page break after`` -- the paragraph after the table starts a page
+  (``w:pageBreakBefore``): the last row, or every row, ``keepNext``.
 
 Two documents: no ``settings.xml`` and mode 15.  Calibri 11, no paragraph spacing.
 Reader: ``read_table_keep_probe.py``.
@@ -133,6 +135,9 @@ def _cases() -> list[tuple[str, str]]:
     out.append(("row 5 wrapped, cantSplit", _fill(FILL - 3) + _two(_rows(10, rows={5: wrapped, 6: split}))))
     plain_wrapped = (f"<w:tr>{_cell(_p(words))}{_cell(_p('R5b'))}</w:tr>")
     out.append(("row 5 wrapped plain", _fill(FILL - 3) + _two(_rows(10, rows={5: plain_wrapped, 6: split}))))
+    broken = wml.paragraph(wml.run("Broken"), pageBreakBefore=True, spacing=SPACING)
+    out.append(("last row, page break after", _fill(FILL) + _two(_rows(10, lambda r: r == 9)) + broken))
+    out.append(("all, page break after", _fill(FILL) + _two(_rows(10, every)) + broken))
     return out
 
 

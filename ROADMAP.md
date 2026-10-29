@@ -5087,6 +5087,58 @@ recorded). Not measured: a merge going across three pages (its rows above a page
 taken as laid out one after another), a merged cell's `w:vAlign` across pages (drawn from
 the top), and a header row taller than a page.
 
+### Stage 6b -- rows kept with the next (production round 24)
+
+docx-agent's users keep a table together by giving every paragraph in its rows
+`w:keepNext`, as Word's own advice has it; Word moved such a ten-row table near a page's
+foot to the next page whole, where docx2svg split it six and four.
+`make_table_keep_probe.py` / `read_table_keep_probe.py` (`tests/test_table_keep.py`): 36
+cases, one a page -- body lines filling the page to six one-line rows from its foot, then
+a table of two 3000-twip columns and a paragraph after it; no `settings.xml` and mode 15.
+Each row's cell text and the paragraphs around the table are read with the page they are
+on, Word's from its export, the model's from `paginate` on the file alone.
+
+**The rules** (`table.keeps_with_next`, `paginate._keeps`):
+
+* **A row keeps with the next when the first paragraph of its first cell does** --
+  directly or by its style; where that cell starts with a nested table, the first
+  paragraph of that table's first row. Only the second cell's paragraph kept, or only the
+  last of two paragraphs in each cell, or only the outer cell's paragraph after a nested
+  table: the row stays (`row 5 cell b`, `row 5 last`, `nested outer`); the first cell's
+  first paragraph alone, the second cell not: it moves (`row 5 cell a`, `row 5 a first
+  only`).
+* **Such a row goes to the next page with the row after it, whole** -- also a row that
+  could split (`row 5 wrapped, cantSplit`: four lines beside a `w:cantSplit` row that does
+  not fit), and a chain of them together (`rows 4-5`). One whose next row starts on the
+  page, split there, stays (`row 5, row 6 splits`).
+* **The table's last row keeps with the paragraph after the table** (`foot last row`: a
+  table ending at the foot, the paragraph after it not fitting, takes its last row with
+  it; `foot all`: the whole table).
+* **A chain that reaches the first row takes the table to the next page**, and a
+  `keepNext` paragraph before it with it (`all`, `but last`, `header all`, `before all`).
+  **One taller than a page starts the next page and breaks where it is full** (`long
+  all`, `long but last`: 70 rows, the next page holding 50); header rows are repeated as
+  ever (`long header all`).
+* **A paragraph after the table that starts a page itself** (`w:pageBreakBefore`) takes
+  nothing with it: the last row kept with it stays where it is (`last row, page break
+  after`); rows kept with each other still move together (`all, page break after`).
+* In mode 15 the header rows are not left alone at the foot by a keep, as they are not
+  by a split (stage 6a).
+
+| Cases (36 per document) | none | 15 |
+| --- | --- | --- |
+| before: rows never keep | 16 | 16 |
+| any paragraph of the first cell | 32 | 32 |
+| the first paragraph of any cell | 31 | 31 |
+| **the model** | **35** | **35** |
+
+The one case left is not a keep: a row holding a nested table across the page's foot
+(`in a cell plain`), which Word splits between the nested table's rows and the model moves
+whole -- it does not split a nested table. The incremental layout (`relayout`) already
+treats every table as a link of a keep chain; `tests/test_relayout.py` makes random edits
+of reports whose tables keep their rows (all, all but the last, every other one, with no
+header row) and holds every page to a full layout.
+
 ### Stage 7 -- autofit: recorded (modelled since stage 7b, below)
 
 Every committed document's table is autofit (`w:tblW` auto, no `w:tblLayout`), and each
@@ -5379,6 +5431,33 @@ at Word's position. `tests/test_pages.py` keeps its recorded advances, which pre
 tables (lacking the cells' faces, its paginator still stops at the first table), until
 the scorers are table-aware; the tables are held by `tests/test_tables.py`,
 `tests/test_render.py` and the VRT snapshots.
+
+### Stage 7d -- indents that leave a cell's text no width (production round 24)
+
+docx-agent (round 21) saw Word set a cell paragraph whose indents run past its cell one
+word to a line where docx2svg broke inside the words, a character to a line.
+`make_narrow_text_probe.py` / `read_narrow_text_probe.py` (`tests/test_narrow_text.py`):
+a paragraph of words of 2 to 13 letters whose indents leave it -2000 to 400 twips, in a
+fixed-layout table, in the body, and in autofit tables (`w:tblW` 6940 `dxa` in a
+6940-twip column) -- the first cell indented, or both; no `settings.xml` and mode 15.
+
+* **In a fixed-layout table and in the body Word breaks inside the words, a character to
+  a line, while no word fits** (54 lines at -2000, -746, 0 and 100 twips; at 400, `Wor` /
+  `d`) -- as the model does, line for line.
+* **One word to a line is autofit**: the column is widened to hold the cell's indents and
+  its widest word (stage 7b), so each line holds whole words. The table round 21 measured
+  was autofit, 6940 twips in a 6940-twip column, mode 15: wider than mode 15's room (the
+  column less the outer borders' halves) by those halves, so the model refused it and laid
+  it out on its grid. **Measured: it is drawn at its width**, the first cell's column
+  widened to its indent and widest word, the second giving way (borders 6,940 twips
+  apart): `table.column_wide`. With it the columns are Word's to the pixel.
+
+Not yet as Word: a word exactly as wide as a column at its narrowest content is broken
+before its last letter (`Extraordinar` / `y`; Word's column is within its 5-twip drawing
+step of the model's, and Word keeps the word whole), in every setting; and in mode 15 an
+autofit table whose cells' indents leave less than their widest word goes **past the
+room** -- each column its indents and widest word, 12,744 twips in all -- where the model
+keeps to the room (stage 7c, measured on words without indents).
 
 ## Headers, footers and fields — measured (Phase 6, Headers and footers and Fields rows)
 
@@ -7671,9 +7750,40 @@ counted, so `2.1` where Word draws `2.2`, and `1` where Word draws `2`); `w:isLg
 (ignored); and text boxes (counted in their part's sequence after their anchor paragraph,
 where Word counts them apart).
 
+**N.5 The level a paragraph takes (production round 24).** docx-agent's lists (round 23)
+found three places the model drew an item otherwise than Word. `make_list_level_probe.py`
+/ `read_list_level_probe.py` (`tests/test_list_level.py`): 16 cases, each with
+definitions and styles of its own -- a three-level definition whose levels 0 and 1 are
+tied (`w:lvl/w:pStyle`) to two styles that name it, a single-level one, a one-level
+multilevel one -- no `settings.xml` and mode 15 (Word alike in both):
+
+* **A direct `w:numPr` of only `w:ilvl` is direct numbering**: the style's list at that
+  level, its indent over the style's (`a)` at level 1's 568/284, not the style's
+  284/284; `w:ilvl` 0 on the level-1 style, at level 0's).
+* **Any level of a single-level definition (`w:multiLevelType="singleLevel"`) is its
+  level 0, counted on**: `1. 2. 3. 4.` with the third `w:ilvl` 1, a direct `w:numId` with
+  `w:ilvl` 1 or 3 alike, at level 0's indent.
+* **A level a multilevel definition does not have draws no number and is not counted**;
+  its first line starts at the left indent -- no hanging or first-line indent, whoever
+  states one -- the left indent from the style, or from the style's own list level where
+  the style states none; the direct `w:numPr` gives none (`w:ilvl` 4 of three levels: the
+  style's 284; a style of no indent over a level of 720/360: 720; direct 500/300: 500).
+* **A paragraph numbered by its style whose level is tied to another style** -- one that is
+  not its style or one its style is based on -- **draws no number and is not counted**,
+  at the level's indent: a style with its own `w:numPr` to a level tied to List Number,
+  a style based on it, and a style naming the definition with no `w:ilvl` where level 1
+  is tied to it (Word takes level 0, not the level tied to it). A style based on the tied
+  one is numbered, with its own `w:numPr` too; a level tied to none is numbered; a direct
+  `w:numPr` numbers as ever.
+
+The model: `NumberingLevel.style` and `.single` (`parse_numbering`),
+`resolve.cascade._numbered_directly` and `_list_level`. Every glyph of both documents is
+Word's (317 of 317, three labels a thousandth of a pixel off); before, 296 matched (the
+level rules) and 312 (the direct `w:ilvl`).
+
 **Not measured.** Endnotes and comments; two header or footer parts holding one list;
 text boxes in headers (counted per box, as before); a level with no `w:start` (read as 1;
-ECMA-376 says 0); numbering from a paragraph style's `w:numPr`; a list item whose
+ECMA-376 says 0); a style's `w:numPr` beyond N.5; a list item whose
 paragraph mark is deleted or whose numbering changed (`w:numberingChange`); bullets
 between numbered levels.
 

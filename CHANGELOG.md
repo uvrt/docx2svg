@@ -5,6 +5,41 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.0 -- unreleased
+
+- **Table rows kept with the next** (production round 24, W1). A row whose first cell's
+  first paragraph keeps with the next (`w:keepNext`, directly or by its style; the first of
+  a table nested there first) goes to the next page with the row after it, whole, a chain
+  of such rows together; the table's last row with the paragraph after the table; a chain
+  reaching the first row takes the table to the next page, and a `keepNext` paragraph
+  before it with it -- one taller than a page starts the next page and breaks where it is
+  full (`table.keeps_with_next`, `paginate._keeps`). Measured in Word by
+  `tools/make_table_keep_probe.py` (36 cases, no settings and mode 15: 35 of each as Word,
+  16 before; the one left is a nested table across the foot, which Word splits and the
+  model moves whole). `tests/test_relayout.py` also edits reports whose tables keep their
+  rows, laid out from the edit as a full layout.
+- **List levels as Word takes them** (production round 23's findings). A direct
+  `w:numPr` of only `w:ilvl` is direct numbering (the level's indent over the style's);
+  any level of a `singleLevel` definition is its level 0, counted on; a level a multilevel
+  definition does not have draws no number, its first line at the left indent; a
+  paragraph numbered by its style whose level is tied (`w:lvl/w:pStyle`) to a style not in
+  its style's `w:basedOn` chain draws no number and is not counted
+  (`resolve.cascade._numbered_directly`, `_list_level`; `NumberingLevel.style`, `.single`).
+  `tools/make_list_level_probe.py`: every glyph of 16 cases as Word draws it.
+- **Indents that leave a cell's text no width** (production round 21's finding). Measured
+  (`tools/make_narrow_text_probe.py`): in a fixed-layout table and in the body Word breaks
+  inside the words as the renderer does; one word to a line is an autofit column widened
+  to the cell's indents and widest word. In mode 15 an autofit table as wide as the text
+  column -- wider than its room by its borders' halves -- is now sized from its content and
+  drawn at its width, as Word draws it, where it was laid out on its grid
+  (`table.column_wide`).
+- **A run's shading in its theme colour** (production round 24, lane I's W6). A run's
+  `w:shd` -- direct or from a character style -- with `w:themeFill` (and
+  `w:themeFillTint` / `w:themeFillShade`) is drawn in the theme's colour, as paragraph
+  and cell shading already were, not the `w:fill` beside it (measured: `accent1` tint 66
+  drawn 83CAEB, `accent2` shade BF BF4E14, beside decoy fills).
+CORPUS
+
 ## 0.10.0 -- unreleased
 
 - **Theme colours drawn as Word draws them** (production round 21, D2). A run's `w:color`

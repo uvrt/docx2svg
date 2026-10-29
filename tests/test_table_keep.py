@@ -34,7 +34,7 @@ def _disagree(compared: dict) -> set:
 def test_every_case_puts_each_row_on_the_page_word_does():
     compared = reader.offline()
     assert _disagree(compared) == {(setting, name) for setting in compared for name in NOT_MODELLED}
-    assert reader.tally(compared) == (66, 68)
+    assert reader.tally(compared) == (70, 72)
 
 
 def _variant(monkeypatch, rule):
@@ -53,7 +53,7 @@ def _any_cell_first(row) -> bool:
     ("rows never keep", lambda row: False, {
         "all", "but last", "row 5", "rows 4-5", "row 5 cell a", "row 5 first", "foot last row", "foot all",
         "long all", "long but last", "long header all", "before all", "cantSplit row 5", "header all",
-        "nested inner", "row 5 a first only", "row 5 style", "row 5 wrapped, cantSplit"}),
+        "nested inner", "row 5 a first only", "row 5 style", "row 5 wrapped, cantSplit", "all, page break after"}),
     ("any paragraph of the first cell", _first_cell_any, {"row 5 last", "nested inner", "nested outer"}),
     ("the first paragraph of any cell", _any_cell_first, {"row 5 cell b", "row 5 b first only", "nested inner",
                                                           "nested outer"}),
