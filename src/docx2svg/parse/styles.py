@@ -130,6 +130,7 @@ def _level(element) -> NumberingLevel:
         alignment=attr(child(element, "lvlJc"), "val"),
         restart=attr_int(child(element, "lvlRestart"), "val"),
         legal=legal is not None and _on(legal),
+        style=attr(child(element, "pStyle"), "val"),
     )
 
 
@@ -199,7 +200,9 @@ def parse_numbering(numbering_xml: bytes, styles: StyleSheet | None = None) -> N
         if nsid:
             first_by_nsid[nsid.upper()] = identifier
         canonical[identifier] = identifier
-        abstract[identifier] = {level.level: level for level in map(_level, children(element, "lvl"))}
+        single = attr(child(element, "multiLevelType"), "val") == "singleLevel"
+        abstract[identifier] = {level.level: dataclasses.replace(level, single=True) if single else level
+                                for level in map(_level, children(element, "lvl"))}
         link = attr(child(element, "numStyleLink"), "val")
         if link:
             links[identifier] = link
@@ -230,6 +233,8 @@ def parse_numbering(numbering_xml: bytes, styles: StyleSheet | None = None) -> N
             start = attr_int(child(override, "startOverride"), "val")
             if replacement is not None:
                 level = _level(replacement)
+                if levels.get(0) is not None and levels[0].single:
+                    level = dataclasses.replace(level, single=True)
                 levels[level.level] = level
                 ilvl = level.level
             elif start is not None:
