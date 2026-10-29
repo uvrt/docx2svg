@@ -36,8 +36,8 @@ WORDS = ("river stone lantern orchard meadow harbour quiet copper window garden 
 class Block:
     """One body block: ``kind`` is ``heading``, ``para``, ``bullet``, ``table``, ``panel``
     (a paragraph anchoring a side text box), ``break`` (a paragraph holding a page break),
-    ``noted`` (a paragraph with a footnote, whose text is ``note``) or ``raw`` (``text`` is
-    the block's XML, written as it is); ``text`` its words (a table's: ``rows`` of cells).
+    ``noted`` (a paragraph with a footnote, whose text is ``note``), ``lead`` (a paragraph
+    that keeps with the next) or ``raw`` (``text`` is the block's XML, written as it is); ``text`` its words (a table's: ``rows`` of cells).
 
     With fields (round 20): ``toc`` (a line of a table of contents: its heading's words, a
     dotted tab and ``PAGEREF target``; the first ``opens`` the ``TOC`` field), ``tocend``
@@ -60,6 +60,9 @@ class Block:
     target: str = ""
     #: A ``toc`` line that opens the ``TOC`` field (the first).
     opens: bool = False
+    #: A table's rows that keep with the next (round 24, :func:`report`'s ``keeps``): ``all``,
+    #: ``but last``, ``some`` (every other one) or ``label`` (all, and no header row).
+    keep: str = ""
 
 
 def _words(rng: random.Random, n: int) -> str:
@@ -79,7 +82,7 @@ def section_break(kind: str = "nextPage") -> Block:
 
 
 def report(pages: int, seed: int = 0, *, notes: bool = False, sections: bool = False, toc: bool = False,
-           toc_break: bool = True, fields: bool = False) -> list[Block]:
+           toc_break: bool = True, fields: bool = False, keeps: bool = False) -> list[Block]:
     """A made-up report of about ``pages`` A4 pages: per part a heading, paragraphs, a
     bulleted list, a side panel, and every other part a table; every sixth part starts a
     page (a paragraph holding a page break before its heading).  ``notes``: every third
@@ -91,7 +94,10 @@ def report(pages: int, seed: int = 0, *, notes: bool = False, sections: bool = F
     in a shorter report -- and (``toc_break``) a page break after it.  ``fields``: each table
     has a caption numbered by ``SEQ Table`` before it, every third part a paragraph
     referring to the last caption (``REF``), every fifth a paragraph showing a heading's
-    page (``PAGEREF``) and every seventh one showing its own (``PAGE``)."""
+    page (``PAGEREF``) and every seventh one showing its own (``PAGE``).  ``keeps`` (round
+    24): every table's rows keep with the next -- all of them, all but the last, every other
+    one, or all with no header row, in turn -- tables of up to 16 rows, and every other
+    one after a ``lead`` paragraph that keeps with the next."""
     rng = random.Random(seed)
     blocks: list[Block] = []
     serial = 0
@@ -131,11 +137,14 @@ def report(pages: int, seed: int = 0, *, notes: bool = False, sections: bool = F
             blocks.append(Block("bullet", _words(rng, rng.randint(4, 12)), para_id=pid()))
         if part % 2 == 0:
             rows = tuple(tuple(_words(rng, rng.randint(1, 6 if r else 2)) for _ in range(3))
-                         for r in range(rng.randint(3, 7)))
+                         for r in range(rng.randint(3, 16 if keeps else 7)))
             if fields:
                 captions += 1
                 blocks.append(Block("caption", _words(rng, 4)[:-1], para_id=pid(), mark=f"_Ref{captions:04d}"))
-            blocks.append(Block("table", rows=rows))
+            keep = KEEPS[part // 2 % len(KEEPS)] if keeps else ""
+            if keeps and part % 4 == 0:
+                blocks.append(Block("lead", _words(rng, 6), para_id=pid()))
+            blocks.append(Block("table", rows=rows, keep=keep))
         if fields and captions and part % 3 == 2:
             blocks.append(Block("xref", _sentences(rng, 1, 2), para_id=pid(), target=f"_Ref{captions:04d}"))
         if fields and part % 5 == 4:
@@ -167,7 +176,9 @@ FIELD_EDIT_KINDS = ("caption-insert", "caption-delete", "toc-insert", "toc-delet
 #: heading (its first words), or a heading a paragraph (its style changed).
 STYLE_EDIT_KINDS = ("restyle",)
 #: The blocks whose words an edit changes.
-_WORDED = ("heading", "para", "bullet", "panel", "noted", "caption", "xref", "pageref", "pagefield")
+_WORDED = ("heading", "para", "bullet", "panel", "noted", "caption", "xref", "pageref", "pagefield", "lead")
+#: How a table's rows keep with the next, in turn (:func:`report`'s ``keeps``).
+KEEPS = ("all", "but last", "some", "label")
 
 
 def _in_contents(blocks: list[Block], k: int) -> bool:
@@ -302,7 +313,12 @@ def _panel(text: str, number: int) -> str:
     return anchor
 
 
-def _table(rows: tuple) -> str:
+def _kept(keep: str, r: int, rows: int) -> bool:
+    """Whether row ``r`` of ``rows`` keeps with the next under ``keep`` (:attr:`Block.keep`)."""
+    return keep in ("all", "label") or (keep == "but last" and r < rows - 1) or (keep == "some" and r % 2 == 1)
+
+
+def _table(rows: tuple, keep: str = "") -> str:
     width = 9000
     borders = "".join(f'<w:{side} w:val="single" w:sz="4" w:space="0" w:color="7F7F7F"/>'
                       for side in ("top", "left", "bottom", "right", "insideH", "insideV"))
@@ -310,10 +326,12 @@ def _table(rows: tuple) -> str:
            '<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>'
            + "".join(f'<w:gridCol w:w="{width // 3}"/>' for _ in range(3)) + "</w:tblGrid>")
     for r, row in enumerate(rows):
-        header = "<w:trPr><w:tblHeader/></w:trPr>" if r == 0 else ""
+        first = r == 0 and keep != "label"
+        header = "<w:trPr><w:tblHeader/></w:trPr>" if first else ""
+        extra = "<w:keepNext/>" if _kept(keep, r, len(rows)) else ""
         cells = "".join(f'<w:tc><w:tcPr><w:tcW w:w="{width // 3}" w:type="dxa"/>'
-                        + ('<w:shd w:val="clear" w:color="auto" w:fill="D9E2F3"/>' if r == 0 else "")
-                        + f'</w:tcPr>{_para(text, "Cell")}</w:tc>' for text in row)
+                        + ('<w:shd w:val="clear" w:color="auto" w:fill="D9E2F3"/>' if first else "")
+                        + f'</w:tcPr>{_para(text, "Cell", extra_ppr=extra)}</w:tc>' for text in row)
         out += f"<w:tr>{header}{cells}</w:tr>"
     return out + "</w:tbl>"
 
@@ -359,6 +377,8 @@ def body_xml(blocks: list[Block]) -> str:
                          + _run(". " + block.text))
         elif block.kind == "para":
             out += _para(block.text, None, block.para_id)
+        elif block.kind == "lead":
+            out += _para(block.text, None, block.para_id, extra_ppr="<w:keepNext/>")
         elif block.kind == "bullet":
             out += _para(block.text, "ListBullet", block.para_id)
         elif block.kind == "panel":
@@ -367,7 +387,7 @@ def body_xml(blocks: list[Block]) -> str:
         elif block.kind == "break":
             out += _para("", None, block.para_id, runs='<w:r><w:br w:type="page"/></w:r>')
         elif block.kind == "table":
-            out += _table(block.rows)
+            out += _table(block.rows, block.keep)
         elif block.kind == "noted":
             notes += 1
             out += _para("", None, block.para_id, runs=_run(block.text) + (

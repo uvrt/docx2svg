@@ -2573,7 +2573,11 @@ def _scan(document: Document, items: Flow, start: Position, rules: Rules, carry:
                     # keepNext paragraph before it goes with it.
                     return done(_break_before(items, start, Position(index, next_row), rules,
                                               document.compatibility_mode))
-                return done(Position(index, next_row, tuple(next_part) if next_part else ()))
+                if next_part:
+                    return done(Position(index, next_row, tuple(next_part)))
+                # The row starts the next page: the rows before it that keep with it go too.
+                return done(_break_before(items, start, Position(index, next_row), rules,
+                                          document.compatibility_mode, empty_ok=frame is not None and not frame.first_on_page))
             y = laid.end
             first_on_page = False
             previous = item
@@ -3201,12 +3205,31 @@ def _keeps(items: list, start: Position, overflow: Position, rules: Rules,
       (:func:`keep_next_moves`).  A one-line paragraph moves whole either way, and the
       paragraph before it is asked in turn: a chain moves together, even one taller
       than a page.
+    * **A table's rows** (:func:`docx2svg.table.keeps_with_next`): a row that keeps with
+      the next goes with the row after it, whole, a chain of them together, and the
+      table's last row with what follows the table; a chain that reaches the table's
+      first row takes the table to the next page, and a ``keepNext`` paragraph before it
+      with it -- one taller than a page starts the next page and breaks where it is full
+      (``make_table_keep_probe.py``: ``long all``).  In mode 15 the header rows are not
+      left at the foot with no row after them (as :func:`docx2svg.table.place_table`
+      keeps them).  A row split across the page's foot started on the page: no keep
+      moves it.
     """
     index, number = overflow.item, overflow.line
     item = items[index]
     first = start.line if index == start.item else 0
     target = overflow
-    if number > 0:
+    if isinstance(item, TableItem):
+        if overflow.part or item.floating is not None:
+            return overflow
+        rows = item.flow.rows
+        while number > 0 and table_model.keeps_with_next(rows[number - 1]):
+            number -= 1
+        if number < overflow.line and 0 < number <= table_model.header_rows(item.flow) and \
+                (compatibility_mode or 0) >= 15:
+            number = 0
+        target = Position(index, number)
+    elif number > 0:
         if item.keep_lines and first == 0:
             target = Position(index)
         elif (rules.widow_default if item.widow_control is None else item.widow_control) and rules.widow_lines > 1:
@@ -3227,6 +3250,9 @@ def _keeps(items: list, start: Position, overflow: Position, rules: Rules,
                 return _keeps(items, start, Position(target.item - 1, previous.count - 1), rules,
                               compatibility_mode)
             return _keeps(items, start, Position(target.item - 1, 0), rules, compatibility_mode)
+        if isinstance(previous, TableItem) and previous.floating is None and previous.count and \
+                table_model.keeps_with_next(previous.flow.rows[-1]):
+            return _keeps(items, start, Position(target.item - 1, previous.count - 1), rules, compatibility_mode)
     return target
 
 

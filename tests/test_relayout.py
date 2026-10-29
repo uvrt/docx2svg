@@ -8,7 +8,8 @@ page of the same number (their SVG, ``data-docx-*`` attributes aside), with thos
 not have.  Held over seeded random edits (:func:`report_docs.edit`: a paragraph's or a
 cell's text changed or grown, paragraphs, rows and page breaks inserted and deleted) of
 made-up reports with headings, a list, tables with a header row, side panels text wraps
-beside, a header and a ``Page N of M`` footer, each layout made from the one before.
+beside, a header and a ``Page N of M`` footer -- and (round 24) tables whose rows keep
+with the next -- each layout made from the one before.
 Every kind of edit is also made on its own, one after another on one report.
 
 **Two sizes.**  A pull request's CI runs a small seeded set (about a minute per leg): a few
@@ -48,9 +49,9 @@ FULL = os.environ.get("RELAYOUT_FULL", "") not in ("", "0")
 #: pages).
 SIZES = {
     True: {"small": 96, "notes": 12, "sections": 8, 16: 6, 40: 2, "fields": 6, "contents": 24,
-           "contents-16": 8, "contents-40": 3, "styleref": 32, "styleref-wrap": 16},
+           "contents-16": 8, "contents-40": 3, "styleref": 32, "styleref-wrap": 16, "keeps": 48},
     False: {"small": 8, "notes": 2, "sections": 2, 16: 1, 40: 0, "fields": 2, "contents": 3,
-            "contents-16": 0, "contents-40": 0, "styleref": 6, "styleref-wrap": 3},
+            "contents-16": 0, "contents-40": 0, "styleref": 6, "styleref-wrap": 3, "keeps": 8},
 }[FULL]
 #: Edits of the small reports; ``RELAYOUT_CASES`` sets another number.
 CASES = int(os.environ.get("RELAYOUT_CASES", SIZES["small"]))
@@ -94,13 +95,13 @@ def _check(blocks, previous, previous_svgs, what: str, stats: dict, package: dic
 
 
 def _run(pages: int, seed: int, cases: int, *, notes: bool = False, sections: bool = False,
-         contents: dict | None = None, kinds: tuple | None = None, **package) -> dict:
+         contents: dict | None = None, kinds: tuple | None = None, keeps: bool = False, **package) -> dict:
     rng = random.Random(seed)
     stats: dict = {}
     done = 0
     while done < cases:
         blocks = report_docs.report(pages, seed=rng.randrange(1 << 30), notes=notes, sections=sections,
-                                    **(contents or {}))
+                                    keeps=keeps, **(contents or {}))
         layout, data, fonts = lay_out_docx(report_docs.package(blocks, **package))
         svgs = page_svgs(layout, data, fonts=fonts)
         for _ in range(min(CHAIN, cases - done)):
@@ -140,6 +141,15 @@ def test_random_edits_of_long_reports_lay_out_as_a_full_layout(pages):
     if not LONG_CASES[pages]:
         pytest.skip(f"the {pages}-page report is in the full set only: RELAYOUT_FULL=1")
     stats = _run(pages, 100 + pages, LONG_CASES[pages])
+    assert stats.get(None, 0) >= 1, stats
+
+
+@pytest.mark.parametrize("seed", range(2))
+def test_random_edits_of_reports_with_kept_tables_lay_out_as_a_full_layout(seed):
+    # Round 24: tables whose rows keep with the next (all, all but the last, every other
+    # one, all with no header row), some after a paragraph that keeps with them -- a row
+    # an edit moves can take the rows and the paragraph before it to the next page.
+    stats = _run(6, 300 + seed, SIZES["keeps"] // 2, keeps=True)
     assert stats.get(None, 0) >= 1, stats
 
 
