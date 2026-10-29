@@ -38,7 +38,10 @@ snapshot commit; the development history before it is summarised here.
   `w:themeFillTint` / `w:themeFillShade`) is drawn in the theme's colour, as paragraph
   and cell shading already were, not the `w:fill` beside it (measured: `accent1` tint 66
   drawn 83CAEB, `accent2` shade BF BF4E14, beside decoy fills).
-CORPUS
+- On the local corpus (110 documents, 838 pages: this repository's and docx-agent's
+  fixtures and goldens, round 19's and round 21's documents) no page changed and no warning:
+  none holds a kept table row, a list level of these kinds, a mode-15 autofit table whose
+  content needs more than its grid, or a run's theme shading.
 
 ## 0.10.0 -- unreleased
 
