@@ -18,7 +18,7 @@ snapshot commit; the development history before it is summarised here.
   16 before; the one left is a nested table across the foot, which Word splits and the
   model moves whole). `tests/test_relayout.py` also edits reports whose tables keep their
   rows, laid out from the edit as a full layout.
-- **List levels as Word takes them** (production round 23's findings). A direct
+- **List levels as Word takes them** (differences production round 23 measured). A direct
   `w:numPr` of only `w:ilvl` is direct numbering (the level's indent over the style's);
   any level of a `singleLevel` definition is its level 0, counted on; a level a multilevel
   definition does not have draws no number, its first line at the left indent; a
@@ -26,7 +26,7 @@ snapshot commit; the development history before it is summarised here.
   its style's `w:basedOn` chain draws no number and is not counted
   (`resolve.cascade._numbered_directly`, `_list_level`; `NumberingLevel.style`, `.single`).
   `tools/make_list_level_probe.py`: every glyph of 16 cases as Word draws it.
-- **Indents that leave a cell's text no width** (production round 21's finding). Measured
+- **Indents that leave a cell's text no width** (production round 21 measured). Measured
   (`tools/make_narrow_text_probe.py`): in a fixed-layout table and in the body Word breaks
   inside the words as the renderer does; one word to a line is an autofit column widened
   to the cell's indents and widest word. In mode 15 an autofit table as wide as the text
