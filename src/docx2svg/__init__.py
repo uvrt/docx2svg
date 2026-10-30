@@ -71,7 +71,7 @@ if TYPE_CHECKING:
     from .measure import Advances
     from .vertical import FaceMetrics
 
-__version__ = "0.11.0"
+__version__ = "0.11.1"
 
 __all__ = [
     "Conversion",
@@ -96,6 +96,7 @@ __all__ = [
     "parse_document",
     "parse_package",
     "resolve_path",
+    "scan_fonts",
     "svg_to_png",
     "user_font_dirs",
     "warm",
@@ -364,6 +365,7 @@ def warm(source=None, options: ConvertOptions | None = None, *, scan=None):
     drawing look faces up in.  ``scan``, a :class:`~docx2svg.fonts.FontScan` an earlier
     process returned, spares reading the files it read that have not changed since
     (:func:`docx2svg.fonts.load_scan`; one of another docx2svg version is ignored).
+    :func:`scan_fonts` is the scan alone, for a process that starts several workers.
 
     With ``source`` -- a document, typically the template a worker's documents are made
     from -- also lays it out and draws its first page with ``options``, which loads the
@@ -385,8 +387,7 @@ def warm(source=None, options: ConvertOptions | None = None, *, scan=None):
     for module in pkgutil.walk_packages(__path__, f"{__name__}."):
         if module.name != f"{__name__}.cli":
             importlib.import_module(module.name)
-    if scan is not None:
-        fonts.load_scan(scan, __version__)
+    found_scan = scan_fonts(options, scan=scan)
     dirs = _font_dirs(options)
     fonts.installed_index(dirs)
     fonts.installed_index(fonts.drawing_dirs(dirs), bundle_first=True)
@@ -395,7 +396,27 @@ def warm(source=None, options: ConvertOptions | None = None, *, scan=None):
         quiet = dataclasses.replace(options, pages=[1], warnings=[], coverage=None)
         layout, data, found = lay_out_docx(source, quiet)
         page_svgs(layout, data, quiet, fonts=found)
-    return fonts.font_scan(dirs, __version__)
+    return found_scan
+
+
+def scan_fonts(options: ConvertOptions | None = None, *, scan=None):
+    """The scan of the font folders :func:`warm` makes, alone -- no imports, no index, no
+    layout: a :class:`docx2svg.fonts.FontScan` of every font file in the folders
+    ``options`` names (as :func:`warm` reads them), each file opened once, for a few
+    kilobytes of its header (its table directory, ``name``, ``OS/2`` and ``head``).
+
+    ``scan``, an earlier one, is taken first for the files whose modification time and
+    size it recorded are still theirs (:func:`docx2svg.fonts.load_scan`; one of another
+    docx2svg version is ignored), so only the files changed or added since are read.  A
+    process that hands the result to its render workers' :func:`warm` (``scan=``) has the
+    folders read once for all of them; what this process read is kept for it, as
+    :func:`warm` keeps it."""
+    from . import fonts
+
+    options = options if options is not None else ConvertOptions()
+    if scan is not None:
+        fonts.load_scan(scan, __version__)
+    return fonts.font_scan(_font_dirs(options), __version__)
 
 
 #: The old name of :func:`lay_out_docx`, kept for docx-agent's tests until they move.

@@ -126,6 +126,55 @@ def test_a_changed_file_is_read_again(tmp_path, fresh_scan, monkeypatch):
     assert set(index) == {("warm kept", False, False), ("warm after, longer", False, False)}
 
 
+def test_a_scan_opens_each_file_once(tmp_path, fresh_scan, monkeypatch):
+    """The names, the style and the names a rasteriser files a face under come from the
+    same header tables: one open per file, for the index in both orders and the
+    rasteriser's names (round 25, R1: two before); a worker given the scan opens none."""
+    (tmp_path / "a.ttf").write_bytes(_face("Warm Once"))
+    (tmp_path / "b.ttc").write_bytes(_collection(_face("Warm Twice"), _face("Warm Twice", bold=True)))
+    opened = []
+    real = open
+    monkeypatch.setattr(fonts, "open", lambda path, *a, **k: opened.append(Path(path).name) or real(path, *a, **k),
+                        raising=False)
+    dirs = (tmp_path,)
+    fonts.installed_index(dirs)
+    fonts.installed_index(fonts.drawing_dirs(dirs), bundle_first=True)
+    assert set(fonts._rasteriser_families_index(dirs)) == {"warm once", "warm twice"}
+    scan = fonts.font_scan(dirs, "test")
+    assert sorted(opened) == ["a.ttf", "b.ttc"]
+    assert scan.rasteriser == {str(tmp_path / "a.ttf"): {0: ("Warm Once",)},
+                               str(tmp_path / "b.ttc"): {0: ("Warm Twice",), 1: ("Warm Twice",)}}
+
+    opened.clear()
+    monkeypatch.setattr(fonts, "_SCANNED", {})
+    monkeypatch.setattr(fonts, "_RASTERISER", {})
+    fonts.installed_index.cache_clear()
+    fonts._rasteriser_families_index.cache_clear()
+    assert fonts.load_scan(pickle.loads(pickle.dumps(scan)), "test") == 2
+    fonts.installed_index(dirs)
+    fonts._rasteriser_families_index(dirs)
+    assert opened == []
+    fonts._rasteriser_families_index.cache_clear()
+
+
+def test_scan_fonts_is_warms_scan(tmp_path, fresh_scan, monkeypatch):
+    """:func:`docx2svg.scan_fonts` reads what :func:`docx2svg.warm` reads of the folders,
+    and an earlier scan spares the files it recorded unchanged."""
+    (tmp_path / "a.ttf").write_bytes(_face("Warm Alone"))
+    monkeypatch.setenv("OOXML_FONT_DIRS", str(tmp_path))
+    monkeypatch.setattr(fonts, "default_font_dirs", lambda: ())
+    scan = docx2svg.scan_fonts()
+    assert list(scan.files) == [str(tmp_path / "a.ttf")] and scan.version == docx2svg.__version__
+    monkeypatch.setattr(fonts, "_SCANNED", {})
+    monkeypatch.setattr(fonts, "_RASTERISER", {})
+    read = []
+    real = fonts._scanned_faces
+    monkeypatch.setattr(fonts, "_scanned_faces", lambda path: read.append(path.name) or real(path))
+    (tmp_path / "b.ttf").write_bytes(_face("Warm Added"))
+    again = docx2svg.scan_fonts(scan=scan)
+    assert read == ["b.ttf"] and set(again.files) == {str(tmp_path / "a.ttf"), str(tmp_path / "b.ttf")}
+
+
 def test_a_scan_of_another_version_is_not_taken(tmp_path, fresh_scan):
     (tmp_path / "a.ttf").write_bytes(_face("Warm Version"))
     scan = fonts.font_scan((tmp_path,), "0.0.1")

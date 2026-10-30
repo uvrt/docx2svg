@@ -34,6 +34,7 @@ USED_BY: dict[str, dict[str, str]] = {
         "drawn_faces": "docx-agent",
         "lay_out_docx": "docx-agent",
         "page_svgs": "docx-agent",
+        "scan_fonts": "docx-agent",
         "user_font_dirs": "docx-agent",
         "warm": "docx-agent",
     },
@@ -94,8 +95,10 @@ USED_BY: dict[str, dict[str, str]] = {
     },
     "docx2svg.table": {
         "edge_winner": "docx-agent",
+        "lead_paragraph": "docx-agent",
         "outer_part": "docx-agent",
         "resolve_table": "docx-agent",
+        "row_keeps_with_next": "docx-agent",
         "table_style_id": "docx-agent",
     },
 }
