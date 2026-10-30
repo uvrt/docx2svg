@@ -97,6 +97,9 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   save it and hand it to the next worker's `warm(scan=...)`, which then reads only the
   files whose modification time or size changed (and ignores a scan of another docx2svg
   version). Output is the same bytes with and without it (`tests/test_warm.py`).
+  `scan_fonts(options=None, *, scan=None)` is that scan alone (no imports, no index): a
+  process starting several workers scans once and hands the result to each worker's
+  `warm(scan=...)`. A scan opens each font file once, for its header tables only.
 
   ```python
   import pickle
@@ -199,7 +202,7 @@ docx2svg from `main`, so renaming or removing one breaks it at its next run.
 list and that one disagree. To rename one, keep the old name as an alias for one release,
 with a comment saying who it is kept for, and move docx-agent to the new name.
 
-- `docx2svg` -- docx-agent: `ConvertOptions`, `available_backends`, `convert_docx`, `convert_docx_to_layout`, `convert_docx_to_png`, `convert_docx_to_svg`, `drawn_faces`, `lay_out_docx`, `page_svgs`, `user_font_dirs`, `warm`
+- `docx2svg` -- docx-agent: `ConvertOptions`, `available_backends`, `convert_docx`, `convert_docx_to_layout`, `convert_docx_to_png`, `convert_docx_to_svg`, `drawn_faces`, `lay_out_docx`, `page_svgs`, `scan_fonts`, `user_font_dirs`, `warm`
 - `docx2svg.coverage` -- docx-agent: `Coverage`
 - `docx2svg.fields` -- docx-agent: `Uncomputable`, `field_text`, `sequence_step`, `sequence_switches`
 - `docx2svg.fonts` -- docx-agent: `InstalledFonts`, `cloud_font_dirs`, `default_font_dirs`, `installed_index`, `rasteriser_files`
@@ -212,4 +215,4 @@ with a comment saying who it is kept for, and move docx-agent to the new name.
 - `docx2svg.paths` -- docx-agent: `block_keys`, `path_part`, `resolve_path`
 - `docx2svg.png` -- docx-agent: `svg_to_png`
 - `docx2svg.resolve` -- docx-agent: `character_format`, `resolve_paragraph`, `resolve_run`
-- `docx2svg.table` -- docx-agent: `edge_winner`, `outer_part`, `resolve_table`, `table_style_id`
+- `docx2svg.table` -- docx-agent: `edge_winner`, `lead_paragraph`, `outer_part`, `resolve_table`, `row_keeps_with_next`, `table_style_id`

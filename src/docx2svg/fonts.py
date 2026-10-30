@@ -358,6 +358,7 @@ def _scanned_entries(path: str) -> tuple:
     except OSError:
         stamp = None
     out = []
+    rasteriser: dict[int, tuple | None] = {}
     for number, face in _scanned_faces(Path(path)):
         try:
             bold, italic = face.style
@@ -365,7 +366,21 @@ def _scanned_entries(path: str) -> tuple:
         except (OSError, struct.error, TypeError, FontError):
             named = None
         out.append((number, named))
+        rasteriser[number] = _rasteriser_names(face)
+    # The names a rasteriser files the faces under come from the same ``name`` table,
+    # already read: kept now, so a scan opens each file once (round 25, R1: it opened
+    # each twice, the second time for these).
+    _RASTERISER.setdefault(path, rasteriser)
     return _SCANNED.setdefault(path, (stamp, tuple(out)))[1]
+
+
+def _rasteriser_names(face: Face) -> tuple | None:
+    """:attr:`Face.rasteriser_families` of a scanned face, ``None`` where they cannot be
+    read."""
+    try:
+        return tuple(face.rasteriser_families)
+    except (OSError, struct.error, TypeError, FontError):
+        return None
 
 
 #: :func:`_scanned_rasteriser_families`' answers, by path: face number -> names or ``None``.
@@ -375,17 +390,12 @@ _RASTERISER: dict[str, dict] = {}
 def _scanned_rasteriser_families(path: str, number: int) -> tuple | None:
     """The family names a rasteriser files face ``number`` of ``path`` under
     (:attr:`Face.rasteriser_families`), from its header tables; ``None`` where they cannot
-    be read.  Only a drawing that names a face its document name does not reach asks, so
-    they are read apart from :func:`_scanned_entries` (both from one :class:`FontScan`)."""
+    be read.  :func:`_scanned_entries` keeps them as it reads a file (or a
+    :class:`FontScan` brings them); a file it has not read is read here."""
     found = _RASTERISER.get(path)
     if found is None:
-        found = {}
-        for at, face in _scanned_faces(Path(path)):
-            try:
-                found[at] = tuple(face.rasteriser_families)
-            except (OSError, struct.error, TypeError, FontError):
-                found[at] = None
-        found = _RASTERISER.setdefault(path, found)
+        found = _RASTERISER.setdefault(path, {at: _rasteriser_names(face)
+                                              for at, face in _scanned_faces(Path(path))})
     return found.get(number)
 
 
@@ -412,7 +422,7 @@ class FontScan:
     version: str = ""
     format: int = SCAN_FORMAT
     #: path -> {face number: rasteriser family names} (:func:`_scanned_rasteriser_families`),
-    #: for the files this process asked that of.
+    #: read with the rest of each file.
     rasteriser: dict = field(default_factory=dict)
 
 

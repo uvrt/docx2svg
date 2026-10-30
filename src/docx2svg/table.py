@@ -2140,7 +2140,8 @@ def keeps_with_next(row: RowFlow) -> bool:
     """Whether a row stays on the page of what follows it -- the next row, or the
     paragraph after the table for its last -- as a ``keepNext`` paragraph does: when the
     **first paragraph of its first cell** keeps with the next (directly or by its style),
-    the first of a table nested there first.
+    the first of a table nested there first (:func:`lead_paragraph`, the same rule over
+    the document's own rows).
 
     Measured by ``make_table_keep_probe.py`` (no ``settings.xml`` and mode 15 alike): the
     row goes to the next page with the row after it, whole (also one that could split),
@@ -2149,12 +2150,64 @@ def keeps_with_next(row: RowFlow) -> bool:
     table (``foot last row``).  With only the second cell's paragraph kept, or only the
     last of two paragraphs in each cell, or the outer cell's paragraph after a nested
     table, the row stays."""
-    if not row.cells or not row.cells[0].paragraphs:
-        return False
-    first = row.cells[0].paragraphs[0]
-    if first.table is not None:
-        return bool(first.table.rows) and keeps_with_next(first.table.rows[0])
-    return bool(first.resolved.get("keepNext"))
+    lead = _lead(row, _flow_first, _flow_nested)
+    return lead is not None and bool(lead.resolved.get("keepNext"))
+
+
+def lead_paragraph(row) -> Paragraph | None:
+    """The paragraph whose ``keepNext`` keeps a row of the document with the next
+    (:func:`keeps_with_next`): the first of its first cell, or where that cell starts with
+    a nested table, that table's first row's (and so on down); ``None`` for a row with no
+    cell or a first cell with no block.  ``row`` is one of :attr:`docx2svg.model.Table.rows`
+    (its cells, each a tuple of blocks)."""
+    return _lead(row, _model_first, _model_nested)
+
+
+def row_keeps_with_next(document: Document, row) -> bool:
+    """:func:`keeps_with_next` for a row of the document (one of
+    :attr:`docx2svg.model.Table.rows`), before any layout: its :func:`lead_paragraph`'s
+    ``keepNext`` through the style cascade (:func:`docx2svg.resolve.resolve_paragraph`)."""
+    from .resolve import resolve_paragraph
+
+    lead = lead_paragraph(row)
+    return lead is not None and bool(resolve_paragraph(document, lead).get("keepNext"))
+
+
+#: :func:`_lead`'s answer for a block that is a paragraph, not a nested table.
+_PARAGRAPH = object()
+
+
+def _lead(row, first, nested):
+    """The rule's walk, one for a laid-out row and a document's: ``first(row)`` is the
+    first block of a row's first cell (``None``: none), ``nested(block)`` the first row of
+    the table it is, ``None`` for an empty table, or :data:`_PARAGRAPH`."""
+    block = first(row)
+    while block is not None:
+        inner = nested(block)
+        if inner is _PARAGRAPH:
+            return block
+        block = first(inner) if inner is not None else None
+    return None
+
+
+def _flow_first(row: RowFlow):
+    return row.cells[0].paragraphs[0] if row.cells and row.cells[0].paragraphs else None
+
+
+def _flow_nested(block: CellParagraph):
+    if block.table is None:
+        return _PARAGRAPH
+    return block.table.rows[0] if block.table.rows else None
+
+
+def _model_first(row):
+    return row[0][0] if row and row[0] else None
+
+
+def _model_nested(block):
+    if not isinstance(block, Table):
+        return _PARAGRAPH
+    return block.rows[0] if block.rows else None
 
 
 def slice_height(cell: CellFlow, start: int, end: int, continued: bool = False) -> Fraction:

@@ -5,6 +5,24 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.1 -- unreleased
+
+- **A row's keep, for a document before any layout** (production round 25, W1).
+  `table.lead_paragraph(row)` is the paragraph whose `w:keepNext` keeps a row of the
+  document (`model.Table.rows`) with the next -- its first cell's first, a nested table's
+  first row's where the cell starts with one -- and `table.row_keeps_with_next(document,
+  row)` its keep through the style cascade: the rule `table.keeps_with_next` lays rows out
+  by, the walk shared (`table._lead`), for docx-agent's layout facts and its
+  `keep_together` (`tests/test_table_keep.py`: the same paragraph for every row of the
+  round-24 probe). No output changes.
+- **A font scan opens each file once** (production round 25, R1). The names a rasteriser
+  files a face under are read from the `name` table the scan has already read, as the
+  file is scanned, not by opening every file a second time (161 files took 319 opens);
+  a `FontScan` now carries them for every file, so a worker given one opens none of the
+  files it recorded. `scan_fonts(options=None, *, scan=None)` is `warm`'s scan alone, for
+  a process that starts several workers to scan once and hand to each `warm(scan=...)`.
+  No output changes.
+
 ## 0.11.0 -- unreleased
 
 - **Table rows kept with the next** (production round 24, W1). A row whose first cell's
