@@ -50,7 +50,12 @@ def fonts():
     return render_record.RecordedFonts(DATA["faces"])
 
 
-@pytest.mark.parametrize("name,data", DOCUMENTS, ids=[name for name, _ in DOCUMENTS])
+#: The modes a pull request leaves out (``long``, pyproject.toml): it runs mode 15's.
+LONG = {"float-table-none", "float-table-14"}
+
+
+@pytest.mark.parametrize("name,data", [pytest.param(name, data, id=name, marks=pytest.mark.long if name in LONG else ())
+                                       for name, data in DOCUMENTS])
 def test_floating_tables_against_word(name, data, fonts):
     recorded = DATA["documents"][name]
     result = reader.score(name, data, fonts, recorded)

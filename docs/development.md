@@ -48,7 +48,7 @@ every page and compares; `--no-cache` bypasses the cache. SSIM is computed over 
 content's bounding box only, which gives the full page's score bit for bit; the same
 sampled pages are scored both ways each run and held equal.
 
-A bare `pytest` runs serially, as CI does. To use every core, pass `-n` (pytest-xdist, in
+A bare `pytest` runs serially. To use every core, as CI does, pass `-n` (pytest-xdist, in
 the `dev` extra):
 
 ```
@@ -61,6 +61,11 @@ It collects, passes and skips exactly the tests the serial run does. Here `-n` m
 requests the `oracle_pdf` fixture, which exports through Word when the export is not
 cached. Those all run on one worker, one at a time, since Word is one instance per
 machine; under any other `--dist` they fail rather than race.
+
+A pull request's CI also leaves out the tests marked `long` (`-m "not long"`): seconds
+each, with a faster case of the same code kept (another parameter of the same test, or
+the measured rule a refuted alternative is scored against). A bare `pytest` runs them, as
+do CI's push to main, nightly and manual runs.
 
 Across processes -- and with docx-agent, which drives the same Word -- every launch,
 export, re-save and recovery holds an advisory `flock` on `word-oracle.lock` in the Office

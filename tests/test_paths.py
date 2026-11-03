@@ -74,7 +74,13 @@ def _drawn(layout):
             yield "stop", page.stop.path, None, None
 
 
-@pytest.mark.parametrize("source", ("committed",) + PROBES)
+#: Left out of a pull request's run (``long``, pyproject.toml): the columns probe, whose
+#: lines tests/test_columns.py follows column by column.
+LONG = {"read_columns_probe"}
+
+
+@pytest.mark.parametrize("source", [pytest.param(source, marks=pytest.mark.long if source in LONG else ())
+                                    for source in ("committed",) + PROBES])
 def test_every_drawn_path_names_the_element_it_was_drawn_from(source):
     """Every line's path names a ``w:p`` (its ``w14:paraId`` the line's, where it has one),
     every span's a ``w:r`` or the element a computed field or label is drawn for, every

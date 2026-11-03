@@ -10,6 +10,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "tools"))
 
@@ -45,6 +47,7 @@ def test_keeps_every_case():
     assert read_keep_probe.tally(compared) == (939, 939)
 
 
+@pytest.mark.long
 def test_keeps_refuted():
     """The alternatives each fail cases Word decides otherwise (ROADMAP.md, Phase 4)."""
     scores = {name: read_keep_probe.tally(read_keep_probe.offline(rules=rules))[0] for name, rules in {
