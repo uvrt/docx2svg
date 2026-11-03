@@ -22,6 +22,14 @@ on:
   schedule:
     - cron: "57 3 * * *"
 
+# One run per pull request at a time: a new push to it cancels the run for the push
+# before.  A push to main, the nightly run and a manual run are never cancelled and never
+# wait: their group ends in the run's own id (a group keeps one pending run and drops the
+# one before it, so a shared group would drop a queued run of main).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   relayout-full:
     runs-on: ubuntu-latest
