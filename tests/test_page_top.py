@@ -76,6 +76,7 @@ def test_dropping_the_space_before_at_every_page_top_is_refuted(monkeypatch):
     assert sum(v[0] for (s, k), v in table.items() if k == "pageBreakBefore") == 402
 
 
+@pytest.mark.long
 def test_page_break_before_by_compatibility_mode(monkeypatch):
     """Kept below mode 15 and when no mode is stated, dropped in 15: ignoring the mode
     either way misses every ``pageBreakBefore`` page of the other side but the ones

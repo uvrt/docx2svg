@@ -77,7 +77,13 @@ def _verdicts(name: str) -> list[bool]:
     return reader.score(name, DATA["documents"][name], _ours(name))
 
 
-@pytest.mark.parametrize("name", reader.probe.names())
+#: The modes a pull request leaves out (``long``, pyproject.toml): it lays out mode 15's
+#: of each document (and every mode of the running text).
+LONG = {"points-none", "points-14", "words-none", "words-14"}
+
+
+@pytest.mark.parametrize("name", [pytest.param(name, marks=pytest.mark.long if name in LONG else ())
+                                  for name in reader.probe.names()])
 def test_lines_break_where_word_breaks_them(name):
     verdicts = _verdicts(name)
     cases = reader.probe.documents()[name][1]

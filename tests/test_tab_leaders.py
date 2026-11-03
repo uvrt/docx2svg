@@ -33,7 +33,12 @@ def test_every_document_is_recorded():
     assert sorted(DATA["documents"]) == sorted(name for name, _ in reader.documents())
 
 
-@pytest.mark.parametrize("name,data", DOCUMENTS, ids=[name for name, _ in DOCUMENTS])
+#: The modes a pull request leaves out (``long``, pyproject.toml): it runs mode 15's.
+LONG = {"leader-none", "leader-14"}
+
+
+@pytest.mark.parametrize("name,data", [pytest.param(name, data, id=name, marks=pytest.mark.long if name in LONG else ())
+                                       for name, data in DOCUMENTS])
 def test_tab_leaders_against_word(name, data, fonts):
     pytest.importorskip("numpy")
     recorded = DATA["documents"][name]

@@ -117,21 +117,22 @@ def _spaces_and_mark_on_a_blank_line(chars, mark):
     return [item for item, _ in chars] + [mark]
 
 
-#: Each replaces one rule of the model and keeps the others.
+#: Each replaces one rule of the model and keeps the others.  A pull request's run checks
+#: the first; the rest are ``long`` (pyproject.toml).
 @pytest.mark.parametrize(("rule", "score"), [
     # The mark on every line of its paragraph, spaces counted: the model before, but
     # for the label rule.
     (_every_line, 7648),
     # The mark on the paragraph's last line, where it sits (and on a line of spaces).
-    ("last line", 8036),
+    pytest.param("last line", 8036, marks=pytest.mark.long),
     # Spaces: counted like text; left out only at the end of a line; a no-break space
     # left out too; on a line of spaces alone, counted with the mark.
-    (_with_spaces, 9784),
-    (_trailing_spaces_only, 10516),
-    (_without_no_break_spaces, 10516),
-    (_spaces_and_mark_on_a_blank_line, 10360),
+    pytest.param(_with_spaces, 9784, marks=pytest.mark.long),
+    pytest.param(_trailing_spaces_only, 10516, marks=pytest.mark.long),
+    pytest.param(_without_no_break_spaces, 10516, marks=pytest.mark.long),
+    pytest.param(_spaces_and_mark_on_a_blank_line, 10360, marks=pytest.mark.long),
     # A list label on every line of its paragraph.
-    ("label on every line", 10548),
+    pytest.param("label on every line", 10548, marks=pytest.mark.long),
 ])
 def test_the_refuted_rules_really_are_refuted(monkeypatch, rule, score):
     shares, line_items = baselines.line_shares, baselines.line_items

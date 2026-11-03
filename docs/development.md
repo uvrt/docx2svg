@@ -48,7 +48,7 @@ every page and compares; `--no-cache` bypasses the cache. SSIM is computed over 
 content's bounding box only, which gives the full page's score bit for bit; the same
 sampled pages are scored both ways each run and held equal.
 
-A bare `pytest` runs serially, as CI does. To use every core, pass `-n` (pytest-xdist, in
+A bare `pytest` runs serially. To use every core, as CI does, pass `-n` (pytest-xdist, in
 the `dev` extra):
 
 ```

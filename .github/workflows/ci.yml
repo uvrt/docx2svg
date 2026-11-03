@@ -74,8 +74,13 @@ jobs:
       # observations under tests/fixtures/).  That gap is real and ROADMAP.md says so:
       # correctness is established on the one Mac that has Word, and CI only catches
       # regressions in what can be checked without it.
+      #
+      # On every core (-n auto: the same tests pass and skip as serially, docs/development.md),
+      # with the slowest tests listed.  A pull request leaves out the tests marked long
+      # (pyproject.toml): seconds each, with faster cases of the same code kept; a push to
+      # main, the nightly run and a manual run take them.
       - name: Test
-        run: python -m pytest -q --durations=60
+        run: python -m pytest -q -n auto --durations=30 ${{ github.event_name == 'pull_request' && '-m "not long"' || '' }}
 
       - name: The fixture is regenerable and the committed one is current
         shell: bash  # the default on Windows is PowerShell, which this script is not

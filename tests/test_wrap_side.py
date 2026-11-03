@@ -48,7 +48,13 @@ def fonts():
     return render_record.RecordedFonts(DATA["faces"])
 
 
-@pytest.mark.parametrize("name,data", reader.documents(), ids=[name for name, _ in reader.documents()])
+#: The whole sweep without a compatibility mode, minutes on a slow runner: a pull request
+#: runs mode 15's and the edge cases (``long``, pyproject.toml).
+LONG = {"wrap-side-none"}
+
+
+@pytest.mark.parametrize("name,data", [pytest.param(name, data, id=name, marks=pytest.mark.long if name in LONG else ())
+                                       for name, data in reader.documents()])
 def test_text_beside_drawings_against_word(name, data, fonts):
     recorded = DATA["documents"][name]
     result = reader.score(name, data, fonts, recorded)
