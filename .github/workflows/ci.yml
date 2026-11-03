@@ -75,7 +75,7 @@ jobs:
       # correctness is established on the one Mac that has Word, and CI only catches
       # regressions in what can be checked without it.
       - name: Test
-        run: python -m pytest -q
+        run: python -m pytest -q --durations=60
 
       - name: The fixture is regenerable and the committed one is current
         shell: bash  # the default on Windows is PowerShell, which this script is not
