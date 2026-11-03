@@ -5,6 +5,15 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.2 -- unreleased
+
+- **Free threading** (step 1). New `.github/workflows/freethreading.yml`: the suite on
+  Python 3.15t, Linux and macOS, with the GIL off and `RuntimeWarning` an error, after
+  checking that importing the package and its extras leaves the GIL off; not a required
+  check yet. It is green, so the package is classified `Programming Language :: Python ::
+  Free Threading :: 2 - Beta`. A thread note in [docs/api.md](docs/api.md): the fonts
+  `lay_out_docx` returns, and a `previous` layout, are one task's at a time. No code change.
+
 ## 0.11.1 -- unreleased
 
 - **A row's keep, for a document before any layout** (production round 25, W1).

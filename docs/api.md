@@ -46,6 +46,10 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   300 dpi when no size is asked, as `convert_docx_to_png` rasterises). `user_font_dirs(options)`
   is the application's font folders the rasteriser is handed after the faces the SVG
   names. A render tool drawing a few pages per call lays a version out once this way.
+- **Threads.** Documents can be converted from several threads at once, with the GIL off too
+  (Python 3.15t). The `fonts` that `lay_out_docx` returns, and a layout passed as `previous=`
+  (which hands its fonts and measurements on to the new layout), are one task's at a time:
+  give two threads at once their own (a fresh layout, or a copy read from the pickle).
 - <a id="relayout"></a>**Laying out again from a previous layout** (round 19, R1). After a
   small edit, `lay_out_docx(new_bytes, options, previous=layout)` lays out only what the edit
   reaches -- the page holding the first changed block (or the one before, where its end may
