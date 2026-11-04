@@ -366,6 +366,10 @@ class Run:
     #: and are drawn on whole device px (:func:`docx2svg.linebreak.pieces`).
     note_number: bool = field(default=False, compare=False)
     field: Field | None = field(default=None, compare=False)
+    #: In a ``w:hyperlink`` inside a ``TOC`` field's result: a table of contents' entry,
+    #: whose ``Hyperlink`` character style Word draws with little of its formatting
+    #: (:func:`docx2svg.resolve.cascade.toc_link_layer`).
+    toc_link: bool = False
 
 
 @dataclass(frozen=True)
