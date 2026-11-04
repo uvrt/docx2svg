@@ -7826,7 +7826,14 @@ with, following resvg's own face choice, fallback, shaping and layout rather tha
 library's measurer: the reference is the PNG, which resvg draws from the `<text>`.
 
 - **Measured** (round 31, lane B): every page rasterised twice at 300 dpi by resvg, from the SVG with
-  its text and from the outlined SVG, with the same fonts: MEASURE_DOCX_ROADMAP.
+  its text and from the outlined SVG, with the same files -- this machine's Word faces, as `convert_docx_to_png` hands them over.
+  The local corpus (round 25's 110 documents, 838 pages): 831 pages identical, the worst a
+  chart page whose anti-aliased edges differ by up to 64 of 255; no pixel differs by more,
+  and the mean difference rounds to 0. No text was kept as text. Size: 46.5 MB of SVG became
+  153.4 MB (3.3 times: a Word page of one-character chunks references every glyph); writing
+  them took 310 s instead of 31 s (about 0.33 s a page more, on a heavily loaded machine),
+  while rasterising them took 1,614 s instead of 4,240 s -- resvg loads no font for an
+  outlined page.
 - **Left undone.** Right-to-left and complex-script text (Arabic, Hebrew, the Indic
   scripts, Thai...) stays text: their shaping (HarfBuzz's script shapers) is not
   reimplemented, and none of the corpus has any. A colour (emoji) face stays text. `CFF2` faces stay

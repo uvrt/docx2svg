@@ -22,7 +22,7 @@ snapshot commit; the development history before it is summarised here.
   `docx2svg.png.outline_svg(svg, ...)`, with `svg_to_png`'s font arguments; the files the
   rasteriser is handed are now `_raster_fonts`, shared by `convert_docx_to_png` and the
   outlines (its PNGs byte for byte what they were), and a pass's `png._pass_fonts`. Command
-  line: `--text outlines`, `--selectable-text`. Measured: MEASURE_DOCX. docs/api.md, "Text as
+  line: `--text outlines`, `--selectable-text`. Measured on the local corpus (110 documents, 838 pages, 300 dpi, this machine's Word faces): rasterised by resvg from the text and from the outlines with the same files, 831 pages are identical and no pixel differs by more than 64 of 255 (one chart page's anti-aliased edges). The SVGs are 3.3 times the size (46.5 MB to 153.4 MB) and take about ten times as long to write (31 s to 310 s, about 0.33 s a page more); rasterising the outlined pages took 0.38 times as long (4,240 s to 1,614 s), no fonts to load (ROADMAP.md, "Text as outlines"). docs/api.md, "Text as
   outlines". New `tests/test_text_as_outlines.py`. Needs ooxml-common 0.37.0.
 ## 0.11.3 -- unreleased
 
