@@ -57,7 +57,8 @@ installed first, from a sibling checkout or, as CI does, from its repository;
 `pyproject.toml` names a version, never a URL, since PyPI refuses a distribution whose
 dependencies name one.
 
-- `ooxml-common>=0.33.0`: `raster`, the rasterisers and the passes `png.py` draws with
+- `ooxml-common>=0.37.0`: `outlines`, the text drawn as glyph outlines for
+  `ConvertOptions(text="outlines")` (round 31, R2). 0.33.0 brought `raster`, the rasterisers and the passes `png.py` draws with
   (review, S7). 0.32.0 brought `xmlutil.element_children` and `xmlutil.element_child`,
   which step over comments and processing instructions, now that docx2svg reads packages
   and XML through ooxml-common's `opc` and `xmlutil` (review, S6). 0.28.0 brought

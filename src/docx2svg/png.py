@@ -98,22 +98,60 @@ def _render_plan(svg: str, plan, *, width, height, scale, background, font_dirs,
     over the last (:func:`ooxml_common.raster.draw_in_passes`): a pass that leaves files
     out is handed the files and the folders' files in the order resvg loads them, without
     those."""
-    from ooxml_common.fonts.rasterdb import load_order
-
     def draw(number: int, document: str) -> bytes:
-        withheld = plan.withheld[number]
-        files, dirs = font_files, font_dirs
-        if withheld:
-            files = [path for path in load_order([str(path) for path in font_files or ()],
-                                                 [str(path) for path in font_dirs or ()])
-                     if path not in withheld]
-            dirs = []
+        files, dirs = _pass_fonts(plan, number, font_files, font_dirs)
         return _render_with_resvg(document, width=width, height=height, scale=scale,
                                   background=background if number == 0 else None, font_dirs=dirs,
                                   font_files=files, skip_system_fonts=skip_system_fonts,
                                   sans_serif_family=sans_serif_family)
 
     return raster.draw_in_passes(svg, plan.stacks, plan.passes, draw)
+
+
+def _pass_fonts(plan, number: int, font_files, font_dirs) -> tuple:
+    """``(font_files, font_dirs)`` resvg is handed for pass ``number`` of ``plan``: the
+    files and folders as given, or, where the pass leaves files out, the files of both in
+    the order resvg loads them, without those."""
+    from ooxml_common.fonts.rasterdb import load_order
+
+    withheld = plan.withheld[number]
+    if not withheld:
+        return font_files, font_dirs
+    files = [path for path in load_order([str(path) for path in font_files or ()],
+                                         [str(path) for path in font_dirs or ()]) if path not in withheld]
+    return files, []
+
+
+def outline_svg(svg: str, *, font_dirs: Sequence[str] | None = None, font_files: Sequence[str] | None = None,
+                skip_system_fonts: bool = False, sans_serif_family: str | None = None, selectable: bool = False):
+    """``svg`` with its text drawn as glyph outlines: the faces, fallbacks, shaping and
+    positions resvg draws it with when :func:`svg_to_png` is given the same arguments,
+    passes included (:func:`ooxml_common.outlines.outline_text`), so the SVG needs no font
+    to be viewed.  ``selectable`` keeps each text, transparent, over its outlines.  Returns
+    an :class:`ooxml_common.outlines.Outlined`: the SVG and the texts kept as text, with
+    why.  ``font_dirs`` left out reads ``OOXML_FONT_DIRS``."""
+    import html
+
+    from ooxml_common.fonts.office import user_font_dirs
+    from ooxml_common.metafile import inline_metafile_images
+    from ooxml_common.outlines import FontSetup, outline_text
+
+    from .fonts import drawing_plan
+
+    # A metafile drawn as SVG goes inline, as svg_to_png draws it: its text is outlined too.
+    svg = inline_metafile_images(svg)
+    dirs = [str(path) for path in user_font_dirs(font_dirs)]
+    files = [str(path) for path in font_files or ()]
+    families = {"sans_serif_family": sans_serif_family} if sans_serif_family else None
+    plan = drawing_plan(svg, files, dirs)
+    if plan is None:
+        return outline_text(svg, FontSetup.of(files, dirs, not skip_system_fonts, families), selectable=selectable)
+    setups = []
+    for number in range(plan.passes):
+        pass_files, pass_dirs = _pass_fonts(plan, number, files, dirs)
+        setups.append(FontSetup.of(pass_files, pass_dirs, not skip_system_fonts, families))
+    stacks = {html.unescape(value): number for value, number in plan.stacks.items()}
+    return outline_text(svg, lambda value: setups[stacks.get(value or "", 0)], selectable=selectable)
 
 
 def pass_svg(svg: str, plan, number: int, underlay: bytes | None) -> str:

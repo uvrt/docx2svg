@@ -51,8 +51,8 @@ from __future__ import annotations
 
 import os
 import tempfile
-from contextlib import nullcontext
-from dataclasses import dataclass, field
+from contextlib import contextmanager, nullcontext
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Callable, Sequence
 
 from .model import Document, PageMargins, PageSize, Paragraph, Run, Section
@@ -71,7 +71,7 @@ if TYPE_CHECKING:
     from .measure import Advances
     from .vertical import FaceMetrics
 
-__version__ = "0.11.3"
+__version__ = "0.11.4"
 
 __all__ = [
     "Conversion",
@@ -170,6 +170,17 @@ class ConvertOptions:
     #: system, so a document draws the same on every server.  Frozen and picklable: it
     #: travels with the options into a worker process.
     locale: Locale = EN_US
+    #: How text is written: ``"text"`` (the default) as ``<text>``, drawn by the viewer
+    #: with its own fonts; ``"outlines"`` as the paths of the glyphs the PNG is drawn with
+    #: -- the same files, passes, fallbacks and shaping resvg uses for
+    #: :func:`convert_docx_to_png` (:func:`docx2svg.png.outline_svg`) -- so the SVG needs no
+    #: font to be viewed.  Glyph shapes go into the SVG, never font files.  A text that
+    #: cannot be drawn so (right-to-left or complex-script text, a colour face) stays text,
+    #: with a ``text-not-outlined`` warning.  PNG output is the same either way.
+    text: str = "text"
+    #: With ``text="outlines"``: each text also kept, transparent, over its outlines, so a
+    #: viewer can select, search and copy it (and a screen reader read it).
+    selectable_text: bool = False
     #: Collects :class:`Warning` for everything not drawn faithfully.
     warnings: list[Warning] = field(default_factory=list)
     #: Set by every conversion: how much of the document was laid out
@@ -483,7 +494,38 @@ def page_svgs(layout, data: bytes, options: ConvertOptions | None = None, *, dev
 
         documents.append(svg.render_page(page, glyph_size=options.glyph_size, images=images, width=width,
                                          height=height, warn=warn, names=names))
+    if options.text not in TEXT_MODES:
+        raise ValueError(f"ConvertOptions.text must be one of {', '.join(TEXT_MODES)}, not {options.text!r}")
+    if options.text == "outlines":
+        documents = _outlined(documents, layout, fonts, options)
     return documents
+
+
+#: ``ConvertOptions.text``'s values.
+TEXT_MODES = ("text", "outlines")
+
+
+def _outlined(documents: list[str], layout, fonts, options: ConvertOptions) -> list[str]:
+    """The pages with their text as outlines, drawn with the files
+    :func:`convert_docx_to_png` hands the rasteriser (an embedded face written to a
+    temporary folder while it is read); every kind of text kept as text reported once, as
+    ``text-not-outlined``."""
+    from .png import outline_svg
+
+    numbers = [index + 1 for index in _selected(options, len(layout.pages))]
+    out = []
+    reported: set = set()
+    with _raster_fonts(layout, fonts, options) as (files, dirs, skip, sans):
+        for document, number in zip(documents, numbers):
+            outlined = outline_svg(document, font_dirs=dirs, font_files=files,
+                                   skip_system_fonts=skip, sans_serif_family=sans,
+                                   selectable=options.selectable_text)
+            out.append(outlined.svg)
+            for kept in outlined.kept:
+                if (kept.reason, kept.family) not in reported:
+                    reported.add((kept.reason, kept.family))
+                    options.warnings.append(Warning("text-not-outlined", kept.message(), number))
+    return out
 
 
 #: The name the agents called :func:`page_svgs` by; kept.
@@ -562,9 +604,27 @@ def convert_docx_to_png(source, options: ConvertOptions | None = None, *, backen
 def _rasterise(layout, data: bytes, fonts, options: ConvertOptions, *, backend: str = "auto",
                font_dirs: Sequence[str] | None = None, font_files: Sequence[str] | None = None,
                skip_system_fonts: bool | None = None) -> list[bytes]:
+    if options.text != "text":
+        # The PNG is drawn from the text itself: outlines would draw the same pixels.
+        options = replace(options, text="text")
+    documents = page_svgs(layout, data, options, device_size=True, fonts=fonts)
+    with _raster_fonts(layout, fonts, options, font_dirs=font_dirs, font_files=font_files,
+                       skip_system_fonts=skip_system_fonts, warn=True) as (files, dirs, skip, sans):
+        return [svg_to_png(document, backend=backend, font_dirs=dirs, font_files=files,  # type: ignore[arg-type]
+                           skip_system_fonts=skip, sans_serif_family=sans)
+                for document in documents]
+
+
+@contextmanager
+def _raster_fonts(layout, fonts, options: ConvertOptions, *, font_dirs: Sequence[str] | None = None,
+                  font_files: Sequence[str] | None = None, skip_system_fonts: bool | None = None,
+                  warn: bool = False):
+    """``(files, folders, skip system fonts, sans-serif family)`` the rasteriser is handed
+    for ``layout``, for as long as the block runs (a face the document embeds is written,
+    de-obfuscated, to a temporary folder meanwhile); ``warn`` reports a face the
+    rasteriser may not tell from another (``face-not-addressable``)."""
     from .fonts import rasteriser_files
 
-    documents = page_svgs(layout, data, options, device_size=True, fonts=fonts)
     # The files Word draws every face with, each read where it is installed; only a face
     # the document embeds is written (de-obfuscated, as embedded), and only while the
     # rasteriser needs it.
@@ -578,7 +638,7 @@ def _rasterise(layout, data: bytes, fonts, options: ConvertOptions, *, backend: 
         if fonts is not None:
             files, lacking, unaddressable = rasteriser_files(fonts, faces, directory)
             missing = bool(lacking)
-            for family in unaddressable:
+            for family in unaddressable if warn else ():
                 options.warnings.append(Warning(
                     "face-not-addressable",
                     f"{family!r}: another face given to the rasteriser answers to the same family, weight, "
@@ -595,6 +655,4 @@ def _rasterise(layout, data: bytes, fonts, options: ConvertOptions, *, backend: 
             skip_system_fonts = not missing
         files += [str(path) for path in font_files or ()]
         dirs = list(font_dirs or ()) + [str(path) for path in _user_dirs(options)]
-        return [svg_to_png(document, backend=backend, font_dirs=dirs, font_files=files,  # type: ignore[arg-type]
-                           skip_system_fonts=skip_system_fonts, sans_serif_family=sans)
-                for document in documents]
+        yield files, dirs, skip_system_fonts, sans

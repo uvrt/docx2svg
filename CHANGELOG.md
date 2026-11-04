@@ -5,6 +5,25 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.4 -- unreleased
+
+- **Text as outlines** (production round 31, R2). `ConvertOptions(text="outlines")` writes
+  each text as the paths of its glyphs, so a page needs no font where it is viewed: a browser
+  that may not be sent Word's faces. The default stays `"text"`, and the default SVG is byte
+  for byte what it was. The outlines are drawn from the files `convert_docx_to_png` hands the
+  rasteriser -- each face where it is installed, a face the document embeds written while it
+  is read, the generic sans-serif face, `font_dirs` -- in the same passes, by
+  `ooxml_common.outlines` 0.37.0 (resvg's face choice and fallback, harfrust's shaping,
+  usvg's layout), so the page looks like its PNG. A metafile drawn as SVG goes inline first,
+  its text outlined too, as the PNG draws it. A text it cannot draw so stays text, with one
+  `text-not-outlined` warning per reason and face (right-to-left and complex-script text, a
+  colour face). `selectable_text=True` keeps each text, transparent, after its outlines for
+  selecting, searching and copying. PNG output is unchanged either way. New
+  `docx2svg.png.outline_svg(svg, ...)`, with `svg_to_png`'s font arguments; the files the
+  rasteriser is handed are now `_raster_fonts`, shared by `convert_docx_to_png` and the
+  outlines (its PNGs byte for byte what they were), and a pass's `png._pass_fonts`. Command
+  line: `--text outlines`, `--selectable-text`. Measured on the local corpus (110 documents, 838 pages, 300 dpi, this machine's Word faces): rasterised by resvg from the text and from the outlines with the same files, 831 pages are identical and no pixel differs by more than 64 of 255 (one chart page's anti-aliased edges). The SVGs are 3.3 times the size (46.5 MB to 153.4 MB) and take about ten times as long to write (31 s to 310 s, about 0.33 s a page more); rasterising the outlined pages took 0.38 times as long (4,240 s to 1,614 s), no fonts to load (ROADMAP.md, "Text as outlines"). docs/api.md, "Text as
+  outlines". New `tests/test_text_as_outlines.py`. Needs ooxml-common 0.37.0.
 ## 0.11.3 -- unreleased
 
 - **A table of contents' entries drawn as Word draws them** (production round 31, R1). A
