@@ -7789,6 +7789,23 @@ between numbered levels.
 
 ---
 
+## Text as outlines (round 31)
+
+Production asked for an SVG that needs no font in the browser (a face whose licence does not
+allow serving it as a web font). `ConvertOptions(text="outlines")` (0.11.4) draws each text as
+its glyph paths through `ooxml_common.outlines` (0.37.0), from the fonts the PNG is drawn
+with, following resvg's own face choice, fallback, shaping and layout rather than this
+library's measurer: the reference is the PNG, which resvg draws from the `<text>`.
+
+- **Measured** (round 31, lane B): every page rasterised twice at 300 dpi by resvg, from the SVG with
+  its text and from the outlined SVG, with the same fonts: MEASURE_DOCX_ROADMAP.
+- **Left undone.** Right-to-left and complex-script text (Arabic, Hebrew, the Indic
+  scripts, Thai...) stays text: their shaping (HarfBuzz's script shapers) is not
+  reimplemented, and none of the corpus has any. A colour (emoji) face stays text. `CFF2` faces stay
+  text. Each page carries its own glyph definitions; a viewer showing a document could share
+  them across pages (one `<defs>` document) and does not yet. A gradient's box leaves the
+  decorations out (usvg adds an underline's box to the text's).
+
 ## Non-goals
 
 - **Editing.** This reads and renders.

@@ -46,6 +46,22 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   300 dpi when no size is asked, as `convert_docx_to_png` rasterises). `user_font_dirs(options)`
   is the application's font folders the rasteriser is handed after the faces the SVG
   names. A render tool drawing a few pages per call lays a version out once this way.
+- <a id="outlines"></a>**Text as outlines** (round 31, R2). `ConvertOptions(text="outlines")`
+  writes each text as the paths of its glyphs, so a page needs no font where it is viewed
+  (a browser that may not be sent Word's faces): drawn from the files `convert_docx_to_png`
+  hands the rasteriser -- each face where it is installed, an embedded face written while it
+  is read -- in the same passes, with resvg's face choice, fallback, shaping and layout
+  (`ooxml_common.outlines`). A metafile picture drawn as SVG goes inline first, its text
+  outlined too, as the PNG draws it. Rasterised, an outlined page draws the PNG's pixels to an
+  anti-aliased edge pixel. Each glyph is defined once per page and used by reference. A text it
+  cannot draw so stays text, with one `text-not-outlined` warning per reason and face
+  (right-to-left and complex-script text, a colour face). `selectable_text=True` keeps each
+  text after its outlines, transparent, for selecting, searching and copying. The default SVG
+  and every PNG are unchanged. `docx2svg.png.outline_svg(svg, ...)` outlines one SVG with
+  `svg_to_png`'s font arguments; on the command line, `--text outlines` (`--selectable-text`).
+  The SVG holds glyph shapes, never font files or their tables; whether a face's licence
+  allows its glyphs to be shown this way is that licence's question, which docx2svg does not
+  answer.
 - **Threads.** Documents can be converted from several threads at once, with the GIL off too
   (Python 3.15t). The `fonts` that `lay_out_docx` returns, and a layout passed as `previous=`
   (which hands its fonts and measurements on to the new layout), are one task's at a time:

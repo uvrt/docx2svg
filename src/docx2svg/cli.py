@@ -41,6 +41,11 @@ def build_parser() -> argparse.ArgumentParser:
                              "(Carlito, Liberation) or a symbol face from its recorded metrics")
     parser.add_argument("--backend", choices=("auto", "resvg", "cairosvg"), default="auto",
                         help="PNG rasterizer backend (default: auto)")
+    parser.add_argument("--text", choices=("text", "outlines"), default="text",
+                        help="how the SVG writes text: as <text> (default), or as the outlines of the glyphs the "
+                             "PNG is drawn with, so that it needs no font to be viewed")
+    parser.add_argument("--selectable-text", action="store_true",
+                        help="with --text outlines, keep each text, transparent, over its outlines for selecting")
     parser.add_argument("-q", "--quiet", action="store_true", help="do not print warnings")
     parser.add_argument("--strict", action="store_true", help="exit with status 2 when there is any warning")
     parser.add_argument("--version", action="version", version=f"docx2svg {__version__}")
@@ -71,7 +76,8 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     options = ConvertOptions(pages=parse_page_selection(args.pages), width=args.width, height=args.height,
                              glyph_size=args.glyph_size, font_dirs=args.font_dirs,
-                             substitute_fonts=args.substitute_fonts)
+                             substitute_fonts=args.substitute_fonts, text=args.text,
+                             selectable_text=args.selectable_text)
     wants_svg = args.format in ("svg", "both")
     wants_png = args.format in ("png", "both")
     if wants_png and not available_backends():
