@@ -24,6 +24,16 @@ snapshot commit; the development history before it is summarised here.
   outlines (its PNGs byte for byte what they were), and a pass's `png._pass_fonts`. Command
   line: `--text outlines`, `--selectable-text`. Measured: MEASURE_DOCX. docs/api.md, "Text as
   outlines". New `tests/test_text_as_outlines.py`. Needs ooxml-common 0.37.0.
+## 0.11.3 -- unreleased
+
+- **A table of contents' entries drawn as Word draws them** (production round 31, R1). A
+  run in a `w:hyperlink` inside a `TOC` field's result whose character style is named
+  `Hyperlink` or `FollowedHyperlink` takes from that style only its fonts and capitals
+  (small capitals drawn as capitals): no colour, underline, bold, italic, size or other
+  effect, so the entry is drawn in its `toc N` paragraph style and its own direct
+  formatting, as Word draws it (measured; ROADMAP.md, H.10). The same run outside a link,
+  other character styles and links elsewhere are unchanged. `model.Run.toc_link` marks the
+  runs. Output changes only for such entries.
 
 ## 0.11.2 -- unreleased
 

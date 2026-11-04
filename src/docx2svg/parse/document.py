@@ -333,6 +333,10 @@ class _Fields:
     def visible(self) -> bool:
         return all(f.state == "result" and not f.computed for f in self.stack)
 
+    def in_toc_result(self) -> bool:
+        """Whether this point is inside a ``TOC`` field's result (its entries)."""
+        return any(f.state == "result" and field_keyword("".join(f.instruction)) == "TOC" for f in self.stack)
+
     def computes(self, instruction: str) -> bool:
         keyword = field_keyword(instruction)
         if keyword == "STYLEREF":
@@ -528,6 +532,11 @@ def _inline(element: Element, step: "_Paths", fields: _Fields, runs: list) -> No
                 content = child(node, "sdtContent")
                 if content is not None:
                     _inline(content, _Paths(f"{here}/w:sdtContent[1]"), fields, runs)
+            elif name == "hyperlink" and fields.in_toc_result():
+                # A table of contents' entry (Run.toc_link): a link in a TOC field's result.
+                start = len(runs)
+                _inline(node, _Paths(here), fields, runs)
+                runs[start:] = [dataclasses.replace(run, toc_link=True) for run in runs[start:]]
             else:
                 _inline(node, _Paths(here), fields, runs)
         else:
