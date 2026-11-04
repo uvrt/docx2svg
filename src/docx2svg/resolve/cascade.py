@@ -405,8 +405,38 @@ def autospaced(document: Document, resolved: Resolved, side: str) -> bool:
             and "doNotUseHTMLParagraphAutoSpacing" not in document.compat_options)
 
 
+#: The names (``w:name``, compared without case) of the character styles a table of
+#: contents' entry draws with little of their formatting (:func:`toc_link_layer`).
+TOC_LINK_STYLES = frozenset({"hyperlink", "followedhyperlink"})
+
+
+def toc_link_layer(level: _Layer) -> _Layer:
+    """What of a ``Hyperlink`` character style a table of contents' entry is drawn with.
+
+    Measured in Word 16 (Mac; ``feedback-round31/measurements-A.md``): a run in a
+    ``w:hyperlink`` inside a ``TOC`` field's result (:attr:`docx2svg.model.Run.toc_link`),
+    whose ``w:rStyle`` is the style *named* ``Hyperlink`` or ``FollowedHyperlink`` (by
+    ``w:name``: a French or Dutch Word saves it under another id), takes from that style --
+    its whole ``w:basedOn`` chain -- only its fonts (``w:rFonts``) and capitals: ``w:caps``,
+    and ``w:smallCaps`` drawn as full capitals.  Its colour, underline, bold, italic, size,
+    strike and double strike, character spacing and scale, raised position, vertical
+    alignment, shading and hidden text are not drawn; the run is in the entry's paragraph
+    style (``toc 1``...) and its own direct formatting, which still applies.  Properties not
+    measured (highlight, effects) are left out with them.  Not changed: the same run outside
+    a ``w:hyperlink`` (drawn in the style, whether or not the field has ``\\h``), a link
+    outside a table of contents, another character style in the entry -- one based on
+    ``Hyperlink`` included -- and a style with the id ``Hyperlink`` and another name.
+    """
+    out: _Layer = {key: value for key, value in level.items() if key.startswith("rFonts.")}
+    capitals = [level[key] for key in ("caps", "smallCaps") if key in level]
+    if capitals:
+        on = [value for value in capitals if value[0]]
+        out["caps"] = (True, on[0][1]) if on else (False, capitals[0][1])
+    return out
+
+
 def _resolve_run_properties(document: Document, paragraph: Paragraph, character_style: str | None,
-                            direct: dict) -> Resolved:
+                            direct: dict, toc_link: bool = False) -> Resolved:
     sheet = document.styles
     defaults = sheet.run_defaults if sheet is not None else {}
 
@@ -430,8 +460,11 @@ def _resolve_run_properties(document: Document, paragraph: Paragraph, character_
         paragraph_level = {key: value for key, value in paragraph_level.items() if not gives_way(key, value)}
     levels.append(paragraph_level)
     if character_style:
-        levels.append(_flatten(style_chain(sheet, character_style, "character"), CHARACTER, "run",
-                               character_style))
+        chain = style_chain(sheet, character_style, "character")
+        character_level = _flatten(chain, CHARACTER, "run", character_style)
+        if toc_link and chain and (chain[-1].name or "").lower() in TOC_LINK_STYLES:
+            character_level = toc_link_layer(character_level)
+        levels.append(character_level)
 
     layer: _Layer = _layer({k: v for k, v in defaults.items() if k not in TOGGLES},
                            Origin(DOC_DEFAULTS))
@@ -509,6 +542,7 @@ def resolve_run(document: Document, paragraph: Paragraph, run: Run) -> Resolved:
         document, paragraph,
         properties.style_id if properties else None,
         properties.declared if properties else {},
+        run.toc_link,
     )
 
 

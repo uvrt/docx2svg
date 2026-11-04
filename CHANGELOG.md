@@ -5,6 +5,17 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.3 -- unreleased
+
+- **A table of contents' entries drawn as Word draws them** (production round 31, R1). A
+  run in a `w:hyperlink` inside a `TOC` field's result whose character style is named
+  `Hyperlink` or `FollowedHyperlink` takes from that style only its fonts and capitals
+  (small capitals drawn as capitals): no colour, underline, bold, italic, size or other
+  effect, so the entry is drawn in its `toc N` paragraph style and its own direct
+  formatting, as Word draws it (measured; ROADMAP.md, H.10). The same run outside a link,
+  other character styles and links elsewhere are unchanged. `model.Run.toc_link` marks the
+  runs. Output changes only for such entries.
+
 ## 0.11.2 -- unreleased
 
 - **Free threading** (step 1). New `.github/workflows/freethreading.yml`: the suite on

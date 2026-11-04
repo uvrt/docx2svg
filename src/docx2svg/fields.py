@@ -397,7 +397,7 @@ def reference_runs(paragraphs: list[Paragraph], run: Run, marks: dict) -> tuple[
     begin = 0
     for index in range(1, len(text) + 1):
         if index == len(text) or chars[index] is not chars[begin]:
-            out.append(Run(text=text[begin:index], properties=chars[begin], path=run.path))
+            out.append(Run(text=text[begin:index], properties=chars[begin], path=run.path, toc_link=run.toc_link))
             begin = index
     return tuple(out)
 

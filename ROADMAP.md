@@ -5845,6 +5845,34 @@ and `IF` left). A filesamples document's table of contents holds 17 `PAGEREF`s: 
 computed from this layout to the number Word cached. No committed document has one of
 these fields: fidelity as recorded.
 
+### H.10 A table of contents' links (production round 31, R1)
+
+A `TOC` field's entries are `w:hyperlink`s whose text runs are `w:rStyle Hyperlink` +
+`w:noProof` (Word's own update writes them so, and docx-agent's). Word draws them in the
+entry's paragraph style, not as links. Measured in Word 16 (Mac) by PDF export of 25
+made-up documents (`TOC \o "1-3" \h \z \u`, three entries, Arial 10 pt; every colour,
+face, bold, italic, underline rule and glyph advance compared with docx2svg's SVG):
+
+* Of the character style **named** `Hyperlink` or `FollowedHyperlink` (by `w:name`: a
+  style with another id named `Hyperlink`, as a French or Dutch Word saves it, is treated
+  so; id `Hyperlink` named otherwise is not), through its whole `w:basedOn` chain, only
+  the fonts (`w:rFonts`) and the capitals (`w:caps`; `w:smallCaps` is drawn as full
+  capitals) are drawn. Not drawn: colour, underline, bold, italic, size, strike, double
+  strike, character spacing, scale, position, vertical alignment, shading, hidden. The
+  run's direct formatting still applies (a green, a wavy or dotted underline, bold); the
+  paragraph style's colour, underline and bold apply (`toc 2`'s underline runs the whole
+  line, leaders included).
+* Only inside a `w:hyperlink`, with or without `\h`: the same run without one is drawn in
+  the style. Not for another character style (a green wavy style in the link is drawn
+  green and wavy), a style based on `Hyperlink`, a link outside a field, or a link in a
+  `HYPERLINK` field's result.
+* Not measured: highlight (Word's PDF drew none, not even outside the field), the text
+  effects; they are left out with the rest.
+
+`cascade.toc_link_layer`; `Run.toc_link` marks the runs (`tests/test_toc_links.py`).
+docx-agent 0.1.33's field update writes the same XML as Word's update, and Word's PDFs of
+its outputs agree with docx2svg in all 12 entries.
+
 ---
 
 ## Floating drawings — measured (Phase 6, Floating objects and `w:drawing` rows)
