@@ -53,7 +53,18 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   is read -- in the same passes, with resvg's face choice, fallback, shaping and layout
   (`ooxml_common.outlines`). A metafile picture drawn as SVG goes inline first, its text
   outlined too, as the PNG draws it. Rasterised, an outlined page draws the PNG's pixels to an
-  anti-aliased edge pixel. Each glyph is defined once per page and used by reference. A text it
+  anti-aliased edge pixel. Each glyph is defined once per page and used by reference, under an
+  id made of its outline (`g` and six base 62 digits): the same on every page and in every
+  render, whatever folder its face was read from, and never two outlines' -- so an edit on one
+  page leaves every other page's SVG byte for byte as it was. **One glyph set for the
+  document** (round 32, R10): with `ConvertOptions(text="outlines", glyphs={})` every
+  definition goes into the dict and the pages only reference them; `docx2svg.glyph_sheet(glyphs)`
+  is the set as one `<svg>` that draws nothing and takes no room, to put once in the HTML page
+  that shows the pages inline, and `docx2svg.embed_glyphs(svg, glyphs)` gives a page back
+  standalone, byte for byte the page outlined alone (to save, or for `svg_to_png`). Kept across
+  renders, the dict gains only the glyphs an edit added. A made-up 24-page report: text 1,153 KB
+  (389 KB gzipped page by page), outlines 3,412 KB (754 KB) with a set per page, 2,707 KB
+  (467 KB) with one set. A text it
   cannot draw so stays text, with one `text-not-outlined` warning per reason and face
   (right-to-left and complex-script text, a colour face). `selectable_text=True` keeps each
   text after its outlines, transparent, for selecting, searching and copying. The default SVG

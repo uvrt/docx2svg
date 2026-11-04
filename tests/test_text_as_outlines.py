@@ -66,3 +66,62 @@ def test_png_output_is_the_same_whatever_the_text_mode(folder):  # noqa: F811
     document = _document(DISPLAY, BODY)
     assert docx2svg.convert_docx_to_png(document, ConvertOptions(width=300, font_dirs=[str(folder)], text="outlines")) \
         == docx2svg.convert_docx_to_png(document, ConvertOptions(width=300, font_dirs=[str(folder)]))
+
+
+# -- Round 32: stable glyph ids, one glyph set per document ----------------------------
+
+def _two_pages(first: str, second: str) -> bytes:
+    """Two pages of the body face: ``first``, a page break, ``second``."""
+    import io
+    import zipfile
+
+    source = zipfile.ZipFile(io.BytesIO(_document(BODY)))
+    run = '<w:r><w:rPr><w:sz w:val="40"/></w:rPr><w:t xml:space="preserve">{}</w:t></w:r>'
+    body = (f'<w:p>{run.format(first)}</w:p><w:p><w:r><w:br w:type="page"/></w:r>{run.format(second)}</w:p>')
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name in source.namelist():
+            data = source.read(name)
+            if name == "word/document.xml":
+                text = data.decode("utf-8")
+                start, end = text.index("<w:body>") + len("<w:body>"), text.index("<w:sectPr>")
+                data = (text[:start] + body + text[end:]).encode("utf-8")
+            archive.writestr(name, data)
+    return buffer.getvalue()
+
+
+def _pages(document: bytes, options: ConvertOptions) -> list[str]:
+    layout, data, found = docx2svg.lay_out_docx(document, options)
+    return docx2svg.page_svgs(layout, data, options, fonts=found)
+
+
+def test_an_edit_on_one_page_leaves_the_others_byte_identical(folder, tmp_path):  # noqa: F811
+    before = _pages(_two_pages("Quick brown fox", "Lazy dog, 2026"), ConvertOptions(font_dirs=[str(folder)],
+                                                                                    text="outlines"))
+    # The first page now draws the second's glyphs first, in another order.
+    after = _pages(_two_pages("9 1 0 2 , god yzaL", "Lazy dog, 2026"), ConvertOptions(font_dirs=[str(folder)],
+                                                                                      text="outlines"))
+    assert len(before) == len(after) == 2
+    assert before[0] != after[0] and before[1] == after[1]
+    # A glyph's id is its outline's, not its file's: the same faces read from another
+    # folder (as an embedded face is, from a new temporary folder each time) draw the
+    # same bytes.
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    for face in folder.iterdir():
+        (elsewhere / face.name).write_bytes(face.read_bytes())
+    moved = _pages(_two_pages("Quick brown fox", "Lazy dog, 2026"), ConvertOptions(font_dirs=[str(elsewhere)],
+                                                                                   text="outlines"))
+    assert moved == before
+
+
+def test_one_glyph_set_for_the_document(folder):  # noqa: F811
+    document = _two_pages("Quick brown fox", "Lazy dog, 2026")
+    alone = _pages(document, ConvertOptions(font_dirs=[str(folder)], text="outlines"))
+    glyphs: dict = {}
+    shared = _pages(document, ConvertOptions(font_dirs=[str(folder)], text="outlines", glyphs=glyphs))
+    assert glyphs and not any('<path id="g' in page for page in shared)
+    assert [docx2svg.embed_glyphs(page, glyphs) for page in shared] == alone
+    sheet = docx2svg.glyph_sheet(glyphs)
+    ids = re.findall(r'\bid="(g[0-9A-Za-z]+)"', sheet + "".join(shared))
+    assert sorted(ids) == sorted(glyphs) and len(ids) == len(set(ids))

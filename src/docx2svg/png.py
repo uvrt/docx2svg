@@ -123,11 +123,14 @@ def _pass_fonts(plan, number: int, font_files, font_dirs) -> tuple:
 
 
 def outline_svg(svg: str, *, font_dirs: Sequence[str] | None = None, font_files: Sequence[str] | None = None,
-                skip_system_fonts: bool = False, sans_serif_family: str | None = None, selectable: bool = False):
+                skip_system_fonts: bool = False, sans_serif_family: str | None = None, selectable: bool = False,
+                glyphs: dict | None = None):
     """``svg`` with its text drawn as glyph outlines: the faces, fallbacks, shaping and
     positions resvg draws it with when :func:`svg_to_png` is given the same arguments,
     passes included (:func:`ooxml_common.outlines.outline_text`), so the SVG needs no font
-    to be viewed.  ``selectable`` keeps each text, transparent, over its outlines.  Returns
+    to be viewed.  ``selectable`` keeps each text, transparent, over its outlines;
+    ``glyphs``, a dict shared by a document's pages, takes the glyph definitions in place
+    of the SVG's own ``<defs>``.  Returns
     an :class:`ooxml_common.outlines.Outlined`: the SVG and the texts kept as text, with
     why.  ``font_dirs`` left out reads ``OOXML_FONT_DIRS``."""
     import html
@@ -145,13 +148,15 @@ def outline_svg(svg: str, *, font_dirs: Sequence[str] | None = None, font_files:
     families = {"sans_serif_family": sans_serif_family} if sans_serif_family else None
     plan = drawing_plan(svg, files, dirs)
     if plan is None:
-        return outline_text(svg, FontSetup.of(files, dirs, not skip_system_fonts, families), selectable=selectable)
+        return outline_text(svg, FontSetup.of(files, dirs, not skip_system_fonts, families), selectable=selectable,
+                            glyphs=glyphs)
     setups = []
     for number in range(plan.passes):
         pass_files, pass_dirs = _pass_fonts(plan, number, files, dirs)
         setups.append(FontSetup.of(pass_files, pass_dirs, not skip_system_fonts, families))
     stacks = {html.unescape(value): number for value, number in plan.stacks.items()}
-    return outline_text(svg, lambda value: setups[stacks.get(value or "", 0)], selectable=selectable)
+    return outline_text(svg, lambda value: setups[stacks.get(value or "", 0)], selectable=selectable,
+                        glyphs=glyphs)
 
 
 def pass_svg(svg: str, plan, number: int, underlay: bytes | None) -> str:

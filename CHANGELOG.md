@@ -5,6 +5,35 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.5 -- unreleased
+
+- **One glyph set for the document, and smaller outlines** (production round 32, R10). Text
+  as outlines was 6 to 6.5 times the text's size on a text-heavy report: every page carried
+  its own glyph definitions, and every glyph was a group of its own (Word's text is placed
+  character by character). `ConvertOptions(text="outlines", glyphs={})`: every glyph
+  definition goes into the dict, by id, and the pages only reference them (`<use
+  href="#g…">`). New `docx2svg.glyph_sheet(glyphs)`, the set as one `<svg>` that draws
+  nothing and takes no room, to put once in the HTML page that shows the pages inline, and
+  `docx2svg.embed_glyphs(svg, glyphs)`, a page standalone again -- byte for byte the page
+  outlined alone, to save or to hand to `svg_to_png`. Kept across renders, the dict gains
+  only the glyphs an edit added. From ooxml-common 0.38.0: the characters of a line are one
+  group, each glyph at the offset that puts it exactly where its own `x` did; a glyph's id
+  is made of its outline, so it is the same on every page and in every render, whatever
+  folder its face was read from (an embedded face is written to a new temporary folder
+  each render, which renamed its glyphs each time): an edit on one page leaves every other
+  page's outlined SVG byte for byte as it was (R11's unit here is the page; new test); path
+  data uses `t`/`s`. The drawing does not change: every outlined page's PNG is 0.11.4's,
+  byte for byte (every third document of the local corpus, 37 documents, 358 pages, at 300
+  dpi; and the made-up report below). Measured: a made-up 24-page report, text 1,153 KB
+  (389 KB gzipped page by page), outlines 6,985 KB (956 KB) in 0.11.4, 3,412 KB (754 KB)
+  with a set per page, 2,707 KB (467 KB) with one set -- 2.3 times the text, 1.2 gzipped,
+  from 6.1 and 2.5. The local corpus (110 documents): text 46.5 MB (19.1 MB gzipped),
+  outlines 153.4 MB (31.0 MB) in 0.11.4, 87.8 MB (27.2 MB) with a set per page, 76.8 MB
+  (22.5 MB) with one set; every page with one set, embedded again, is byte for byte the page
+  outlined alone (ROADMAP.md, "Text as outlines"). docs/api.md, "Text as outlines". Needs
+  ooxml-common 0.38.0. The default SVG is byte for byte what it was (110 documents, 838
+  pages).
+
 ## 0.11.4 -- unreleased
 
 - **Text as outlines** (production round 31, R2). `ConvertOptions(text="outlines")` writes
