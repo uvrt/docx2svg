@@ -7840,6 +7840,20 @@ library's measurer: the reference is the PNG, which resvg draws from the `<text>
   text. Each page carries its own glyph definitions; a viewer showing a document could share
   them across pages (one `<defs>` document) and does not yet. A gradient's box leaves the
   decorations out (usvg adds an underline's box to the text's).
+- **Round 32: one glyph set, ids that do not move, fewer groups** (R10, R11; 0.11.5 with
+  ooxml-common 0.38.0). `ConvertOptions(glyphs={})` collects the document's glyph
+  definitions in one dict, the pages referencing them; `glyph_sheet` and `embed_glyphs` put
+  them in an HTML page once, or back into one page. A line's characters, each placed by its
+  own `x`, are one group instead of one a glyph: resvg reckons a glyph's place as `origin +
+  scale * offset` in single precision, so each takes the shortest offset (to four decimals)
+  that lands exactly on its own `x` there, and starts a new group where none does (about one
+  glyph in thirty) -- the pages' PNGs are byte for byte round 31's. A glyph's id is its
+  outline's, not its font file's path's, so an edit on one page leaves the other pages' SVG
+  as it was, embedded faces included. Measured on the local corpus (110 documents): SVG 46.5
+  MB as text, 153.4 MB outlined in 0.11.4, 87.8 MB page by page, 76.8 MB with one set
+  (gzipped page by page 19.1, 31.0, 27.2 and 22.5 MB); every third document's outlined pages
+  (37 documents, 358 pages, 300 dpi) rasterise to round 31's PNGs byte for byte. What is
+  left is the references, about 31 bytes a glyph drawn.
 
 ## Non-goals
 

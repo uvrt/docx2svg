@@ -71,7 +71,7 @@ if TYPE_CHECKING:
     from .measure import Advances
     from .vertical import FaceMetrics
 
-__version__ = "0.11.4"
+__version__ = "0.11.5"
 
 __all__ = [
     "Conversion",
@@ -91,6 +91,8 @@ __all__ = [
     "convert_docx_to_layout",
     "convert_docx_to_png",
     "convert_docx_to_svg",
+    "embed_glyphs",
+    "glyph_sheet",
     "lay_out_docx",
     "page_svgs",
     "parse_document",
@@ -181,6 +183,15 @@ class ConvertOptions:
     #: With ``text="outlines"``: each text also kept, transparent, over its outlines, so a
     #: viewer can select, search and copy it (and a screen reader read it).
     selectable_text: bool = False
+    #: With ``text="outlines"``: one glyph set for the whole document.  A dict, and every
+    #: glyph definition goes into it, by id, instead of into each page's ``<defs>``; the
+    #: pages only reference them (``<use href="#g…">``).  An id is made of the glyph's
+    #: outline, so it is the same on every page and in every render, and the dict, kept
+    #: across renders, gains only the glyphs an edit added.  Put :func:`glyph_sheet` of it
+    #: once in the HTML page that shows the pages inline; :func:`embed_glyphs` makes one
+    #: page standalone again (to save it, or to hand it to :func:`svg_to_png`).  ``None``
+    #: (the default): each page holds its own definitions.
+    glyphs: dict | None = None
     #: Collects :class:`Warning` for everything not drawn faithfully.
     warnings: list[Warning] = field(default_factory=list)
     #: Set by every conversion: how much of the document was laid out
@@ -460,6 +471,24 @@ def _images(data: bytes):
     return images
 
 
+def glyph_sheet(glyphs: dict) -> str:
+    """The glyph set of pages outlined with ``ConvertOptions(glyphs={})`` as one ``<svg>``
+    element that draws nothing and takes no room, to put once in the HTML page that shows
+    them inline (:func:`ooxml_common.outlines.glyph_sheet`)."""
+    from ooxml_common.outlines import glyph_sheet as _glyph_sheet
+
+    return _glyph_sheet(glyphs)
+
+
+def embed_glyphs(svg: str, glyphs: dict) -> str:
+    """A page outlined with ``ConvertOptions(glyphs={})`` with the glyph definitions it
+    uses put back into it: standalone again, as it would be outlined without the shared
+    set (:func:`ooxml_common.outlines.embed_glyphs`)."""
+    from ooxml_common.outlines import embed_glyphs as _embed_glyphs
+
+    return _embed_glyphs(svg, glyphs)
+
+
 def _names(options: ConvertOptions, fonts):
     """How the SVG names faces: the options' ``names``, else the installed faces'."""
     if options.names is not None:
@@ -519,7 +548,7 @@ def _outlined(documents: list[str], layout, fonts, options: ConvertOptions) -> l
         for document, number in zip(documents, numbers):
             outlined = outline_svg(document, font_dirs=dirs, font_files=files,
                                    skip_system_fonts=skip, sans_serif_family=sans,
-                                   selectable=options.selectable_text)
+                                   selectable=options.selectable_text, glyphs=options.glyphs)
             out.append(outlined.svg)
             for kept in outlined.kept:
                 if (kept.reason, kept.family) not in reported:
