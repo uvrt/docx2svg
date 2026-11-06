@@ -5,6 +5,21 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.6 -- unreleased
+
+- **A row kept with the next is not split** (production round 36). A table row whose first
+  cell's first paragraph keeps with the next is never split at a page's foot in Word: it
+  moves whole, as a `w:cantSplit` row does; docx2svg split it (docx-agent's probes: 10 of
+  24 cases of rows of six lines, 5 of 15 with one kept row). Measured in Word 16.106, with
+  no `settings.xml` and in mode 15 (`tools/make_table_keep_probe.py`, 28 cases added, 64
+  per document): one taller than a page moves and is split at the next page's top; a
+  chain of kept rows taller than a page breaks between rows in mode 15 and inside the row
+  at the foot with no `settings.xml`; and in mode 15 a chain of keeps taller than a page
+  that runs into a table (a heading and a paragraph kept with 60 kept rows) breaks before
+  the table, not where the page is full. The probe's cases agree 123 of 128, from 99; the
+  five left are not keeps (ROADMAP.md, stage 6b). Pages change only in documents with such
+  rows or chains.
+
 ## 0.11.5 -- unreleased
 
 - **One glyph set for the document, and smaller outlines** (production round 32, R10). Text

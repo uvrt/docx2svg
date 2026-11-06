@@ -5139,6 +5139,45 @@ treats every table as a link of a keep chain; `tests/test_relayout.py` makes ran
 of reports whose tables keep their rows (all, all but the last, every other one, with no
 header row) and holds every page to a full layout.
 
+**Round 36: a kept row is not split.** docx-agent's layout probes found Word keeping whole
+a kept row that docx2svg split at the foot (rows of six lines beside a one-line first
+cell). 28 cases added to the probe (64 per document), each beside its plain twin where
+that matters:
+
+* **A row that keeps with the next is not split at the foot: it moves whole**, as a
+  `w:cantSplit` row does -- rows of 4 and 8 lines (`kept row 6 of 4`, `of 8`, `of 4,
+  all`), the table's last row (`kept last row`), under a header row (`header, kept row
+  6`), a row whose first cell starts with a nested table whose paragraph keeps (`kept
+  nested row`). Its plain twin splits.
+* **One taller than a page moves to the next page and is split there**, in both settings
+  (`kept tall row`: a 70-line row after 20 body lines) -- where a `w:cantSplit` row with no
+  `settings.xml` runs off the page whole (`cantSplit tall row`, as stage 6a measured).
+* **A chain of kept rows taller than a page** (`long kept rows of 4`: 20 rows of four
+  lines) breaks where the page is full -- **in mode 15 between rows**, the row at the
+  foot moved whole; **with no `settings.xml` inside that row**, split as any
+  (`table.place_table`'s `split_kept`, `paginate._kept_row_breaks`).
+* **Mode 15: a chain of keeps taller than a page that runs into a table breaks before
+  the table**: `Head`, a three-line paragraph, both `keepNext`, then 60 kept rows: Word
+  puts the two paragraphs at the next page's top and the table on the page after, where
+  it breaks where full (`chain head par table`, also right after the case's first line;
+  `chain head table`; `chain table par`; `chain two tables`: before the second table,
+  the first staying with `Head`). With no `settings.xml` it breaks where the page is
+  full, as before; a chain of paragraphs alone breaks where full in both
+  (`chain paragraphs`, as `make_keep_probe.py` measured). The rows not kept: nothing
+  moves (`chain head par table plain rows`). Not measured: a chain whose overflow falls
+  in a paragraph after a kept table -- it breaks where full.
+
+| Cases (64 per document) | none | 15 |
+| --- | --- | --- |
+| before (0.11.5) | 52 | 47 |
+| kept rows split as any (the rest as the model) | 52 | 52 |
+| **the model** | **61** | **62** |
+
+Left: `in a cell plain` and `plain nested row` (Word splits a row holding a nested table
+between or after the nested table's rows; the model does not split a nested table), and,
+with no `settings.xml`, `cantSplit tall row`, the same pages in both but Word's export not
+drawing the lines below the page.
+
 ### Stage 7 -- autofit: recorded (modelled since stage 7b, below)
 
 Every committed document's table is autofit (`w:tblW` auto, no `w:tblLayout`), and each
