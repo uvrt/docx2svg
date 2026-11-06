@@ -2552,13 +2552,20 @@ def _scan(document: Document, items: Flow, start: Position, rules: Rules, carry:
                 # places them (none: across the column).
                 item.beside[start] = table_beside(document, item, y, wraps, first_on_page) if wraps else None
             try:
-                laid = place_item(item, y, bottom - foot, key=start, row=line, part=part,
-                                  first_on_page=first_on_page, mode15=(document.compatibility_mode or 0) >= 15)
-                if frame is None or not frame.multi:
-                    # Footnotes referenced in its cells: each line holding one fits as a body
-                    # line does, its notes under it at the page's foot (``make_cell_footnote_probe.py``).
-                    laid, notes, foot = _table_notes(document, items, item, laid, y, bottom, foot, notes, carry,
-                                                     separator, start, line, part, first_on_page)
+                mode15 = (document.compatibility_mode or 0) >= 15
+                before = notes, foot
+                for split_kept in (False, True):
+                    notes, foot = before
+                    laid = place_item(item, y, bottom - foot, key=start, row=line, part=part,
+                                      first_on_page=first_on_page, mode15=mode15, split_kept=split_kept)
+                    if frame is None or not frame.multi:
+                        # Footnotes referenced in its cells: each line holding one fits as a body
+                        # line does, its notes under it at the page's foot (``make_cell_footnote_probe.py``).
+                        laid, notes, foot = _table_notes(document, items, item, laid, y, bottom, foot, notes, carry,
+                                                         separator, start, line, part, first_on_page, split_kept)
+                    if split_kept or not _kept_row_breaks(items, item, laid, index, start, rules, frame,
+                                                          document.compatibility_mode):
+                        break
             except table_model.Overflow as exceeded:
                 raise Unplaceable(index, exceeded.args[0]) from None
             for piece in laid.pieces:
@@ -2986,17 +2993,17 @@ def table_beside(document: Document, item: TableItem, y: Fraction, wraps, first_
 
 
 def place_item(item: TableItem, y: Fraction, bottom: Fraction, *, key, row: int = 0, part: tuple = (),
-               first_on_page: bool, mode15: bool):
+               first_on_page: bool, mode15: bool, split_kept: bool = False):
     """:func:`docx2svg.table.place_table` for a table item, beside the drawings text wraps
     around on the page that starts at ``key`` where :func:`table_beside` put it there."""
     beside = item.beside.get(key)
     if beside is None:
         return table_model.place_table(item.flow, y, bottom, row=row, part=part, first_on_page=first_on_page,
-                                       mode15=mode15)
+                                       mode15=mode15, split_kept=split_kept)
     pieces: list = []
     if row < beside.row:
         head = table_model.place_table(item.flow, y, bottom, row=row, part=part, first_on_page=first_on_page,
-                                       mode15=mode15, stop=beside.row)
+                                       mode15=mode15, stop=beside.row, split_kept=split_kept)
         if head.next != (beside.row, ()):
             return head
         pieces, y, row, part = list(head.pieces), head.end, beside.row, ()
@@ -3004,7 +3011,8 @@ def place_item(item: TableItem, y: Fraction, bottom: Fraction, *, key, row: int 
     flow = beside.flow or item.flow
     if beside.drop is not None and row == beside.row and not part:
         y = max(y, beside.drop)
-    rest = table_model.place_table(flow, y, bottom, row=row, part=part, first_on_page=first_on_page, mode15=mode15)
+    rest = table_model.place_table(flow, y, bottom, row=row, part=part, first_on_page=first_on_page, mode15=mode15,
+                                   split_kept=split_kept)
     if flow is not item.flow:
         rest.pieces = [dataclasses.replace(piece, flow=flow) for piece in rest.pieces]
     return table_model.TablePage(pieces + rest.pieces, rest.end, rest.next)
@@ -3044,7 +3052,7 @@ def cell_notes(items, item: TableItem, flow) -> dict:
 
 def _table_notes(document: Document, items, item: TableItem, laid, y: Fraction, bottom: Fraction, foot: Fraction,
                  notes: list, carry: tuple, separator: Fraction, start: Position, row: int, part: tuple,
-                 first_on_page: bool):
+                 first_on_page: bool, split_kept: bool = False):
     """The table's part of the page (``laid``) with its cells' footnotes at the foot:
     ``(laid, notes, foot)``.
 
@@ -3102,7 +3110,7 @@ def _table_notes(document: Document, items, item: TableItem, laid, y: Fraction, 
         # Placed again, ending just above the line that does not fit.
         limit = min(limit, violation - Fraction(1, 10 ** 6))
         laid = place_item(item, y, limit, key=start, row=row, part=part, first_on_page=first_on_page,
-                          mode15=mode15)
+                          mode15=mode15, split_kept=split_kept)
     return laid, notes, foot
 
 
@@ -3152,6 +3160,21 @@ def _carried(placed: list, end: Position) -> tuple:
     return tuple(lines[taken:])
 
 
+def _kept_row_breaks(items: list, item: TableItem, laid, index: int, start: Position, rules: Rules, frame,
+                     compatibility_mode: int | None) -> bool:
+    """Whether a row that keeps with the next, moved whole to the next page (``laid``),
+    is split after all: below mode 15, where its chain of keeps reaches back to the
+    page's start, Word breaks where the page is full and splits the row as any
+    (``make_table_keep_probe.py``, ``long kept rows of 4``; mode 15 keeps it whole)."""
+    if (compatibility_mode or 0) >= 15 or rules.oversize != "ignore" or laid.next is None or laid.next[1]:
+        return False
+    row = laid.next[0]
+    if row >= len(item.flow.rows) or (frame is not None and not frame.first_on_page) or \
+            not table_model.keeps_with_next(item.flow.rows[row]):
+        return False
+    return _keeps(items, start, Position(index, row), rules, compatibility_mode) <= start
+
+
 def _break_before(items: list, start: Position, overflow: Position, rules: Rules,
                   compatibility_mode: int | None = None, *, empty_ok: bool = False) -> Position:
     """Where the page ends, given that the line at ``overflow`` does not fit on it.
@@ -3161,6 +3184,13 @@ def _break_before(items: list, start: Position, overflow: Position, rules: Rules
     if empty_ok:
         return max(target, start)
     if target <= start:
+        if rules.oversize == "ignore" and (compatibility_mode or 0) >= 15 and \
+                isinstance(items[overflow.item], TableItem) and Position(overflow.item) > start:
+            # Mode 15: a chain of keeps taller than the page that runs into a table breaks
+            # before the table, which starts the next page and breaks where that is full
+            # (``make_table_keep_probe.py``, ``chain head par table`` and the others;
+            # below mode 15, and a chain of paragraphs alone, break where the page is full).
+            return Position(overflow.item)
         return overflow if rules.oversize == "ignore" else target
     return target
 
@@ -3213,7 +3243,10 @@ def _keeps(items: list, start: Position, overflow: Position, rules: Rules,
       (``make_table_keep_probe.py``: ``long all``).  In mode 15 the header rows are not
       left at the foot with no row after them (as :func:`docx2svg.table.place_table`
       keeps them).  A row split across the page's foot started on the page: no keep
-      moves it.
+      moves it -- a row that keeps with the next is not split there, but moved whole
+      (:func:`docx2svg.table.place_table`).
+    * **A chain taller than a page** breaks where the page is full -- except, in mode 15,
+      one that runs into a table, which breaks before the table (:func:`_break_before`).
     """
     index, number = overflow.item, overflow.line
     item = items[index]

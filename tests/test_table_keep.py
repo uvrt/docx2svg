@@ -1,7 +1,8 @@
 """Table rows under ``w:keepNext`` (round 24): a row whose first cell's first paragraph keeps
 with the next goes to the next page with the row after it, a chain of them together, the
 last row with the paragraph after the table, and a chain from the first row with the
-table -- and with a ``keepNext`` paragraph before it.  ``tools/make_table_keep_probe.py``,
+table -- and with a ``keepNext`` paragraph before it.  Round 36: such a row is not split
+at the page's foot, and in mode 15 a chain taller than a page breaks before its table.  ``tools/make_table_keep_probe.py``,
 recorded by ``tools/read_table_keep_probe.py`` in
 ``tests/fixtures/table-keep-observations.json``."""
 
@@ -20,10 +21,14 @@ import read_table_keep_probe as reader  # noqa: E402
 
 from docx2svg import table  # noqa: E402
 
-#: The one case the model does not draw as Word does: a row holding a nested table across
-#: the page's foot, which Word splits between the nested table's rows and the model moves
-#: whole (it does not split a nested table) -- not a keep.
-NOT_MODELLED = {"in a cell plain"}
+#: The cases the model does not draw as Word does, none of them a keep: a row holding a
+#: nested table across the page's foot, which Word splits between the nested table's rows
+#: or after it and the model moves whole (it does not split a nested table).
+NOT_MODELLED = {"in a cell plain", "plain nested row"}
+#: With no ``settings.xml`` a ``w:cantSplit`` row taller than a page runs off the page's
+#: foot whole, in Word and the model alike; Word's export leaves out its lines below the
+#: page, which the model's pages list.
+UNDRAWN = {("none", "cantSplit tall row")}
 
 
 def _disagree(compared: dict) -> set:
@@ -31,10 +36,14 @@ def _disagree(compared: dict) -> set:
             if word != model}
 
 
+def _known(compared: dict) -> set:
+    return {(setting, name) for setting in compared for name in NOT_MODELLED} | UNDRAWN
+
+
 def test_every_case_puts_each_row_on_the_page_word_does():
     compared = reader.offline()
-    assert _disagree(compared) == {(setting, name) for setting in compared for name in NOT_MODELLED}
-    assert reader.tally(compared) == (70, 72)
+    assert _disagree(compared) == _known(compared)
+    assert reader.tally(compared) == (123, 128)
 
 
 def _variant(monkeypatch, rule):
@@ -49,19 +58,50 @@ def _any_cell_first(row) -> bool:
     return any(cell.paragraphs and cell.paragraphs[0].resolved.get("keepNext") for cell in row.cells)
 
 
+@pytest.mark.long
 @pytest.mark.parametrize("what,rule,expected", [
     ("rows never keep", lambda row: False, {
         "all", "but last", "row 5", "rows 4-5", "row 5 cell a", "row 5 first", "foot last row", "foot all",
         "long all", "long but last", "long header all", "before all", "cantSplit row 5", "header all",
-        "nested inner", "row 5 a first only", "row 5 style", "row 5 wrapped, cantSplit", "all, page break after"}),
-    ("any paragraph of the first cell", _first_cell_any, {"row 5 last", "nested inner", "nested outer"}),
+        "nested inner", "row 5 a first only", "row 5 style", "row 5 wrapped, cantSplit", "all, page break after",
+        "kept row 6 of 4", "kept row 6 of 8", "kept row 6 of 4, all", "kept last row", "kept rows of 4",
+        "kept tall row", "kept tall row at the top", "kept nested row", "header, kept row 6", "long kept rows of 4",
+        "long kept rows of 4, header", "chain head par table", "chain head par table at the top",
+        "chain head table", "chain table par", "chain two tables"}),
+    ("any paragraph of the first cell", _first_cell_any, {"row 5 last", "nested inner", "nested outer",
+                                                          "kept nested row"}),
     ("the first paragraph of any cell", _any_cell_first, {"row 5 cell b", "row 5 b first only", "nested inner",
-                                                          "nested outer"}),
+                                                          "nested outer", "kept nested row"}),
 ])
 def test_refuted_rules_disagree_where_word_shows_them_wrong(monkeypatch, what, rule, expected):
     _variant(monkeypatch, rule)
-    found = {name for _, name in _disagree(reader.offline())} - NOT_MODELLED
+    compared = reader.offline()
+    found = {name for _, name in _disagree(compared) - _known(compared)}
     assert found == expected, what
+
+
+@pytest.mark.long
+def test_a_kept_row_is_not_split_at_the_foot(monkeypatch):
+    """Round 36: split as any row, a kept row disagrees with Word wherever one meets the
+    page's foot -- in both settings, but in mode 15 also in a chain from the page's
+    start (``long kept rows of 4``), where below mode 15 Word splits it."""
+    place = table._place_table
+    monkeypatch.setattr(table, "_place_table", lambda *a, **k: place(*a, **{**k, "split_kept": True}))
+    compared = reader.offline()
+    every = {"kept row 6 of 4", "kept row 6 of 8", "kept row 6 of 4, all", "kept last row", "kept tall row",
+             "kept tall row at the top", "kept nested row", "header, kept row 6", "long kept rows of 4, header"}
+    assert _disagree(compared) - _known(compared) == (
+        {(setting, name) for setting in compared for name in every} | {("15", "long kept rows of 4")})
+
+
+@pytest.mark.long
+def test_below_mode_15_a_kept_row_in_a_chain_from_the_pages_start_splits(monkeypatch):
+    from docx2svg import paginate
+
+    monkeypatch.setattr(paginate, "_kept_row_breaks", lambda *args: False)
+    compared = reader.offline()
+    assert _disagree(compared) - _known(compared) == {("none", "long kept rows of 4"),
+                                                      ("none", "long kept rows of 4, header")}
 
 
 def test_the_documents_rule_is_the_layouts(monkeypatch):

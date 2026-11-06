@@ -138,6 +138,100 @@ def _cases() -> list[tuple[str, str]]:
     broken = wml.paragraph(wml.run("Broken"), pageBreakBefore=True, spacing=SPACING)
     out.append(("last row, page break after", _fill(FILL) + _two(_rows(10, lambda r: r == 9)) + broken))
     out.append(("all, page break after", _fill(FILL) + _two(_rows(10, every)) + broken))
+    out.extend(_split_cases())
+    out.extend(_chain_cases())
+    return out
+
+
+def _kept_lead(name: str, lines: int, keep: bool, props: str = "", tall: bool = False) -> str:
+    """A row of ``lines`` one-line paragraphs per cell, only the first cell's first one
+    ``keepNext`` when ``keep``; ``tall``: its markers ``T<row><cell><line>`` (rows of ten
+    lines or more)."""
+    flags = (keep,) + (False,) * (lines - 1)
+    if not tall:
+        return _row(name, (flags, (False,) * lines), lines=lines, props=props)
+    cells = "".join(_cell("".join(_p(f"T{name[1:]}{side}{k}", flags[k] and side == "a") for k in range(lines)))
+                    for side in "ab")
+    return f"<w:tr>{f'<w:trPr>{props}</w:trPr>' if props else ''}{cells}</w:tr>"
+
+
+def _lines(name: str, count: int) -> str:
+    return "".join(_p(f"{name}{k}") for k in range(count))
+
+
+def _split_cases() -> list[tuple[str, str]]:
+    """Round 36: a row that keeps with the next and does not fit at the page's foot --
+    split there, or moved whole as a ``w:cantSplit`` row?  Each beside its plain twin:
+
+    * ``kept row 6 of N`` -- row 6 of N lines (2, 4, 8) at the foot, only its first
+      cell's first paragraph ``keepNext``; ``kept row 6 of 4, all`` every paragraph of it;
+    * ``kept last row`` -- the table's last row, of 4 lines, at the foot;
+    * ``kept rows of 4`` -- every row but the last ``keepNext``, rows of 4 lines;
+    * ``kept tall row`` -- row 1 of 70 lines (taller than a page) after 20 body lines;
+      ``... at the top`` right after the case's anchor line; ``cantSplit tall row`` the
+      plain row ``w:cantSplit``;
+    * ``kept nested row`` -- row 6's first cell starts with a one-row table whose
+      paragraph keeps, then 4 lines;
+    * ``header, kept row 6`` -- the same under a ``w:tblHeader`` row;
+    * ``long kept rows of 4`` -- 20 rows of 4 lines (more than a page), every one but
+      the last ``keepNext``, with and without a header row."""
+    out: list[tuple[str, str]] = []
+    for lines, fill in ((2, FILL), (4, FILL - 1), (8, FILL - 1)):
+        for keep in (True, False):
+            name = f"{'kept' if keep else 'plain'} row 6 of {lines}"
+            out.append((name, _fill(fill) + _two(_rows(10, rows={6: _kept_lead("R6", lines, keep)}))))
+    out.append(("kept row 6 of 4, all", _fill(FILL - 1) + _two(_rows(10, rows={6: _row("R6", (True, True),
+                                                                                         lines=4)}))))
+    for keep in (True, False):
+        word = "kept" if keep else "plain"
+        out.append((f"{word} last row", _fill(FILL - 6) + _two(_rows(10, rows={9: _kept_lead("R9", 4, keep)}))))
+        four = {r: _kept_lead(f"R{r}", 4, keep and r < 9) for r in range(10)}
+        out.append((f"{word} rows of 4", _fill(FILL - 14) + _two(_rows(10, rows=four))))
+        tall = {1: _kept_lead("R1", 70, keep, tall=True)}
+        out.append((f"{word} tall row", _fill(20) + _two(_rows(4, rows=tall))))
+        out.append((f"{word} tall row at the top", _two(_rows(4, rows=tall))))
+        nested = f"<w:tr>{_cell(_nested('N6', keep) + _lines('R6a', 4))}{_cell(_lines('R6b', 4))}</w:tr>"
+        out.append((f"{word} nested row", _fill(FILL - 1) + _two(_rows(10, rows={6: nested}))))
+    header = _row("H", props="<w:tblHeader/>")
+    out.append(("header, kept row 6", _fill(FILL - 1) + _two(_rows(10, rows={0: header,
+                                                                            6: _kept_lead("R6", 4, True)}))))
+    split = _kept_lead("R1", 70, False, props="<w:cantSplit/>", tall=True)
+    out.append(("cantSplit tall row", _fill(20) + _two(_rows(4, rows={1: split}))))
+    for with_header in (False, True):
+        rows = {r: _kept_lead(f"R{r}", 4, r < 19) for r in range(20)}
+        if with_header:
+            rows[0] = _row("H", (True, True), props="<w:tblHeader/>")
+        name = f"long kept rows of 4{', header' if with_header else ''}"
+        out.append((name, _fill(10) + _two(_rows(20, rows=rows))))
+    return out
+
+
+def _chain_cases() -> list[tuple[str, str]]:
+    """Round 36: a chain of keeps taller than a page with a table in it -- ``Head``,
+    ``Par`` (60 words over several lines, ``P<k>``), ``Mid`` paragraphs ``keepNext``,
+    ``Tail`` not, ``K<k>`` one-line ``keepNext`` paragraphs, a table of 60 one-line rows
+    (more than a page):
+
+    * ``chain head par table`` -- ``Head``, ``Par``, the rows every one ``keepNext``,
+      ``Tail``; ``... at the top`` right after the anchor line; ``... plain rows`` the
+      rows not kept;
+    * ``chain head table`` -- ``Head``, the table, ``Tail``;
+    * ``chain table par`` -- ``Head``, the table, ``Par``, ``Mid``, ``Tail``;
+    * ``chain two tables`` -- ``Head``, a 10-row kept table (``C<k>``), ``Mid``, the
+      60-row table, ``Tail``;
+    * ``chain paragraphs`` -- 60 ``K<k>`` paragraphs, ``Tail``."""
+    every = lambda r: True  # noqa: E731
+    words = " ".join(f"P{k}" for k in range(60))
+    head, par, mid, tail = _p("Head", True), _p(words, True), _p("Mid", True), _p("Tail")
+    long = _two(_rows(60, every))
+    out: list[tuple[str, str]] = []
+    out.append(("chain head par table", _fill(10) + head + par + long + tail))
+    out.append(("chain head par table at the top", head + par + long + tail))
+    out.append(("chain head par table plain rows", _fill(10) + head + par + _two(_rows(60)) + tail))
+    out.append(("chain head table", _fill(10) + head + long + tail))
+    out.append(("chain table par", _fill(10) + head + long + par + mid + tail))
+    out.append(("chain two tables", _fill(10) + head + _two(_rows(10, every, prefix="C")) + mid + long + tail))
+    out.append(("chain paragraphs", _fill(10) + "".join(_p(f"K{k}", True) for k in range(60)) + tail))
     return out
 
 

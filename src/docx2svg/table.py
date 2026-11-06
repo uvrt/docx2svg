@@ -2325,19 +2325,20 @@ def _fitting(cell: CellFlow, start: int, top: Fraction, limit: Fraction, continu
 
 
 def place_table(flow: TableFlow, y: Fraction, bottom: Fraction, *, row: int = 0, part: tuple = (),
-                first_on_page: bool, mode15: bool, stop: int | None = None) -> TablePage:
+                first_on_page: bool, mode15: bool, stop: int | None = None, split_kept: bool = False) -> TablePage:
     """See :func:`_place_table`; a table whose merges down all lie on the page, or that
     has none, is placed as stage 6 measured, unchanged."""
     merges = _merges(flow)
     if not merges:
         return _place_table(flow, y, bottom, row=row, part=part, first_on_page=first_on_page, mode15=mode15,
-                            stop=stop)
+                            stop=stop, split_kept=split_kept)
     return _place_table(flow, y, bottom, row=row, part=part, first_on_page=first_on_page, mode15=mode15,
-                        stop=stop, merges=merges)
+                        stop=stop, merges=merges, split_kept=split_kept)
 
 
 def _place_table(flow: TableFlow, y: Fraction, bottom: Fraction, *, row: int = 0, part: tuple = (),
-                 first_on_page: bool, mode15: bool, stop: int | None = None, merges: list | None = None) -> TablePage:
+                 first_on_page: bool, mode15: bool, stop: int | None = None, merges: list | None = None,
+                 split_kept: bool = False) -> TablePage:
     """What of a table goes on the page from ``y``, starting at ``row`` (from each cell's
     stacked line ``part`` when the row began on an earlier page), with the page's text
     ending at ``bottom``.
@@ -2369,6 +2370,18 @@ def _place_table(flow: TableFlow, y: Fraction, bottom: Fraction, *, row: int = 0
       the top of the merge's first row there (:attr:`RowPiece.carry`).  The merge's last
       row is as tall as its own cells or the merged cell's lines still to place,
       whichever is taller, on each page.
+
+    Measured by ``make_table_keep_probe.py`` (round 36, no ``settings.xml`` and mode 15
+    alike):
+
+    * **a row that keeps with the next is not split** at the foot (:func:`keeps_with_next`,
+      ``kept row 6 of 4``, ``kept last row``, ``header, kept row 6``): it moves whole, as a
+      ``w:cantSplit`` row does -- but one that does not fit on the page it starts, at a
+      page's top, is split there in every mode (``kept tall row``), where a
+      ``w:cantSplit`` row below mode 15 runs off the page whole.  ``split_kept``: split
+      as any row -- below mode 15, where its chain of keeps reaches back to the page's
+      start and Word breaks where the page is full (``long kept rows of 4``; see
+      :func:`docx2svg.paginate._lay_page`).
 
     With ``stop``, the rows before it only: the page's part of them, and ``(stop, ())``
     next with no bottom edge where they all fit.
@@ -2454,7 +2467,11 @@ def _place_table(flow: TableFlow, y: Fraction, bottom: Fraction, *, row: int = 0
         if "pages" not in STAGES:
             raise Overflow(row, TablePage(pieces, y, (row, part)))
         header = row < header_count and not continued
-        if (current.row.properties.get("cantSplit") or header) and not (nothing_yet and mode15):
+        cant_split = current.row.properties.get("cantSplit")
+        if not (cant_split or header or nothing_yet or split_kept) and keeps_with_next(current):
+            # Kept with the next: moved whole, not split (``make_table_keep_probe.py``).
+            return leave((row, part))
+        if (cant_split or header) and not (nothing_yet and mode15):
             if nothing_yet:
                 pieces.append(RowPiece(row, starts, ends, y, current.top_border, height, continued=continued))
                 y += current.top_border + height
