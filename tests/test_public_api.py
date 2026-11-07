@@ -88,6 +88,9 @@ USED_BY: dict[str, dict[str, str]] = {
     "docx2svg.png": {
         "svg_to_png": "docx-agent",
     },
+    "docx2svg.relayout": {
+        "MeasureStore": "docx-agent",
+    },
     "docx2svg.resolve": {
         "character_format": "docx-agent",
         "resolve_paragraph": "docx-agent",

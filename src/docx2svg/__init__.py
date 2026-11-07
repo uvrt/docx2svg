@@ -71,7 +71,7 @@ if TYPE_CHECKING:
     from .measure import Advances
     from .vertical import FaceMetrics
 
-__version__ = "0.11.6"
+__version__ = "0.11.7"
 
 __all__ = [
     "Conversion",
@@ -257,7 +257,7 @@ def convert_docx_to_layout(source, options: ConvertOptions | None = None):
 
 
 def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None, changed_blocks=None,
-                 keep: bool = True) -> tuple:
+                 keep: bool = True, measures=None, changed_pages: bool = True) -> tuple:
     """``(layout, data, fonts)``: the document laid out -- every page, whatever
     ``options.pages`` selects -- its bytes, and the faces it was measured with
     (:class:`docx2svg.fonts.InstalledFonts`, ``None`` where ``options`` measures with
@@ -284,7 +284,17 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
     layout makes until its fields' values settle, from the same pass of ``previous``.  The changed blocks are found by comparing the bytes; ``changed_blocks`` (the
     blocks a caller knows it changed, as paths or ``w14:paraId``) is a hint only, never
     trusted over that.  ``keep=False`` keeps nothing for a later layout (``layout.state``
-    is ``None``: smaller, and a ``previous`` it cannot be)."""
+    is ``None``: smaller, and a ``previous`` it cannot be).
+
+    ``measures`` (round 37), a :class:`docx2svg.relayout.MeasureStore`: what this process
+    measured in earlier layouts of the same document, for a ``previous`` handed over without
+    its measurements (from another process: they are most of its pickle) -- the blocks
+    measured there are not measured again; the layout puts back what it measured.  The
+    layout is the same with it or without.  ``changed_pages=False`` leaves
+    ``layout.changed_pages`` ``None``: finding them draws each page laid out or drawn again,
+    and the page it replaces, to compare them (after an edit that adds a page, every page
+    whose footer shows the page count: most of such a layout's time), which a caller
+    that compares pages its own way, or not at all, does not need."""
     from . import relayout
     from .layout import _Placer
 
@@ -319,6 +329,13 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
     # may hang on another's).
     measured = plan.state.memo if plan is not None and plan.state is not None and plan.measured \
         and plan.reason != "fields-open" else None
+    # Measurements reused go on with the previous layout's lineage; measured afresh, a new one.
+    lineage = (plan.state.lineage if measured is not None and plan is not None and plan.state is not None
+               else b"") or relayout.new_lineage()
+    if measured is not None and measures is not None:
+        kept_here = measures.get(lineage)
+        if kept_here:
+            measured = {**kept_here, **measured}
     relaid = plan.reason if plan is not None else None
     cause = plan.cause if plan is not None else None
     again = relayout.Again(plan, previous) if plan is not None and plan.reason is None else None
@@ -368,11 +385,15 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
         state.laid = again.laid if again is not None else range(len(layout.pages))
         state.redrawn = frozenset(again.redrawn) if again is not None else frozenset()
         state.fresh = again.placed_pages if again is not None else frozenset(range(len(layout.pages)))
+        state.lineage = lineage
         layout.state = state
+        if measures is not None:
+            measures.put(lineage, state.memo)
     if previous is not None:
         layout.relaid = relaid
         layout.relaid_cause = cause if relaid is not None else None
-        layout.changed_pages = relayout.changed_pages(previous, layout, again, data, fonts, relaid)
+        layout.changed_pages = (relayout.changed_pages(previous, layout, again, data, fonts, relaid)
+                                if changed_pages else None)
     return layout, data, fonts
 
 

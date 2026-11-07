@@ -5,6 +5,25 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.7 -- unreleased
+
+- **Measurements kept per process** (production round 37). A layout handed between worker
+  processes without its measurements (most of its pickle) was laid out again from with
+  every block measured again: on a made-up 46-page report, one paragraph edited, 1.9-2.5 s
+  of CPU, about a whole layout. `lay_out_docx(..., measures=docx2svg.relayout.MeasureStore())`
+  takes the measurements the process made of the same document in earlier layouts, by
+  lineage (`layout.state.lineage`: started by a layout that measures afresh, handed on by
+  each that reuses its previous layout's measurements): 0.6-0.7 s. `STATE_FORMAT` 4.
+- **`changed_pages=False`**: `lay_out_docx` leaves `layout.changed_pages` `None`. Finding
+  them draws each page laid out or drawn again and the page it replaces; after an edit
+  that adds a page to a report whose footer shows the page count, that is every page --
+  6.5 of 11 s of such a layout (profiled) -- for a caller that does not read them.
+- **Faces looked up faster**: `InstalledFonts` holds its folders' face index instead of
+  asking the cached `installed_index` each time, whose key compares every folder's `Path`
+  (a fifth of measuring a long document's text). Not pickled with it.
+- Pages are unchanged: the layout is the same with a store, without one and with
+  `changed_pages=False` (`tests/test_measure_store.py`, random edits).
+
 ## 0.11.6 -- unreleased
 
 - **A row kept with the next is not split** (production round 36). A table row whose first

@@ -62,7 +62,9 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import io
+import os
 import re
+import threading
 import zipfile
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
@@ -120,7 +122,7 @@ _PART_REASONS = (
 )
 
 #: The version of what :class:`State` keeps; a state of another is not read.
-STATE_FORMAT = 3
+STATE_FORMAT = 4
 
 
 def _digest(data: bytes) -> bytes:
@@ -379,6 +381,75 @@ class Measures:
         self.kept[key] = value
 
 
+class MeasureStore:
+    """What the layouts of one process measured, by lineage (round 37): for a layout from a
+    previous one whose measurements did not come with it -- a layout handed between
+    processes without them (they are most of its pickle), to a process that laid out an
+    earlier version of the same document.
+
+    A layout that measures afresh (no previous layout, or one whose measurements cannot
+    be reused: :class:`Plan` ``measured`` false, ``fields-open``) starts a **lineage**
+    (:attr:`State.lineage`); a layout that takes its previous layout's measurements goes
+    on with that lineage.  Every measurement is kept by what it is measured from
+    (:class:`Measures`), and a lineage is unbroken only where each layout in it could reuse
+    the one before's measurements, so what any layout of a lineage measured is what any
+    later one of it would measure from the same key -- as the measurements a layout
+    hands to the next already are, carried on from layout to layout.  ``lay_out_docx``
+    (``measures=``) takes a lineage's measurements under its previous layout's own and
+    puts back what it used and made.
+
+    Bounded: the ``lineages`` used last, each at most twice the entries of the layout
+    that put it last, plus ``spare`` (the newest kept).  Thread-safe: each look-up is a
+    copy."""
+
+    def __init__(self, lineages: int = 4, spare: int = 256) -> None:
+        self.lineages = lineages
+        self.spare = spare
+        self._kept: dict[bytes, dict] = {}
+        self._lock = threading.Lock()
+
+    def get(self, lineage: bytes) -> dict:
+        """The measurements kept for ``lineage`` (a copy; ``{}`` where none are)."""
+        if not lineage:
+            return {}
+        with self._lock:
+            found = self._kept.pop(lineage, None)
+            if found is None:
+                return {}
+            self._kept[lineage] = found
+            return dict(found)
+
+    def put(self, lineage: bytes, entries: dict) -> None:
+        """Keep ``entries`` (a layout's :attr:`Measures.kept`) as ``lineage``'s newest."""
+        if not lineage:
+            return
+        with self._lock:
+            kept = self._kept.pop(lineage, None)
+            kept = dict(kept) if kept is not None else {}
+            for key, value in entries.items():
+                kept.pop(key, None)
+                kept[key] = value
+            limit = 2 * len(entries) + self.spare
+            while len(kept) > limit:
+                del kept[next(iter(kept))]
+            self._kept[lineage] = kept
+            while len(self._kept) > self.lineages:
+                del self._kept[next(iter(self._kept))]
+
+    def __len__(self) -> int:
+        with self._lock:
+            return sum(len(entries) for entries in self._kept.values())
+
+    def clear(self) -> None:
+        with self._lock:
+            self._kept.clear()
+
+
+def new_lineage() -> bytes:
+    """A lineage no other layout has (:class:`MeasureStore`)."""
+    return os.urandom(12)
+
+
 # -- what a layout keeps ---------------------------------------------------------------------------
 
 
@@ -443,6 +514,9 @@ class State:
     #: (:meth:`docx2svg.layout._Placer.story_references_on`): a page kept by the next layout
     #: is drawn again where they differ.
     story_refs: dict = field(default_factory=dict)
+    #: The measurements' lineage (round 37): made new by a layout that measured afresh, and
+    #: handed on by each layout that took a previous one's measurements (:class:`MeasureStore`).
+    lineage: bytes = b""
 
 
 def options_key(options) -> tuple | None:
