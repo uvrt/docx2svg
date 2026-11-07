@@ -1068,15 +1068,45 @@ def _parse_package(package: OpcPackage, main: str) -> Document:
             read_part(package, endnote_parts[0]), "endnote")
     settings_parts = package.related_parts_of_type(main, REL_SETTINGS)
     if settings_parts:
-        settings_xml = read_part(package, settings_parts[0])
-        document.theme_font_lang = parse_settings(settings_xml)
-        document.compatibility_mode = parse_compatibility_mode(settings_xml)
-        document.compat_options = parse_compat_options(settings_xml)
-        document.compat_settings = parse_compat_settings(settings_xml)
-        document.default_tab_stop = parse_default_tab_stop(settings_xml)
-        document.even_and_odd_headers = parse_even_and_odd_headers(settings_xml)
-        document.hyphenation = parse_hyphenation(settings_xml)
-        document.color_map = parse_color_map(settings_xml)
-        document.endnote_position, document.endnote_named = parse_endnote_settings(settings_xml)
-        _, document.footnote_named = parse_endnote_settings(settings_xml, "footnote")
+        for name, value in settings_read(read_part(package, settings_parts[0])).items():
+            setattr(document, name, value)
     return document
+
+
+def settings_read(settings_xml: bytes) -> dict:
+    """Everything the layout reads of the settings part, by the :class:`Document` field it
+    sets -- all of it: a settings part that reads the same lays out the same (round 39: a
+    layout from a previous one compares the settings by this, :func:`settings_digest`)."""
+    endnote_position, endnote_named = parse_endnote_settings(settings_xml)
+    return {"theme_font_lang": parse_settings(settings_xml),
+            "compatibility_mode": parse_compatibility_mode(settings_xml),
+            "compat_options": parse_compat_options(settings_xml),
+            "compat_settings": parse_compat_settings(settings_xml),
+            "default_tab_stop": parse_default_tab_stop(settings_xml),
+            "even_and_odd_headers": parse_even_and_odd_headers(settings_xml),
+            "hyphenation": parse_hyphenation(settings_xml),
+            "color_map": parse_color_map(settings_xml),
+            "endnote_position": endnote_position,
+            "endnote_named": endnote_named,
+            "footnote_named": parse_endnote_settings(settings_xml, "footnote")[1]}
+
+
+def settings_digest(settings_xml: bytes) -> bytes:
+    """A digest of :func:`settings_read` -- of what the layout reads of the settings, not of
+    their bytes (a revision id, a proofing state, a document variable, the way the XML is
+    written read alike) -- the same in every process (sets in order, dicts as written)."""
+    import hashlib
+
+    def canonical(value):
+        if isinstance(value, (set, frozenset)):
+            return ("set", sorted(map(repr, value)))
+        if isinstance(value, dict):
+            return ("dict", [(repr(k), canonical(v)) for k, v in value.items()])
+        return repr(value)
+
+    try:
+        read = settings_read(settings_xml)
+    except Exception:  # noqa: BLE001 -- unreadable: compared by its bytes, as any part
+        return b"bytes:" + hashlib.blake2b(settings_xml, digest_size=16).digest()
+    text = repr([(name, canonical(value)) for name, value in read.items()])
+    return b"read:" + hashlib.blake2b(text.encode("utf-8", "surrogatepass"), digest_size=16).digest()

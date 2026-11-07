@@ -63,10 +63,16 @@ def test_a_lineage_goes_on_while_measurements_are_reused_and_starts_again_when_n
     edited[3] = dataclasses.replace(edited[3], text=edited[3].text + " More.")
     again = lay_out_docx(report_docs.package(edited), previous=first)[0]
     assert again.state.lineage == first.state.lineage
-    # A header changed: the measurements are not reused, a new lineage starts.
-    other = lay_out_docx(report_docs.package(edited, header="Another made-up header"), previous=again)[0]
-    assert other.relaid == "headers-footers"
+    # The styles changed: the measurements are not reused, a new lineage starts.
+    styles = '<w:style w:type="paragraph" w:styleId="Unused"><w:name w:val="Unused"/></w:style>'
+    other = lay_out_docx(report_docs.package(edited, styles=styles), previous=again)[0]
+    assert other.relaid == "styles"
     assert other.state.lineage != again.state.lineage
+    # A header changed (round 39): laid out whole, but with the body's measurements -- the
+    # lineage goes on.
+    header = lay_out_docx(report_docs.package(edited, header="Another made-up header"), previous=again)[0]
+    assert header.relaid == "headers-footers"
+    assert header.state.lineage == again.state.lineage
     # A whole layout of its own starts one too.
     assert lay_out_docx(report_docs.package(blocks))[0].state.lineage != first.state.lineage
 
@@ -180,3 +186,22 @@ def test_a_section_made_narrower_is_measured_again():
         again, again_data, fonts = lay_out_docx(narrower, previous=previous, measures=measures)
         assert again.relaid == "sections"
         assert page_svgs(again, again_data, fonts=fonts) == _full_svgs(narrower)
+
+
+def test_a_store_can_be_bounded_by_entries():
+    # Round 39: a memory budget in entries; the lineages used longest ago go first, the one
+    # put last stays even when it alone is over.
+    store = MeasureStore(lineages=100, spare=0, entries=10)
+    store.put(b"a", {k: k for k in range(4)})
+    store.put(b"b", {k: k for k in range(4)})
+    assert len(store) == 8
+    store.get(b"a")                          # used last: b is now the oldest
+    store.put(b"c", {k: k for k in range(4)})
+    assert store.get(b"b") == {} and len(store.get(b"a")) == 4 and len(store.get(b"c")) == 4
+    assert len(store) == 8
+    store.put(b"d", {k: k for k in range(30)})
+    assert len(store) == 30 and store.get(b"a") == {} and len(store.get(b"d")) == 30
+    store.put(b"d", {k: k for k in range(2)})    # its own counted again, not twice: 2 x 2 kept
+    assert len(store) == len(store.get(b"d")) == 4
+    store.clear()
+    assert len(store) == 0

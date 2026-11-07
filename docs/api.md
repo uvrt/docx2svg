@@ -129,6 +129,9 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   page. `changed_pages=False` leaves `layout.changed_pages` `None`: telling them draws every
   page laid out or drawn again and the page it replaces (after an edit that adds a page,
   every page whose footer shows the page count), for a caller that does not read them.
+  A store is bounded by `lineages` (how many documents' measurements) and, with
+  `entries=N` (round 39), by `N` measurements in all -- about 70-90 kB each -- the lineages
+  used longest ago dropped first.
 - <a id="warm"></a>**A worker's one-time work, done at its start**: a process's first
   layout pays for what later ones reuse -- the modules, the font folders' index (which
   faces each installed file holds), and each face it uses read from its file.
