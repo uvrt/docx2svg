@@ -116,6 +116,19 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   the same options; one of another docx2svg, of other options, or made with `keep=False`
   (which keeps nothing for later: `layout.state` is `None`) is laid out whole. The state a
   layout keeps (`layout.state`) is picklable with it, so a worker process can hand it back.
+
+  **Measurements kept per process** (round 37). Most of a layout's pickle is what its flow
+  measured (`layout.state.memo`); a caller that hands layouts between worker processes may
+  leave it out, and the next layout from such a `previous` then measures every block again
+  (46 pages: about as long as a whole layout). `lay_out_docx(..., measures=store)` with a
+  `docx2svg.relayout.MeasureStore` -- one per process -- takes the measurements this process
+  made in earlier layouts of the same document instead, by *lineage*: a layout that measures
+  afresh starts one (`layout.state.lineage`), and a layout that takes its previous layout's
+  measurements goes on with it, so every measurement in a lineage is one a later layout of it
+  would make from the same key. The layout is the same with a store or without, page for
+  page. `changed_pages=False` leaves `layout.changed_pages` `None`: telling them draws every
+  page laid out or drawn again and the page it replaces (after an edit that adds a page,
+  every page whose footer shows the page count), for a caller that does not read them.
 - <a id="warm"></a>**A worker's one-time work, done at its start**: a process's first
   layout pays for what later ones reuse -- the modules, the font folders' index (which
   faces each installed file holds), and each face it uses read from its file.
@@ -245,5 +258,6 @@ with a comment saying who it is kept for, and move docx-agent to the new name.
 - `docx2svg.parse.styles` -- docx-agent: `Numbering`, `parse_numbering`, `parse_styles`
 - `docx2svg.paths` -- docx-agent: `block_keys`, `path_part`, `resolve_path`
 - `docx2svg.png` -- docx-agent: `svg_to_png`
+- `docx2svg.relayout` -- docx-agent: `MeasureStore`
 - `docx2svg.resolve` -- docx-agent: `character_format`, `resolve_paragraph`, `resolve_run`
 - `docx2svg.table` -- docx-agent: `edge_winner`, `lead_paragraph`, `outer_part`, `resolve_table`, `row_keeps_with_next`, `table_style_id`

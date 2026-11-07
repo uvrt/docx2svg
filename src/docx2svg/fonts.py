@@ -800,8 +800,28 @@ class InstalledFonts:
         self._embedded = embedded_faces(self.package) if self.package else {}
         self.substitutes = {name.lower(): value for name, value in self.substitutes.items()}
 
+    def __getstate__(self) -> dict:
+        # The installed faces' indexes (:meth:`_index`) are this process's: found again after.
+        state = dict(self.__dict__)
+        state.pop("_indexes", None)
+        return state
+
+    def _index(self, drawing: bool = False) -> dict:
+        """:func:`installed_index` of :attr:`dirs` (``drawing``: of :func:`drawing_dirs`, Word's
+        bundle first), held by this object: a layout asks for a face tens of thousands of
+        times, and the cache of :func:`installed_index` compares its folders, each a
+        ``Path``, on every look-up (a fifth of a long document's measuring, round 37)."""
+        indexes: tuple[tuple, dict[bool, dict]] | None = self.__dict__.get("_indexes")
+        if indexes is None or indexes[0] is not self.dirs:
+            indexes = self.__dict__["_indexes"] = (self.dirs, {})
+        found = indexes[1].get(drawing)
+        if found is None:
+            found = indexes[1][drawing] = (installed_index(drawing_dirs(self.dirs), bundle_first=True) if drawing
+                                           else installed_index(self.dirs))
+        return found
+
     def face(self, family: str, bold: bool = False, italic: bool = False) -> Face | RecordedFace | None:
-        return self._find(installed_index(self.dirs), family, bold, italic, recorded=True)
+        return self._find(self._index(), family, bold, italic, recorded=True)
 
     def drawing_face(self, family: str, bold: bool = False, italic: bool = False, *,
                      record: bool = True) -> Face | None:
@@ -809,7 +829,7 @@ class InstalledFonts:
         it has one, then the installed ones, then the document's embedded face, then its
         substitute.  ``record=False`` leaves :attr:`substitutions` and :attr:`missing` as
         they are (a face asked for by the caller, not by the document)."""
-        return self._find(installed_index(drawing_dirs(self.dirs), bundle_first=True), family, bold, italic,
+        return self._find(self._index(drawing=True), family, bold, italic,
                           record=record)
 
     @overload
@@ -943,7 +963,7 @@ class InstalledFonts:
         else the face's own missing glyph (``.notdef``).  Not measured: Word's font
         fallback for other characters is not known.  Recorded in :attr:`glyph_fallbacks`
         (``font-glyph-fallback``) rather than stopping the paragraph."""
-        index = installed_index(self.dirs)
+        index = self._index()
         names = ["Times New Roman"] + [name for name, _ in default_substitutes(family, self._font_table or {})]
         names += [name for group in GENERIC_FALLBACKS.values() for name in group]
         for name in dict.fromkeys(names):
