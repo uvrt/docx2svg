@@ -14,6 +14,7 @@ import pickle
 import random
 import threading
 
+import pytest
 import report_docs
 from docx2svg import ConvertOptions, lay_out_docx, page_svgs
 from docx2svg.fonts import InstalledFonts
@@ -31,16 +32,19 @@ def _full_svgs(data: bytes) -> list:
     return page_svgs(layout, data, fonts=fonts)
 
 
-def test_random_edits_from_layouts_without_their_measurements_lay_out_as_a_full_layout():
+@pytest.mark.parametrize("contents", [{}, {"toc": True, "fields": True}])
+def test_random_edits_from_layouts_without_their_measurements_lay_out_as_a_full_layout(contents):
     # Two "processes", each its own store, taking turns: each layout is made from the one
-    # before, handed over without its measurements, as a worker pool hands them on.
-    rng = random.Random(37)
+    # before, handed over without its measurements, as a worker pool hands them on.  With a
+    # table of contents, captions and cross-references, their edits too.
+    rng = random.Random(37 + len(contents))
     stores = [MeasureStore(), MeasureStore()]
-    blocks = report_docs.report(6, seed=37)
+    blocks = report_docs.report(6, seed=37, **contents)
+    kinds = report_docs.EDIT_KINDS + report_docs.FIELD_EDIT_KINDS if contents else None
     layout = lay_out_docx(report_docs.package(blocks), measures=stores[0])[0]
     hits = 0
     for step in range(10):
-        blocks, what = report_docs.edit(blocks, rng)
+        blocks, what = report_docs.edit(blocks, rng, kinds=kinds)
         data = report_docs.package(blocks)
         store = stores[step % 2]
         options = ConvertOptions()
