@@ -14,7 +14,7 @@ snapshot commit; the development history before it is summarised here.
   takes the measurements the process made of the same document in earlier layouts, by
   lineage (`layout.state.lineage`: started by a layout that measures afresh, handed on by
   each that reuses its previous layout's measurements): 0.6-0.7 s. `STATE_FORMAT` 4.
-- **`changed_pages=False`**: `lay_out_docx` leaves `layout.changed_pages` `None`. Finding
+- **`changed_pages=False`**: `lay_out_docx` leaves `layout.changed_pages` `None`. Telling
   them draws each page laid out or drawn again and the page it replaces; after an edit
   that adds a page to a report whose footer shows the page count, that is every page --
   6.5 of 11 s of such a layout (profiled) -- for a caller that does not read them.

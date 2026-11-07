@@ -291,7 +291,7 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
     its measurements (from another process: they are most of its pickle) -- the blocks
     measured there are not measured again; the layout puts back what it measured.  The
     layout is the same with it or without.  ``changed_pages=False`` leaves
-    ``layout.changed_pages`` ``None``: finding them draws each page laid out or drawn again,
+    ``layout.changed_pages`` ``None``: telling them draws each page laid out or drawn again,
     and the page it replaces, to compare them (after an edit that adds a page, every page
     whose footer shows the page count: most of such a layout's time), which a caller
     that compares pages its own way, or not at all, does not need."""

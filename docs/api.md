@@ -126,7 +126,7 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   afresh starts one (`layout.state.lineage`), and a layout that takes its previous layout's
   measurements goes on with it, so every measurement in a lineage is one a later layout of it
   would make from the same key. The layout is the same with a store or without, page for
-  page. `changed_pages=False` leaves `layout.changed_pages` `None`: finding them draws every
+  page. `changed_pages=False` leaves `layout.changed_pages` `None`: telling them draws every
   page laid out or drawn again and the page it replaces (after an edit that adds a page,
   every page whose footer shows the page count), for a caller that does not read them.
 - <a id="warm"></a>**A worker's one-time work, done at its start**: a process's first
