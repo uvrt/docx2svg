@@ -29,9 +29,11 @@ Every document is made up (``tools/report_docs.py``).
 
 from __future__ import annotations
 
+import io
 import os
 import random
 import re
+import zipfile
 from dataclasses import replace
 
 import pytest
@@ -289,6 +291,75 @@ def test_each_fallback_is_a_full_layout_and_says_why(report16, change, reason):
     full = lay_out_docx(data, keep=False)
     assert page_svgs(final, data, fonts=None) == page_svgs(full[0], full[1], fonts=None)
     assert final.relaid is None and final.relaid_cause is None
+
+
+@pytest.mark.parametrize("settings, reason", [
+    # What a document's first save writes -- a revision id, the proofing state -- and the way
+    # the XML is written: what the layout reads is the same (round 39).
+    ('<w:proofState w:spelling="clean" w:grammar="clean"/><w:defaultTabStop  w:val="720" />'
+     '<w:rsids><w:rsidRoot w:val="00A1B2C3"/><w:rsid w:val="00D4E5F6"/></w:rsids>', None),
+    ('<w:defaultTabStop w:val="720"/><w:docVars><w:docVar w:name="Made" w:val="up"/></w:docVars>', None),
+    # What it reads: the default tab stop, hyphenation.
+    ('<w:defaultTabStop w:val="360"/>', "settings"),
+    ('<w:autoHyphenation/><w:defaultTabStop w:val="720"/>', "settings"),
+])
+def test_a_settings_change_lays_out_whole_only_where_the_layout_reads_it(settings, reason):
+    blocks = report_docs.report(4)
+    layout, data, fonts = lay_out_docx(report_docs.package(blocks, settings='<w:defaultTabStop w:val="720"/>'))
+    edited = list(blocks)
+    k = _paragraph(edited, len(edited) // 2)
+    edited[k] = replace(edited[k], text=edited[k].text + " And a few more made-up words.")
+    data = report_docs.package(edited, settings=settings)
+    again, again_data, again_fonts = lay_out_docx(data, previous=layout)
+    full, full_data, full_fonts = lay_out_docx(data, keep=False)
+    assert page_svgs(again, again_data, fonts=again_fonts) == page_svgs(full, full_data, fonts=full_fonts)
+    assert again.relaid == reason
+    if reason is None:
+        assert len(again.changed_pages) < len(again.pages)
+    else:
+        assert again.relaid_cause == {"reason": "settings", "part": "word/settings.xml"}
+
+
+FRAMED = '<w:p><w:pPr><w:framePr w:w="2000" w:hAnchor="page" w:x="500" w:y="2000"/></w:pPr><w:r><w:t>Framed</w:t></w:r></w:p>'
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_a_header_change_reuses_the_bodys_measurements_unless_it_may_wrap_the_body(seed):
+    # Round 39: a header or footer changed (a document's page count written into its footer's
+    # cached field, say) lays the document out whole -- with the body's measurements unless
+    # either version's stories hold a drawing, picture, object or frame.
+    rng = random.Random(seed)
+    blocks = report_docs.report(4, seed)
+    layout = lay_out_docx(report_docs.package(blocks))[0]
+    for step in range(4):
+        edited = list(blocks)
+        k = _paragraph(edited, rng.randrange(len(edited) - 4))
+        edited[k] = replace(edited[k], text=edited[k].text + " More made-up words." * rng.randint(1, 9))
+        header = "Made-up header, version %d" % step + (" with a long tail of words" * rng.randint(0, 6))
+        data = report_docs.package(edited, header=header)
+        again, again_data, fonts = lay_out_docx(data, previous=layout)
+        full, full_data, full_fonts = lay_out_docx(data, keep=False)
+        assert page_svgs(again, again_data, fonts=fonts) == page_svgs(full, full_data, fonts=full_fonts), step
+        assert again.relaid == "headers-footers"
+        assert again.state.lineage == layout.state.lineage, "measurements reused"
+        layout, blocks = again, edited
+    framed = report_docs.package(blocks, header="Made-up header")
+
+    def with_frame(data: bytes) -> bytes:
+        out = io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w") as target:
+            for info in source.infolist():
+                part = source.read(info.filename)
+                if info.filename == "word/header1.xml":
+                    part = part.replace(b"</w:hdr>", FRAMED.encode() + b"</w:hdr>")
+                target.writestr(info, part)
+        return out.getvalue()
+
+    framed = with_frame(framed)
+    again, again_data, fonts = lay_out_docx(framed, previous=layout)
+    full, full_data, full_fonts = lay_out_docx(framed, keep=False)
+    assert page_svgs(again, again_data, fonts=fonts) == page_svgs(full, full_data, fonts=full_fonts)
+    assert again.relaid == "headers-footers" and again.state.lineage != layout.state.lineage
 
 
 def test_paths_are_renumbered_by_the_blocks_before_the_pages_kept(report16):

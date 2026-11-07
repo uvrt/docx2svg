@@ -5,6 +5,29 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.8 -- unreleased
+
+- **Settings compared by what the layout reads** (production round 39). A layout from a
+  previous one laid the whole document out again, measuring every block afresh, whenever
+  `word/settings.xml` changed at all -- a revision id, the proofing state, a document
+  variable, or the part written again with other quotes, as a document's first save does.
+  The part is now compared by a digest of what the layout reads of it
+  (`docx2svg.parse.document.settings_read`: the theme's font languages, the compatibility
+  mode and options, the default tab stop, even and odd headers, hyphenation, the colour
+  mapping, the note settings), and only a change there is `settings`
+  (`tests/test_relayout.py`).
+- **A header or footer changed keeps the body's measurements** where neither version's
+  headers and footers hold a drawing, a picture, an object or a frame (what body text may
+  wrap around): the whole document is laid out again (`headers-footers`), but the line
+  breaks of the blocks that did not change are taken from the previous layout, as for the
+  other measured fallbacks. A document's fields updated -- its page count written into the
+  footer's cached `NUMPAGES` -- cost a layout measured afresh: 1.9 against 1.3 s of CPU on
+  a made-up 11-page document, 7.3 against 5.0 s on a 46-page report.
+- **`MeasureStore(..., entries=N)`**: at most `N` measurements in all, the lineages used
+  longest ago dropped first (the one put last kept): a memory budget (about 70-90 kB a
+  measurement, measured on the same two documents) instead of a number of documents.
+- Pages are unchanged: the same SVG, page for page, as a full layout of the same bytes.
+
 ## 0.11.7 -- unreleased
 
 - **Measurements kept per process** (production round 37). A layout handed between worker

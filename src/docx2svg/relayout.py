@@ -86,7 +86,8 @@ FALLBACKS = {
     "options": "the font folders, substitutes, measurement or locale differ from the previous layout's",
     "styles": "the styles part changed",
     "numbering": "the numbering definitions changed",
-    "settings": "the settings part changed",
+    "settings": "the settings part changed what the layout reads of it (the theme's font languages, the "
+                "compatibility options, the default tab stop, hyphenation...)",
     "theme": "the theme changed",
     "fonts": "the font table or an embedded font changed",
     "headers-footers": "a header or footer changed",
@@ -110,6 +111,9 @@ FALLBACKS = {
 _UNDRAWN = re.compile(r"^(docProps/|customXml/|word/comments[A-Za-z]*\.xml$|word/people\.xml$|"
                       r"word/_rels/comments[A-Za-z]*\.xml\.rels$|word/webSettings\.xml$)")
 MAIN = "word/document.xml"
+#: The settings part, as Word names it (:func:`part_digests`; another name is compared by
+#: its bytes, as any part).
+SETTINGS = "word/settings.xml"
 MAIN_RELS = "word/_rels/document.xml.rels"
 _PART_REASONS = (
     (re.compile(r"^word/styles(WithEffects)?\.xml$"), "styles"),
@@ -224,7 +228,12 @@ def _segment(name: str, data: bytes) -> Segment:
 
 def part_digests(data: bytes) -> tuple[dict, bytes | None]:
     """``({part name: digest}, the main part's bytes)``: every part that can change what is
-    drawn but the main part, which :func:`segments` reads."""
+    drawn but the main part, which :func:`segments` reads.  The settings part by what the
+    layout reads of it (round 39, :func:`docx2svg.parse.document.settings_digest`): a new
+    revision id, proofing state or document variable -- a document's first save writes
+    them -- does not lay the whole document out again."""
+    from .parse.document import settings_digest
+
     out = {}
     main = None
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
@@ -234,6 +243,8 @@ def part_digests(data: bytes) -> tuple[dict, bytes | None]:
                 continue
             if name == MAIN:
                 main = archive.read(name)
+            elif name == SETTINGS:
+                out[name] = settings_digest(archive.read(name))
             elif not _UNDRAWN.match(name):
                 out[name] = _digest(archive.read(name))
     return out, main
@@ -399,13 +410,18 @@ class MeasureStore:
     puts back what it used and made.
 
     Bounded: the ``lineages`` used last, each at most twice the entries of the layout
-    that put it last, plus ``spare`` (the newest kept).  Thread-safe: each look-up is a
-    copy."""
+    that put it last, plus ``spare`` (the newest kept); and with ``entries`` (round 39),
+    at most that many entries in all -- a caller's memory budget, at about 70-90 kB an
+    entry (a block's lines and their widths, measured on a 10-page and a 46-page document)
+    -- the lineages used longest ago dropped first, the one put last always kept.
+    Thread-safe: each look-up is a copy."""
 
-    def __init__(self, lineages: int = 4, spare: int = 256) -> None:
+    def __init__(self, lineages: int = 4, spare: int = 256, entries: int | None = None) -> None:
         self.lineages = lineages
         self.spare = spare
+        self.entries = entries
         self._kept: dict[bytes, dict] = {}
+        self._count = 0
         self._lock = threading.Lock()
 
     def get(self, lineage: bytes) -> dict:
@@ -425,6 +441,7 @@ class MeasureStore:
             return
         with self._lock:
             kept = self._kept.pop(lineage, None)
+            self._count -= len(kept) if kept is not None else 0
             kept = dict(kept) if kept is not None else {}
             for key, value in entries.items():
                 kept.pop(key, None)
@@ -433,16 +450,19 @@ class MeasureStore:
             while len(kept) > limit:
                 del kept[next(iter(kept))]
             self._kept[lineage] = kept
-            while len(self._kept) > self.lineages:
-                del self._kept[next(iter(self._kept))]
+            self._count += len(kept)
+            while len(self._kept) > self.lineages or (
+                    self.entries is not None and self._count > self.entries and len(self._kept) > 1):
+                self._count -= len(self._kept.pop(next(iter(self._kept))))
 
     def __len__(self) -> int:
         with self._lock:
-            return sum(len(entries) for entries in self._kept.values())
+            return self._count
 
     def clear(self) -> None:
         with self._lock:
             self._kept.clear()
+            self._count = 0
 
 
 def new_lineage() -> bytes:
@@ -643,6 +663,22 @@ def record(placer, layout, data: bytes, parts: dict, main: bytes | None, fonts, 
                  story_refs={k: v for k, v in story_refs.items() if v})
 
 
+_STORY_PART = re.compile(r"^word/(header|footer)\d*\.xml$")
+#: What in a header or footer the body's text may wrap around, or that is placed by its own
+#: rules: a drawing, a VML picture, an embedded object, a frame.
+_STORY_FLOAT = re.compile(rb"<(?:\w+:)?(?:drawing|pict|object|framePr)\b")
+
+
+def stories_float(data: bytes) -> bool:
+    """Whether a header or footer of ``data`` holds a drawing, a picture, an object or a
+    frame (:data:`_STORY_FLOAT`): a change to its stories may then change how the body's
+    lines break, which they otherwise do not (a ``headers-footers`` layout takes the
+    previous layout's measurements only where neither version's do)."""
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        return any(_STORY_FLOAT.search(archive.read(name)) for name in archive.namelist()
+                   if _STORY_PART.match(name))
+
+
 def _read_rels(data: bytes) -> bytes | None:
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         try:
@@ -746,7 +782,11 @@ def plan(previous, data: bytes, options: tuple | None) -> Plan:
         return fallback("options", False)
     found = parts_cause(state.parts, parts)
     if found is not None:
-        return fallback(found[0], False, part=found[1])
+        # Round 39: a header or footer measures nothing of the body unless it holds what
+        # body text may wrap around -- its line breaks are the previous layout's (a
+        # document's page count written into its footer's cached field).
+        measured = found[0] == "headers-footers" and not stories_float(state.data) and not stories_float(data)
+        return fallback(found[0], measured, part=found[1])
     before, after = state.relationships, relationships(_read_rels(data))
     if any(key not in after or after[key] != value for key, value in before.items()):
         return fallback("parts", False, part=MAIN_RELS)

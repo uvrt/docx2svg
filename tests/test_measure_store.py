@@ -180,3 +180,22 @@ def test_a_section_made_narrower_is_measured_again():
         again, again_data, fonts = lay_out_docx(narrower, previous=previous, measures=measures)
         assert again.relaid == "sections"
         assert page_svgs(again, again_data, fonts=fonts) == _full_svgs(narrower)
+
+
+def test_a_store_can_be_bounded_by_entries():
+    # Round 39: a memory budget in entries; the lineages used longest ago go first, the one
+    # put last stays even when it alone is over.
+    store = MeasureStore(lineages=100, spare=0, entries=10)
+    store.put(b"a", {k: k for k in range(4)})
+    store.put(b"b", {k: k for k in range(4)})
+    assert len(store) == 8
+    store.get(b"a")                          # used last: b is now the oldest
+    store.put(b"c", {k: k for k in range(4)})
+    assert store.get(b"b") == {} and len(store.get(b"a")) == 4 and len(store.get(b"c")) == 4
+    assert len(store) == 8
+    store.put(b"d", {k: k for k in range(30)})
+    assert len(store) == 30 and store.get(b"a") == {} and len(store.get(b"d")) == 30
+    store.put(b"d", {k: k for k in range(2)})    # its own counted again, not twice: 2 x 2 kept
+    assert len(store) == len(store.get(b"d")) == 4
+    store.clear()
+    assert len(store) == 0

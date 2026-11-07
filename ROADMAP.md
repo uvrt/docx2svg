@@ -7627,6 +7627,16 @@ which blocks, and -- after each small edit -- which pages to draw again.
   What still lays the whole document out: an edit of an element that opens or closes a
   field another element holds (the contents' first line holds the `TOC` field's start),
   and the reasons above (`relayout.FALLBACKS`).
+- **Settings, headers and footers (round 39).** The settings part is compared by what the
+  layout reads of it (`parse.document.settings_read`, one function for the parse and the
+  comparison), not by its bytes: a document's first save, which writes revision ids and a
+  proofing state, no longer lays it out whole. A header or footer that changed still lays
+  the document out whole (its height moves every page's body), but with the body's
+  measurements, unless either version's headers and footers hold a drawing, a picture, an
+  object or a frame -- the only things in them body text could wrap around (none is
+  modelled yet: see "Floating objects and text wrap" below). Held by
+  `tests/test_relayout.py` and, on the local corpus, every document laid out again after
+  its settings were written otherwise and after a header's or footer's text changed.
 
 ## Phase 6 — Everything else, sized
 
