@@ -63,10 +63,16 @@ def test_a_lineage_goes_on_while_measurements_are_reused_and_starts_again_when_n
     edited[3] = dataclasses.replace(edited[3], text=edited[3].text + " More.")
     again = lay_out_docx(report_docs.package(edited), previous=first)[0]
     assert again.state.lineage == first.state.lineage
-    # A header changed: the measurements are not reused, a new lineage starts.
-    other = lay_out_docx(report_docs.package(edited, header="Another made-up header"), previous=again)[0]
-    assert other.relaid == "headers-footers"
+    # The styles changed: the measurements are not reused, a new lineage starts.
+    styles = '<w:style w:type="paragraph" w:styleId="Unused"><w:name w:val="Unused"/></w:style>'
+    other = lay_out_docx(report_docs.package(edited, styles=styles), previous=again)[0]
+    assert other.relaid == "styles"
     assert other.state.lineage != again.state.lineage
+    # A header changed (round 39): laid out whole, but with the body's measurements -- the
+    # lineage goes on.
+    header = lay_out_docx(report_docs.package(edited, header="Another made-up header"), previous=again)[0]
+    assert header.relaid == "headers-footers"
+    assert header.state.lineage == again.state.lineage
     # A whole layout of its own starts one too.
     assert lay_out_docx(report_docs.package(blocks))[0].state.lineage != first.state.lineage
 
