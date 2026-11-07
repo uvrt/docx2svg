@@ -89,8 +89,10 @@ class Unmeasurable(Exception):
     advance, a drawing, a superscript whose face has no script size)."""
 
 
-@dataclass
+@dataclass(slots=True)
 class Piece:
+    # Slots (round 39): a layout makes one per character -- a hundred thousand in a long
+    # report -- and without a dict each is made faster and kept in less memory.
     kind: str
     #: The character drawn (``"\\t"`` for a tab, ``"\\n"`` for a break, ``"\\f"`` for a
     #: page break and ``"\\v"`` for a column break).

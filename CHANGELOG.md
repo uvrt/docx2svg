@@ -5,6 +5,41 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.9 -- unreleased
+
+- **Less CPU per layout, the same pages** (production round 39, from a profile of their
+  volume runs). Nothing a layout draws, warns or reports changes: every page's SVG of the
+  local corpus (151 documents, laid out whole, from themselves and after an edit) is
+  0.11.8's byte for byte.
+  - **Numbers written in integers.** `svg.number` rounds a fraction to four decimals from its
+    numerator and denominator (an integer as it is) instead of making a `Fraction` ten
+    thousand times larger: drawing a page's SVG takes 40% of the time it took.
+  - **A glyph placed with one fraction.** The placer moved each glyph to the column by
+    adding two fractions it made per glyph (`layout.px_at`): one, made over the layout
+    unit's denominator.
+  - **Faces and kerning found once.** `InstalledFonts.face` keeps each family and style's
+    face (the folders, the styles, the substitutes: the same face every time) and
+    `InstalledFonts.kern` each pair's kerning (at most `fonts.KERN_PAIRS`); neither is
+    pickled. What finding a face records (`substitutions`, `missing`) it records the first time.
+  - **Properties resolved once per document.** A paragraph's properties depend on the
+    document's styles, numbering and settings and on its style, its table's style and
+    conditional formats and its direct formatting; a run's on those, its character style,
+    its direct formatting and whether it is a contents link. A layout resolved each
+    paragraph and run several times (a 46-page report: 14,400 times, for 31 distinct
+    inputs); each distinct input is now resolved once per parsed document and the same
+    `Resolved` handed to all (`resolve.cascade`). A document parsed again starts afresh;
+    direct formatting holding a value that cannot be hashed is resolved each time.
+  - **Pieces with slots.** `linebreak.Piece` (one per character) is a slotted dataclass:
+    made faster, kept in less memory.
+  Measured on this machine (busy: other runs on it), CPU of a whole layout and of its pages'
+  SVG, best of five, after a first layout: a made-up 11-page document 1.81 -> 1.16 s and
+  0.26 -> 0.10 s; a made-up 46-page report 6.57 -> 4.17 s and 0.93 -> 0.35 s. Each change
+  alone, switched off and on in one process (the report): the cascade 15%, the faces 6%,
+  pieces with slots 6-7%, one fraction per glyph 5-6%, kerning pairs 2-6%, the numbers
+  most of the SVG's share.
+  `tests/test_autospacing.py`'s model without autospacing parses its probe again: a parsed
+  document keeps what it resolved with the model it was resolved by.
+
 ## 0.11.8 -- unreleased
 
 - **Settings compared by what the layout reads** (production round 39). A layout from a

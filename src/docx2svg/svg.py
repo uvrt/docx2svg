@@ -54,8 +54,15 @@ GLYPH_SIZES = ("device", "exact")
 
 def number(value) -> str:
     """A length in device px, to four decimals, half up, no trailing zeros."""
-    scaled = Fraction(value) * 10000
-    whole = (scaled.numerator * 2 + scaled.denominator) // (2 * scaled.denominator)
+    kind = type(value)
+    if kind is int:
+        return str(value)
+    if kind is not Fraction:
+        value = Fraction(value)
+    # ``value`` times 10,000 rounded half up -- floor(n * 10000 / d + 1/2) -- in integers: a
+    # page's every glyph x goes through here (round 39: a quarter of the time it took).
+    denominator = value.denominator
+    whole = (value.numerator * 20000 + denominator) // (2 * denominator)
     sign = "-" if whole < 0 else ""
     whole = abs(whole)
     integer, fraction = divmod(whole, 10000)

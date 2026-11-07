@@ -71,7 +71,7 @@ if TYPE_CHECKING:
     from .measure import Advances
     from .vertical import FaceMetrics
 
-__version__ = "0.11.8"
+__version__ = "0.11.9"
 
 __all__ = [
     "Conversion",

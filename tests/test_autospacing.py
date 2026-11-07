@@ -79,7 +79,10 @@ def test_the_stated_value_and_the_neighbour_free_rule_are_refuted(monkeypatch):
     monkeypatch.setattr(baselines, "autospace_kept", lambda **_: True)
     assert _total(reader.offline(DATA)) == 927
     monkeypatch.setattr(cascade, "_autospacing", lambda *_: None)
+    # A parsed document keeps what it resolved (round 39): the other model needs fresh parses.
+    probe_documents._parsed.cache_clear()
     assert _total(reader.offline(DATA)) == 275
+    probe_documents._parsed.cache_clear()
 
 
 def test_do_not_use_html_paragraph_auto_spacing_makes_all_spacing_add():
