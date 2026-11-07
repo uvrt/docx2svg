@@ -21,7 +21,11 @@ snapshot commit; the development history before it is summarised here.
 - **Faces looked up faster**: `InstalledFonts` holds its folders' face index instead of
   asking the cached `installed_index` each time, whose key compares every folder's `Path`
   (a fifth of measuring a long document's text). Not pickled with it.
-- Pages are unchanged: the layout is the same with a store, without one and with
+- **A section edited is measured again**: a layout from a previous one after a section break
+  was added, removed or edited ("sections") reused the previous layout's measurements, which
+  are kept by the section's number -- a section made narrower kept its old line breaks (one
+  document of the local corpus; on 0.11.6 too). Such a layout now measures afresh.
+- Pages are otherwise unchanged: the layout is the same with a store, without one and with
   `changed_pages=False` (`tests/test_measure_store.py`, random edits).
 
 ## 0.11.6 -- unreleased

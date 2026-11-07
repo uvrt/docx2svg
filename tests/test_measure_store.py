@@ -151,3 +151,32 @@ def test_installed_fonts_pickle_without_their_index():
     assert (found is None) == (face is None)
     if face is not None:
         assert (found.source, found.offset) == (face.source, face.offset)
+
+
+def _with_main(data: bytes, edit) -> bytes:
+    import io
+    import zipfile
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(out, "w") as target:
+        for item in source.infolist():
+            blob = source.read(item.filename)
+            if item.filename == "word/document.xml":
+                blob = edit(blob)
+            target.writestr(item, blob)
+    return out.getvalue()
+
+
+def test_a_section_made_narrower_is_measured_again():
+    # The measurements are kept by a section's number: a section break edited to narrow its
+    # section must not reuse what was measured at its old width (nor a store's).
+    blocks = report_docs.report(6, seed=11, sections=True)
+    data = report_docs.package(blocks)
+    store = MeasureStore()
+    first = lay_out_docx(data, measures=store)[0]
+    narrower = _with_main(data, lambda xml: xml.replace(b'w:left="1417"', b'w:left="3400"', 1))
+    assert narrower != data
+    for previous, measures in ((first, None), (_light(first), store)):
+        again, again_data, fonts = lay_out_docx(narrower, previous=previous, measures=measures)
+        assert again.relaid == "sections"
+        assert page_svgs(again, again_data, fonts=fonts) == _full_svgs(narrower)

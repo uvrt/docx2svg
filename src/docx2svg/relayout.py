@@ -774,7 +774,10 @@ def plan(previous, data: bytes, options: tuple | None) -> Plan:
         return {}
 
     if any(segment.section for segment in changed_old + changed_new):
-        return fallback("sections", True, **at(lambda segment: segment.section))
+        # Not from the previous layout's measurements (round 37): they are kept by the
+        # section's number, and a section edited, added or removed changes what a number
+        # measures with (its width, its columns) -- or which section it is.
+        return fallback("sections", False, **at(lambda segment: segment.section))
     if any(segment.joined for segment in changed_old + changed_new) or (a and old[a - 1].joined):
         place = at(lambda segment: segment.joined) or where(_main_of(state.data), a - 1)
         return fallback("joined", True, **place)
