@@ -466,13 +466,15 @@ NUMBERING = (
 
 
 def package(blocks: list[Block], *, title: str = "Made-up quarterly report", header: str | None = None,
-            styles: str = "", even_odd: bool = False, title_page: bool = False, styleref: tuple = ()) -> bytes:
+            styles: str = "", even_odd: bool = False, title_page: bool = False, styleref: tuple = (),
+            settings: str | None = None) -> bytes:
     """``blocks`` as a ``.docx``: A4, 2.5 cm margins, a header (``title``) and a footer
     (``Page N of M``), the footnotes of its ``noted`` paragraphs; ``styles``: more style
     definitions.  ``even_odd``: even pages have a header of their own
     (``w:evenAndOddHeaders``); ``title_page``: the first page has a header and a footer of its
     own, with no page number (``w:titlePg``).  ``styleref``: ``STYLEREF`` instructions the
-    header shows after its title, each after a bar (round 21), cached as ``Chapter``."""
+    header shows after its title, each after a bar (round 21), cached as ``Chapter``.
+    ``settings``: the settings part's children (round 39), with ``even_odd``'s after them."""
     header = header if header is not None else title
     references = '<w:headerReference w:type="default" r:id="rIdH"/>'
     if even_odd:
@@ -503,9 +505,13 @@ def package(blocks: list[Block], *, title: str = "Made-up quarterly report", hea
              ("/word/footer1.xml", CT + "footer+xml")]
     if even_odd:
         parts["word/header2.xml"] = f'<w:hdr {ns}>{_para("Even pages: " + header, "Header")}</w:hdr>'
-        parts["word/settings.xml"] = f'<w:settings xmlns:w="{W_NS}"><w:evenAndOddHeaders/></w:settings>'
-        rels += [("rIdHe", "header", "header2.xml"), ("rIdSt", "settings", "settings.xml")]
-        types += [("/word/header2.xml", CT + "header+xml"), ("/word/settings.xml", CT + "settings+xml")]
+        rels += [("rIdHe", "header", "header2.xml")]
+        types += [("/word/header2.xml", CT + "header+xml")]
+    if even_odd or settings is not None:
+        parts["word/settings.xml"] = (f'<w:settings xmlns:w="{W_NS}">{settings or ""}'
+                                      + ("<w:evenAndOddHeaders/>" if even_odd else "") + "</w:settings>")
+        rels += [("rIdSt", "settings", "settings.xml")]
+        types += [("/word/settings.xml", CT + "settings+xml")]
     if title_page:
         parts["word/header3.xml"] = f'<w:hdr {ns}>{_para(title.upper(), "Header")}</w:hdr>'
         parts["word/footer2.xml"] = f'<w:ftr {ns}>{_para("A made-up report", "Footer")}</w:ftr>'
