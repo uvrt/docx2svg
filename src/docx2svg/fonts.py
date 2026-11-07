@@ -533,6 +533,13 @@ def _rasteriser_family(dirs: tuple[Path, ...], family: str) -> list[Face]:
     return [_face_at(path, number) for path, number in _rasteriser_families_index(dirs).get(family, [])]
 
 
+#: A face :meth:`InstalledFonts.face` has not looked for yet (``None`` is a face not found).
+_UNFOUND = object()
+#: The kerning pairs one :class:`InstalledFonts` holds (:meth:`InstalledFonts.kern`): a
+#: long document's text asks for a few thousand.
+KERN_PAIRS = 65536
+
+
 def _lookup(table: dict, family: str, bold: bool, italic: bool):
     key = family.lower()
     return table.get((key, bold, italic)) or table.get((key, bold, False)) or table.get((key, False, False))
@@ -804,6 +811,8 @@ class InstalledFonts:
         # The installed faces' indexes (:meth:`_index`) are this process's: found again after.
         state = dict(self.__dict__)
         state.pop("_indexes", None)
+        state.pop("_faces", None)
+        state.pop("_kerns", None)
         return state
 
     def _index(self, drawing: bool = False) -> dict:
@@ -821,7 +830,19 @@ class InstalledFonts:
         return found
 
     def face(self, family: str, bold: bool = False, italic: bool = False) -> Face | RecordedFace | None:
-        return self._find(self._index(), family, bold, italic, recorded=True)
+        # Held by this object, per family and style (round 39): a layout asks for a face per
+        # glyph, its advance and its kerning, and finding it -- the index, the family's
+        # styles, the substitutes -- gives the same face every time for the same folders.
+        # What finding it records (:attr:`substitutions`, :attr:`missing`) it records the
+        # first time.  Thread safe: two threads finding the same face at once find the same.
+        faces: tuple[tuple, dict] | None = self.__dict__.get("_faces")
+        if faces is None or faces[0] is not self.dirs:
+            faces = self.__dict__["_faces"] = (self.dirs, {})
+        key = (family, bold, italic)
+        found = faces[1].get(key, _UNFOUND)
+        if found is _UNFOUND:
+            found = faces[1][key] = self._find(self._index(), family, bold, italic, recorded=True)
+        return found
 
     def drawing_face(self, family: str, bold: bool = False, italic: bool = False, *,
                      record: bool = True) -> Face | None:
@@ -985,8 +1006,21 @@ class InstalledFonts:
         return advances[0], face.units_per_em
 
     def kern(self, family: str, bold: bool, italic: bool, left: str, right: str) -> int | None:
-        face = self.face(family, bold, italic)
-        return None if face is None else face.kern(left, right)
+        # Held per pair (round 39), as the faces are (:meth:`face`): a line is measured and
+        # placed more than once, and every pair of its glyphs asks.  At most
+        # :data:`KERN_PAIRS` pairs; then started again.
+        kerns: tuple[tuple, dict] | None = self.__dict__.get("_kerns")
+        if kerns is None or kerns[0] is not self.dirs:
+            kerns = self.__dict__["_kerns"] = (self.dirs, {})
+        key = (family, bold, italic, left, right)
+        value = kerns[1].get(key, _UNFOUND)
+        if value is _UNFOUND:
+            face = self.face(family, bold, italic)
+            value = None if face is None else face.kern(left, right)
+            if len(kerns[1]) >= KERN_PAIRS:
+                kerns[1].clear()
+            kerns[1][key] = value
+        return value
 
     def ink(self, family: str, bold: bool, italic: bool, text: str, oblique: float = 0.0) -> tuple | None:
         """``(units per em, (x min, y min, x max, y max), pens, slant)`` of ``text``'s

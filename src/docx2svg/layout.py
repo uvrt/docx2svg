@@ -64,6 +64,32 @@ def units_px(units) -> Fraction:
     return Fraction(units) * LAYOUT_UNIT_PX
 
 
+_UNIT_N, _UNIT_D = LAYOUT_UNIT_PX.numerator, LAYOUT_UNIT_PX.denominator
+
+
+def px_at(left, units) -> Fraction:
+    """``left + units_px(units)``: device px ``left`` moved by a length in the layout unit,
+    the same :class:`~fractions.Fraction`, made at once over the unit's denominator (round
+    39: the placer asks twice per glyph; a third of the time two Fractions and a sum took)."""
+    if type(units) is int:
+        kind = type(left)
+        if kind is int:
+            numerator, denominator = left * _UNIT_D + units * _UNIT_N, _UNIT_D
+        elif kind is Fraction:
+            below = left.denominator
+            numerator, denominator = left.numerator * _UNIT_D + units * _UNIT_N * below, below * _UNIT_D
+        else:
+            return left + units_px(units)
+        common = math.gcd(numerator, denominator)
+        return _from_terms(numerator // common, denominator // common)
+    return left + units_px(units)
+
+
+#: A :class:`~fractions.Fraction` from terms already in lowest terms, the denominator
+#: positive, without the checks and the ``gcd`` the constructor takes (Python 3.12 and later).
+_from_terms = getattr(Fraction, "_from_coprime_ints", Fraction)
+
+
 @functools.lru_cache(maxsize=None)
 def half_points_offset_px(half_points: int) -> int:
     """How many device px a run raised by ``half_points`` is drawn above its line's
@@ -2877,7 +2903,7 @@ class _Placer:
                 continue
             if piece.source < 0 and piece.char == linebreak.LABEL_SHIFT:
                 continue
-            x = column_left + units_px(positions[j])
+            x = px_at(column_left, positions[j])
             if piece.kind == linebreak.OBJECT:
                 current = None
                 k = piece.run
@@ -2977,7 +3003,7 @@ class _Placer:
             current.chars.append(char if piece.kind != linebreak.SPACE else piece.char)
             # A note's number is drawn on whole device px (``linebreak.note_number_units``).
             current.xs.append(Fraction(round_half_up(x)) if piece.source >= 0 and runs[piece.run].note_number else x)
-            current.end = x + units_px(width)
+            current.end = px_at(x, width)
         for j, (leader, x0, x1) in sorted(leaders.items()):
             if leader is None:
                 continue

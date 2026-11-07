@@ -282,8 +282,56 @@ def _numbering_level(document: Document, num_id, ilvl) -> NumberingLevel | None:
 # -- the three entry points ------------------------------------------------------------
 
 
+# -- what a document resolved (round 39) -------------------------------------------------
+#
+# A paragraph's properties are a function of the document's styles, numbering and settings and
+# of four things of the paragraph -- its style, its table's style and the cell's conditional
+# formats, and its direct formatting -- a run's of those, its character style and direct
+# formatting, and whether it is a table of contents' link.  A layout resolves each paragraph
+# and run several times (breaking it, placing it, measuring a table's rows), and a document's
+# thousands of runs have a few dozen distinct inputs: each is resolved once per parsed
+# document, kept on it, and the same :class:`Resolved` -- whose values nothing changes once it
+# is made -- handed to every paragraph or run with the same inputs.  A document parsed again
+# (an edit of its styles, of anything) starts with none.  Direct formatting holding a value
+# that cannot be hashed is resolved every time, as before.
+
+def _declared_key(declared: dict) -> tuple | None:
+    """``declared`` as a key: its items in order, each value with its type (``1`` and
+    ``True`` are equal keys, not equal formatting); ``None`` where a value cannot be hashed."""
+    try:
+        key = tuple(sorted((name, type(value), value) for name, value in declared.items()))
+        hash(key)
+    except TypeError:
+        return None
+    return key
+
+
+def _resolved_of(document: Document) -> dict:
+    kept = document.__dict__.get("_resolved")
+    if kept is None:
+        kept = document.__dict__["_resolved"] = {}
+    return kept
+
+
 def resolve_paragraph(document: Document, paragraph: Paragraph) -> Resolved:
     """The paragraph's own properties (``w:pPr``), through the whole hierarchy."""
+    properties = paragraph.properties
+    declared = _declared_key(properties.declared) if properties else ()
+    if declared is None:
+        return _resolve_paragraph(document, paragraph)
+    key = ("paragraph", properties.style_id if properties else None, paragraph.table_style_id,
+           paragraph.table_conditions, declared)
+    kept = _resolved_of(document)
+    try:
+        found = kept.get(key)
+    except TypeError:  # a style id or condition that is not hashable: not kept
+        return _resolve_paragraph(document, paragraph)
+    if found is None:
+        found = kept[key] = _resolve_paragraph(document, paragraph)
+    return found
+
+
+def _resolve_paragraph(document: Document, paragraph: Paragraph) -> Resolved:
     sheet = document.styles
     layer: _Layer = {}
     if sheet is not None:
@@ -437,6 +485,24 @@ def toc_link_layer(level: _Layer) -> _Layer:
 
 def _resolve_run_properties(document: Document, paragraph: Paragraph, character_style: str | None,
                             direct: dict, toc_link: bool = False) -> Resolved:
+    declared = _declared_key(direct)
+    if declared is None:
+        return _resolve_run(document, paragraph, character_style, direct, toc_link)
+    properties = paragraph.properties
+    key = ("run", properties.style_id if properties else None, paragraph.table_style_id, paragraph.table_conditions,
+           character_style, bool(toc_link), declared)
+    kept = _resolved_of(document)
+    try:
+        found = kept.get(key)
+    except TypeError:  # a style id or condition that is not hashable: not kept
+        return _resolve_run(document, paragraph, character_style, direct, toc_link)
+    if found is None:
+        found = kept[key] = _resolve_run(document, paragraph, character_style, direct, toc_link)
+    return found
+
+
+def _resolve_run(document: Document, paragraph: Paragraph, character_style: str | None,
+                 direct: dict, toc_link: bool = False) -> Resolved:
     sheet = document.styles
     defaults = sheet.run_defaults if sheet is not None else {}
 
