@@ -138,7 +138,8 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   blocks it parsed and the segments it read: the next layout from it builds the model of a
   block only where its bytes, or the namespaces and theme colours it is read with, changed,
   and digests only new elements (`docx2svg.parse.document.KeptBlocks`; a block inside a
-  field that spans blocks, such as a table of contents' lines, is built each time). The
+  field that spans blocks, such as a table of contents' line, is taken where the fields open
+  at it are in the same state, and the blocks that open or close such a field are built). The
   document is the same either way, every field of every block. `parsed_document(layout,
   data)` is the document `lay_out_docx` parsed for `layout` where `data` is its bytes -- the
   parse as it was made, before the layout set its locale -- and `parse_package(data)`

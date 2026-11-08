@@ -646,9 +646,11 @@ class KeptBlocks:
     paths are its own); a table or a content control by its place too (its cells'
     paragraphs' paths start with it).
 
-    Taken only where no complex field is open at the block (a table of contents' result
-    running across paragraphs is built each time) and where none was open after it when
-    it was built; the field keywords it adds to ``Document.cached_fields`` are kept with it.
+    Kept only where its parse changed none of the complex fields open at it -- it opened and
+    closed its own, if any: a table of contents' line inside the field's result, not the
+    paragraph that opens it -- and taken only where the fields open at it are in the same
+    state (each one's state, whether it is computed, its keyword: all a block's parse reads
+    of them); the field keywords it adds to ``Document.cached_fields`` are kept with it.
     Every top-level block of a document is its own object: one taken is a copy of the one
     kept (a paragraph) or made anew from its cells (a table, :func:`_following_properties`),
     and an element whose bytes occur twice in a document is built the second time.  Nothing
@@ -695,6 +697,21 @@ def _taken(block, path: str | None):
     return block
 
 
+def _open_state(stack: list) -> tuple:
+    """What a block's parse reads of the complex fields open at it (:class:`_Fields`:
+    ``visible``, ``in_toc_result``, the result a computed field collects): each one's state,
+    whether it is computed, and its keyword."""
+    return tuple((f.state, f.computed, field_keyword("".join(f.instruction))) for f in stack)
+
+
+def _open_snapshot(stack: list) -> tuple:
+    """The complex fields open, as objects and everything a block's parse may change of them:
+    the same before and after a block, the block changed none of them (it opened and closed
+    its own fields only)."""
+    return tuple((id(f), f.state, f.computed, len(f.instruction), len(f.result), len(f.cached),
+                  id(f.instr_properties), f.instr_path, id(f.result_properties)) for f in stack)
+
+
 def _kept_block_list(body: Element, fields: _Fields, kept: KeptBlocks, segments: list, context: bytes) -> list:
     """The body's blocks (:func:`_block_list` of ``w:body``), each top-level element's
     taken from ``kept`` where its segment's digest and ``context`` are those it was built
@@ -717,22 +734,21 @@ def _kept_block_list(body: Element, fields: _Fields, kept: KeptBlocks, segments:
         name = segment.name
         if name not in _BLOCK_ELEMENTS:
             continue
-        key = (context, name, segment.digest, None if name == "p" else here)
-        if not fields.stack:
-            entry = now.get(key) or before.get(key)
-            if entry is not None and id(entry) not in used:
-                used.add(id(entry))
-                now[key] = entry
-                blocks, cached = entry
-                fields.cached.extend(cached)
-                out.extend(_taken(block, here if name == "p" else None) for block in blocks)
-                hits += 1
-                continue
-        open_before = bool(fields.stack)
+        key = (context, name, segment.digest, None if name == "p" else here, _open_state(fields.stack))
+        entry = now.get(key) or before.get(key)
+        if entry is not None and id(entry) not in used:
+            used.add(id(entry))
+            now[key] = entry
+            blocks, cached = entry
+            fields.cached.extend(cached)
+            out.extend(_taken(block, here if name == "p" else None) for block in blocks)
+            hits += 1
+            continue
+        open_before = _open_snapshot(fields.stack)
         start, cached_start = len(out), len(fields.cached)
         _block_of(node, name, here, None, (), fields, out)
         built += 1
-        if not open_before and not fields.stack and key not in now:
+        if _open_snapshot(fields.stack) == open_before and key not in now:
             entry = (tuple(out[start:]), tuple(fields.cached[cached_start:]))
             used.add(id(entry))
             now[key] = entry

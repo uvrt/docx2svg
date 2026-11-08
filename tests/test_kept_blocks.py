@@ -78,16 +78,37 @@ def test_no_object_is_shared_by_two_blocks_of_a_document():
         report_docs.package(blocks + [one])).body]
 
 
-def test_blocks_inside_an_open_field_are_built_each_time():
+def test_blocks_inside_an_open_field_are_taken_where_the_fields_are_in_the_same_state():
     blocks = report_docs.report(6, seed=3, toc=True)
     kept = KeptBlocks()
     data = report_docs.package(blocks)
     _parse(data, kept)
     _parse(data, kept)
-    # The contents' lines between the field's begin and end are inside it: built again.
-    lines = sum(1 for block in blocks if block.kind == "toc")
-    assert lines > 2 and kept.built >= lines - 1
+    # The contents' lines inside the field are taken; the paragraphs opening and closing it
+    # change the fields open after them, and are built.
+    assert sum(1 for block in blocks if block.kind == "toc") > 2 and kept.built == 2
     assert _same(_parse(data, kept), parse_package(data))
+
+
+_OPEN = ('<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> TOC \\o "1-1" '
+         '</w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r></w:p>')
+_LINE = '<w:p><w:hyperlink w:anchor="made-up"><w:r><w:t>A made-up line</w:t></w:r></w:hyperlink></w:p>'
+_CLOSE = '<w:p><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>'
+
+
+def test_a_block_read_inside_a_field_is_not_taken_outside_it():
+    raw = [report_docs.Block("raw", text) for text in (_OPEN, _LINE, _CLOSE)]
+    line = report_docs.Block("raw", _LINE)
+    inside = report_docs.package([report_docs.Block("heading", "Made-up title")] + raw)
+    outside = report_docs.package([report_docs.Block("heading", "Made-up title"), line] + raw)
+    kept = KeptBlocks()
+    first = _parse(inside, kept)
+    assert any(run.toc_link for block in first.body for run in getattr(block, "runs", ()))
+    second = _parse(outside, kept)
+    assert _same(second, parse_package(outside))
+    # The line outside the contents is no contents link; the one inside still is.
+    links = [any(run.toc_link for run in block.runs) for block in second.body if block.text == "A made-up line"]
+    assert links == [False, True]
 
 
 def _package(colour: str, mapping: str, prefix: str = "w", extra: str = "") -> bytes:
