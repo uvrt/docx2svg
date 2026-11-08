@@ -132,6 +132,18 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   A store is bounded by `lineages` (how many documents' measurements) and, with
   `entries=N` (round 39), by `N` measurements in all -- about 70-90 kB each -- the lineages
   used longest ago dropped first.
+
+  **The parse kept in its process** (round 41). A layout that keeps its state keeps, in the
+  process that made it only (a pickle of the layout leaves them out), the body's top-level
+  blocks it parsed and the segments it read: the next layout from it builds the model of a
+  block only where its bytes, or the namespaces and theme colours it is read with, changed,
+  and digests only new elements (`docx2svg.parse.document.KeptBlocks`; a block inside a
+  field that spans blocks, such as a table of contents' lines, is built each time). The
+  document is the same either way, every field of every block. `parsed_document(layout,
+  data)` is the document `lay_out_docx` parsed for `layout` where `data` is its bytes -- the
+  parse as it was made, before the layout set its locale -- and `parse_package(data)`
+  otherwise: a caller reading the model of the version it laid out does not parse it again.
+  The document handed over is shared with the layout, and nothing may change it.
 - <a id="warm"></a>**A worker's one-time work, done at its start**: a process's first
   layout pays for what later ones reuse -- the modules, the font folders' index (which
   faces each installed file holds), and each face it uses read from its file.
@@ -249,7 +261,7 @@ docx2svg from `main`, so renaming or removing one breaks it at its next run.
 list and that one disagree. To rename one, keep the old name as an alias for one release,
 with a comment saying who it is kept for, and move docx-agent to the new name.
 
-- `docx2svg` -- docx-agent: `ConvertOptions`, `available_backends`, `convert_docx`, `convert_docx_to_layout`, `convert_docx_to_png`, `convert_docx_to_svg`, `drawn_faces`, `lay_out_docx`, `page_svgs`, `scan_fonts`, `user_font_dirs`, `warm`
+- `docx2svg` -- docx-agent: `ConvertOptions`, `available_backends`, `convert_docx`, `convert_docx_to_layout`, `convert_docx_to_png`, `convert_docx_to_svg`, `drawn_faces`, `lay_out_docx`, `page_svgs`, `parsed_document`, `scan_fonts`, `user_font_dirs`, `warm`
 - `docx2svg.coverage` -- docx-agent: `Coverage`
 - `docx2svg.fields` -- docx-agent: `Uncomputable`, `field_text`, `sequence_step`, `sequence_switches`
 - `docx2svg.fonts` -- docx-agent: `InstalledFonts`, `cloud_font_dirs`, `default_font_dirs`, `installed_index`, `rasteriser_files`

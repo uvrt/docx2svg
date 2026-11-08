@@ -612,20 +612,132 @@ def _block_list(parent: Element, table_style: str | None, conditions: tuple[str,
     for node in children(parent):
         name = local_name(node.tag)
         here = step(node)
-        if name == "p":
-            out.append(_paragraph(node, table_style, conditions, here, fields))
-        elif name == "tbl":
-            table = _table(node, here, fields)
-            # A table every row of which is deleted is not drawn at all.
-            if table.rows:
-                out.append(table)
-        elif name == "sdt":
-            # A block-level content control: its content, as the container's.
-            content = child(node, "sdtContent")
-            if content is not None:
-                out.extend(_block_list(content, table_style, conditions, f"{here}/w:sdtContent[1]", fields))
-        elif name == "customXml":
-            out.extend(_block_list(node, table_style, conditions, here, fields))
+        _block_of(node, name, here, table_style, conditions, fields, out)
+    return out
+
+
+def _block_of(node: Element, name: str, here: str, table_style: str | None, conditions: tuple[str, ...],
+              fields: _Fields, out: list) -> None:
+    """The blocks of one of a container's elements (:func:`_block_list`) into ``out``."""
+    if name == "p":
+        out.append(_paragraph(node, table_style, conditions, here, fields))
+    elif name == "tbl":
+        table = _table(node, here, fields)
+        # A table every row of which is deleted is not drawn at all.
+        if table.rows:
+            out.append(table)
+    elif name == "sdt":
+        # A block-level content control: its content, as the container's.
+        content = child(node, "sdtContent")
+        if content is not None:
+            out.extend(_block_list(content, table_style, conditions, f"{here}/w:sdtContent[1]", fields))
+    elif name == "customXml":
+        out.extend(_block_list(node, table_style, conditions, here, fields))
+
+
+class KeptBlocks:
+    """The body's top-level blocks parsed before, kept to build the next version's model
+    from (round 41): a paragraph's or table's model is made from its element's bytes, the
+    namespaces in scope (the main part's bytes before ``w:body``'s content) and the theme's
+    colours as the settings map them -- nothing else of the package -- so a block whose
+    bytes and context are the same is the same model, and is taken as it was rather than
+    built again.  A paragraph is kept by those alone and takes its new place
+    (:attr:`~docx2svg.model.Paragraph.path`, the only thing in it its place sets: its runs'
+    paths are its own); a table or a content control by its place too (its cells'
+    paragraphs' paths start with it).
+
+    Taken only where no complex field is open at the block (a table of contents' result
+    running across paragraphs is built each time) and where none was open after it when
+    it was built; the field keywords it adds to ``Document.cached_fields`` are kept with it.
+    Every top-level block of a document is its own object: one taken is a copy of the one
+    kept (a paragraph) or made anew from its cells (a table, :func:`_following_properties`),
+    and an element whose bytes occur twice in a document is built the second time.  Nothing
+    a layout does changes a block's model (``tests/test_kept_blocks.py``).
+
+    Holds the blocks of the last document parsed with it (each parse keeps those it used or
+    made, and drops the rest): one version's model, which the layout it goes with holds
+    anyway.  Process-local: a pickle of it is an empty one.  Used by one parse at a time (a
+    layout held by one task); where two parses ran at once, each would keep what it found --
+    the same models -- and the last one's set stands."""
+
+    __slots__ = ("_entries", "hits", "built")
+
+    def __init__(self) -> None:
+        self._entries: dict = {}
+        #: Of the last parse: the body's elements taken as kept, and built.
+        self.hits = 0
+        self.built = 0
+
+    def __len__(self) -> int:
+        return len(self._entries)
+
+    def __reduce__(self):
+        return (KeptBlocks, ())
+
+    def clear(self) -> None:
+        self._entries = {}
+
+
+#: The body's elements that are blocks of the model, or hold them.
+_BLOCK_ELEMENTS = frozenset({"p", "tbl", "sdt", "customXml"})
+
+
+def _taken(block, path: str | None):
+    """A kept top-level block, as this document's own object: a paragraph copied (at
+    ``path``, where kept by its bytes alone), a table as it is (its document's
+    :func:`_following_properties` makes it anew)."""
+    if isinstance(block, Paragraph):
+        out = object.__new__(Paragraph)
+        out.__dict__.update(block.__dict__)
+        if path is not None:
+            object.__setattr__(out, "path", path)
+        return out
+    return block
+
+
+def _kept_block_list(body: Element, fields: _Fields, kept: KeptBlocks, segments: list, context: bytes) -> list:
+    """The body's blocks (:func:`_block_list` of ``w:body``), each top-level element's
+    taken from ``kept`` where its segment's digest and ``context`` are those it was built
+    from (:class:`KeptBlocks`), else built; ``kept`` then holds this body's."""
+    nodes = children(body)
+    if len(nodes) != len(segments) or any(local_name(node.tag) != segment.name
+                                         for node, segment in zip(nodes, segments)):
+        # The scan of the bytes and the parse disagree: nothing is taken, nor kept.
+        kept.clear()
+        kept.hits, kept.built = 0, len(nodes)
+        return _block_list(body, None, (), "w:body", fields)
+    before = kept._entries
+    now: dict = {}
+    used: set = set()
+    hits = built = 0
+    out: list = []
+    step = _Paths("w:body")
+    for node, segment in zip(nodes, segments):
+        here = step(node)
+        name = segment.name
+        if name not in _BLOCK_ELEMENTS:
+            continue
+        key = (context, name, segment.digest, None if name == "p" else here)
+        if not fields.stack:
+            entry = now.get(key) or before.get(key)
+            if entry is not None and id(entry) not in used:
+                used.add(id(entry))
+                now[key] = entry
+                blocks, cached = entry
+                fields.cached.extend(cached)
+                out.extend(_taken(block, here if name == "p" else None) for block in blocks)
+                hits += 1
+                continue
+        open_before = bool(fields.stack)
+        start, cached_start = len(out), len(fields.cached)
+        _block_of(node, name, here, None, (), fields, out)
+        built += 1
+        if not open_before and not fields.stack and key not in now:
+            entry = (tuple(out[start:]), tuple(fields.cached[cached_start:]))
+            used.add(id(entry))
+            now[key] = entry
+    kept._entries = now
+    kept.hits, kept.built = hits, built
     return out
 
 
@@ -904,16 +1016,34 @@ def _doc_defaults(styles_xml: bytes) -> tuple[RunProperties | None, ParagraphPro
     return _run_properties(run_default), _paragraph_properties(paragraph_default)
 
 
-def parse_document(document_xml: bytes, styles_xml: bytes | None = None) -> Document:
-    """Parse ``word/document.xml`` (and optionally ``word/styles.xml``)."""
+def parse_document(document_xml: bytes, styles_xml: bytes | None = None, *, kept: KeptBlocks | None = None,
+                   segments: list | None = None, context: bytes = b"") -> Document:
+    """Parse ``word/document.xml`` (and optionally ``word/styles.xml``).  With ``kept``
+    (round 41, :class:`KeptBlocks`), ``segments`` the body's elements as
+    :func:`docx2svg.relayout.segments` reads them from these bytes (read here where not
+    given) and ``context`` what else the body's models are made from (the theme's colours,
+    :func:`parse_package`): the blocks kept from the last parse with ``kept`` are taken
+    where their bytes and context are the same -- the same document either way."""
     root = parse_xml(document_xml)
     body = child(root, "body")
     if body is None:
         return Document(warnings=["document-no-body"])
 
     cached: list[str] = []
-    body_blocks = _story(body, path="w:body", fields=_Fields(cached, cross_references=True,
-                                                                               styleref=True))
+    fields = _Fields(cached, cross_references=True, styleref=True)
+    if kept is not None and segments is None:
+        from ..relayout import segments as read_segments
+
+        segments = read_segments(document_xml)
+    if kept is not None and segments is not None:
+        from ..relayout import body_context
+
+        found = body_context(document_xml)
+        listed = _kept_block_list(body, fields, kept, segments, context + found) if found is not None \
+            else _block_list(body, None, (), "w:body", fields)
+        body_blocks = _following_properties(_join(listed))[0]
+    else:
+        body_blocks = _story(body, path="w:body", fields=fields)
     paragraphs = [block for block in body_blocks if isinstance(block, Paragraph)]
     document = Document(
         paragraphs=paragraphs,
@@ -986,18 +1116,36 @@ def image_pixels(data: bytes) -> tuple[int, int] | None:
     return (found[0], found[1]) if found else None
 
 
-def parse_package(source: str | bytes | BinaryIO) -> Document:
+def parse_package(source: str | bytes | BinaryIO, *, kept: KeptBlocks | None = None,
+                  segments: list | None = None) -> Document:
     """Open a ``.docx`` and parse its main document part.  Theme colours (``w:themeColor``,
     ``w:themeFill`` with their tints and shades) read as Word draws them
-    (:func:`docx2svg.parse.properties.theme_colours`)."""
+    (:func:`docx2svg.parse.properties.theme_colours`).
+
+    ``kept`` (round 41, :class:`KeptBlocks`): the body's blocks of the last document parsed
+    with it are taken where their bytes, the namespaces around them and the theme's colours
+    are the same, the others built; ``segments`` is :func:`docx2svg.relayout.segments` of
+    the main part (``word/document.xml``), where the caller has read it.  The document is
+    the same with ``kept`` or without."""
     package = OpcPackage.open(source)
     main = main_part(package)
     theme_parts = package.related_parts_of_type(main, REL_THEME)
     settings_parts = package.related_parts_of_type(main, REL_SETTINGS)
     colours = parse_theme_colors(read_part(package, theme_parts[0])) if theme_parts else {}
     mapping = parse_color_map(read_part(package, settings_parts[0])) if settings_parts else {}
+    context = b""
+    if kept is not None:
+        if main.lstrip("/") != _MAIN_PART:
+            # The segments a caller reads are of ``word/document.xml``.
+            kept, segments = None, None
+        else:
+            # The body's models read the theme's colours, through the settings' mapping.
+            context = repr((sorted(colours.items()), sorted(mapping.items()))).encode("utf-8", "surrogatepass")
     with theme_colours(word_theme_colour(colours, mapping)):
-        return _parse_package(package, main)
+        return _parse_package(package, main, kept=kept, segments=segments, context=context)
+
+
+_MAIN_PART = "word/document.xml"
 
 
 #: ``w:themeColor`` / ``w:themeFill`` values -> the theme slot (``a:clrScheme``'s child).
@@ -1025,10 +1173,11 @@ def word_theme_colour(theme_colors: dict, color_map: dict):
     return resolve
 
 
-def _parse_package(package: OpcPackage, main: str) -> Document:
+def _parse_package(package: OpcPackage, main: str, *, kept: KeptBlocks | None = None,
+                   segments: list | None = None, context: bytes = b"") -> Document:
     styles_parts = package.related_parts_of_type(main, REL_STYLES)
     styles_xml = read_part(package, styles_parts[0]) if styles_parts else None
-    document = parse_document(read_part(package, main), styles_xml)
+    document = parse_document(read_part(package, main), styles_xml, kept=kept, segments=segments, context=context)
     if not styles_parts:
         document.warnings.append("styles-part-missing")
     theme_parts = package.related_parts_of_type(main, REL_THEME)

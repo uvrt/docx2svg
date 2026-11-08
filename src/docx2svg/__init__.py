@@ -59,6 +59,7 @@ from .model import Document, PageMargins, PageSize, Paragraph, Run, Section
 from .opc import Package
 from .paginate import PageInfo
 from .parse import parse_document, parse_package
+from .parse.document import KeptBlocks
 from .paths import resolve_path
 from .png import RasterizerNotAvailable, available_backends, svg_to_png
 from ooxml_common.locales import EN_US, Locale
@@ -71,7 +72,7 @@ if TYPE_CHECKING:
     from .measure import Advances
     from .vertical import FaceMetrics
 
-__version__ = "0.11.9"
+__version__ = "0.11.10"
 
 __all__ = [
     "Conversion",
@@ -96,6 +97,7 @@ __all__ = [
     "lay_out_docx",
     "page_svgs",
     "parse_document",
+    "parsed_document",
     "parse_package",
     "resolve_path",
     "scan_fonts",
@@ -301,7 +303,6 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
     options = options if options is not None else ConvertOptions()
 
     data = _read(source)
-    document = parse_package(data)
     key = relayout.options_key(options)
     plan = relayout.plan(previous, data, key) if previous is not None else None
     fonts = None
@@ -317,13 +318,27 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
     from .coverage import coverage_of
 
     parts: dict | None
+    known: dict | None
     if plan is not None:
         parts, main, segments = plan.parts, plan.main, plan.segments
+        known = plan.known
     elif keep:
         parts, main = relayout.part_digests(data)
-        segments = relayout.segments(main) if main is not None else None
+        known = {}
+        segments = relayout.segments(main, keep=known) if main is not None else None
     else:
-        parts = main = segments = None
+        parts = main = segments = known = None
+    # Round 41: the body's blocks the previous layout's parse kept, taken where their bytes
+    # are the same (:class:`docx2svg.parse.document.KeptBlocks`); a layout that keeps its
+    # state keeps them for the next.
+    kept = getattr(plan.state, "blocks", None) if plan is not None and plan.state is not None else None
+    if kept is None and keep:
+        kept = KeptBlocks()
+    document = parse_package(data, kept=kept, segments=segments) if kept is not None and segments is not None \
+        else parse_package(data)
+    # The document as parsed, before the layout sets its locale and keeps what it resolved:
+    # what :func:`parsed_document` hands a caller reading the same bytes.
+    parsed = replace(document) if keep else None
     # The measurements of the previous layout, where the parts they depend on are the same and
     # the blocks' models are what their XML says ("fields-open": a field's result in one block
     # may hang on another's).
@@ -386,6 +401,9 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
         state.redrawn = frozenset(again.redrawn) if again is not None else frozenset()
         state.fresh = again.placed_pages if again is not None else frozenset(range(len(layout.pages)))
         state.lineage = lineage
+        state.blocks = kept
+        state.parsed = parsed
+        state.known_segments = known
         layout.state = state
         if measures is not None:
             measures.put(lineage, state.memo)
@@ -395,6 +413,19 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
         layout.changed_pages = (relayout.changed_pages(previous, layout, again, data, fonts, relaid)
                                 if changed_pages else None)
     return layout, data, fonts
+
+
+def parsed_document(layout, data: bytes) -> Document:
+    """The model of ``data`` (:func:`parse_package`'s), taken from ``layout`` where it is the
+    layout of these very bytes that :func:`lay_out_docx` made in this process (round 41): the
+    document as it was parsed for it -- before the layout set its locale -- and not parsed
+    again; else parsed.  The same document either way (``tests/test_kept_blocks.py``); the
+    one handed over is shared with the layout, and nothing may change it."""
+    state = getattr(layout, "state", None)
+    parsed = getattr(state, "parsed", None)
+    if parsed is not None and state is not None and state.data == data:
+        return parsed
+    return parse_package(data)
 
 
 def warm(source=None, options: ConvertOptions | None = None, *, scan=None):
