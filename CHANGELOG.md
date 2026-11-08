@@ -5,6 +5,42 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.10 -- unreleased
+
+- **The parse kept between versions, in the process that laid them out** (production round
+  41). A layout made from the one before still parsed the new version whole: unzipped, read
+  every part and built the model of every block of the body, and digested every element
+  of it to find what changed. A layout that keeps its state now keeps, in its process only
+  (a pickle of the layout leaves them out, as a worker's layout handed to its caller):
+  - **the body's blocks** (`docx2svg.parse.document.KeptBlocks`): a top-level paragraph's or
+    table's model is made from its element's bytes, the namespaces around it and the
+    theme's colours as the settings map them -- nothing else -- so the next version takes it
+    as it was where those are the same, and builds only the others. A paragraph takes its
+    new place (its path); a table or a content control is kept by its place too. A block
+    inside a field that spans blocks (a table of contents' line) is kept where its parse
+    changed none of the fields open at it, and taken where they are in the same state (all
+    its parse reads of them); the blocks opening and closing such a field are built. An
+    element whose bytes occur twice in a document is built the second time, so no two
+    blocks share an object.
+  - **the body's segments by their bytes**: the next version digests only elements it has
+    not seen.
+  - **the document as parsed** -- `docx2svg.parsed_document(layout, data)`: the parse a
+    layout was made from, where `data` is its bytes, else a parse of them; for a caller
+    that reads the model of the version it laid out (docx-agent's check facts).
+  The document is the same either way, every field of every block:
+  `tests/test_kept_blocks.py` compares it, as pickles, with a parse of the bytes alone after
+  random edits of made-up reports, and holds a layout's parse to the parse of its bytes after
+  laying out, drawing and laying out again from it (nothing a layout does changes a model
+  object). Every page's SVG of the local corpus (151 documents, 934 pages; laid out whole,
+  from themselves and after an edit) is 0.11.9's byte for byte, and `tests/test_relayout.py`'s
+  random edits lay out as a full layout with the parse kept from version to version. What is
+  kept is about 1-2% of what a held layout keeps (0.3 MB of blocks and segments and 0.5 MB of
+  parsed document for a 46-page report whose layout keeps 37 MB).
+  Measured (this machine, a 10-page and a 46-page made-up document): the parse is 23 and 52
+  ms, of which building the body's model 11 and 35 ms and the XML parse 2 and 8 ms; reading
+  the segments 13-26 ms; after an edit the body's model is built for the changed blocks only
+  (and a table of contents' first and last paragraph).
+
 ## 0.11.9 -- unreleased
 
 - **Less CPU per layout, the same pages** (production round 39, from a profile of their

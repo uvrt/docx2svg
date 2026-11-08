@@ -34,6 +34,7 @@ USED_BY: dict[str, dict[str, str]] = {
         "drawn_faces": "docx-agent",
         "lay_out_docx": "docx-agent",
         "page_svgs": "docx-agent",
+        "parsed_document": "docx-agent",
         "scan_fonts": "docx-agent",
         "user_font_dirs": "docx-agent",
         "warm": "docx-agent",

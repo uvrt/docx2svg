@@ -166,12 +166,28 @@ class Segment:
     measure: bytes = b""
 
 
-def segments(xml: bytes) -> list[Segment] | None:
+def segments(xml: bytes, known: dict | None = None, keep: dict | None = None) -> list[Segment] | None:
     """The body's elements of ``word/document.xml``, in order, read from its bytes; ``None``
     where they cannot be read that way (a comment, a processing instruction or CDATA in
-    the body, or a tag the scan does not parse)."""
+    the body, or a tag the scan does not parse).
+
+    ``known`` (round 41): segments read before, by their element's bytes (what a segment is
+    read from alone: its name is its first tag's), taken for the same bytes rather than
+    digested again; ``keep`` gets this body's, by their bytes (the next version's ``known``)."""
     found = elements(xml)
-    return None if found is None else [_segment(name, data) for name, data in found]
+    if found is None:
+        return None
+    if known is None and keep is None:
+        return [_segment(name, data) for name, data in found]
+    out = []
+    for name, data in found:
+        segment = known.get(data) if known is not None else None
+        if segment is None:
+            segment = _segment(name, data)
+        if keep is not None:
+            keep[data] = segment
+        out.append(segment)
+    return out
 
 
 def elements(xml: bytes) -> list[tuple[str, bytes]] | None:
@@ -213,6 +229,15 @@ def elements(xml: bytes) -> list[tuple[str, bytes]] | None:
     if depth != 0 and depth != -1:
         return None
     return out
+
+
+def body_context(xml: bytes) -> bytes | None:
+    """A digest of the main part's bytes before the body's content -- the XML declaration,
+    the root's and ``w:body``'s start tags, their namespaces -- what a body element's bytes
+    are read in beside themselves (:class:`docx2svg.parse.document.KeptBlocks`); ``None``
+    where there is no body."""
+    found = _BODY.search(xml)
+    return None if found is None else _digest(xml[:found.end()])
 
 
 def _segment(name: str, data: bytes) -> Segment:
@@ -537,6 +562,24 @@ class State:
     #: The measurements' lineage (round 37): made new by a layout that measured afresh, and
     #: handed on by each layout that took a previous one's measurements (:class:`MeasureStore`).
     lineage: bytes = b""
+    #: Round 41, kept in this process only (a pickle leaves them out): the body's blocks
+    #: the layout's parse kept for the next version's (:class:`docx2svg.parse.document.
+    #: KeptBlocks`), the document as parsed (:func:`docx2svg.parsed_document`).
+    blocks: object = field(default=None, compare=False, repr=False)
+    parsed: object = field(default=None, compare=False, repr=False)
+    #: And the body's segments by their element's bytes (:func:`segments`' ``known``).
+    known_segments: dict | None = field(default=None, compare=False, repr=False)
+
+    def __getstate__(self) -> dict:
+        return {k: v for k, v in self.__dict__.items() if k not in _LOCAL}
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update({name: None for name in _LOCAL})
+        self.__dict__.update(state)
+
+
+#: What a :class:`State` keeps in its process only.
+_LOCAL = ("blocks", "parsed", "known_segments")
 
 
 def options_key(options) -> tuple | None:
@@ -704,6 +747,8 @@ class Plan:
     main: bytes | None
     segments: list | None
     cause: dict | None = None
+    #: The new version's segments by their element's bytes (:func:`segments`' ``keep``).
+    known: dict | None = None
 
 
 _PARA_ID = re.compile(rb'\s(?:\w+:)?paraId\s*=\s*"([^"]*)"')
@@ -766,9 +811,18 @@ def _main_of(data: bytes | None) -> bytes | None:
 def plan(previous, data: bytes, options: tuple | None) -> Plan:
     """Compare the new bytes with what ``previous`` (a :class:`docx2svg.layout.Layout`)
     keeps."""
-    parts, main = part_digests(data)
-    segs = segments(main) if main is not None else None
     state = getattr(previous, "state", None)
+    parts, main = part_digests(data)
+    # Round 41: the previous version's segments by their bytes, digested once.
+    known = getattr(state, "known_segments", None) if isinstance(state, State) else None
+    read: dict = {}
+    segs = segments(main, known, read) if main is not None else None
+    found = _plan(state, data, options, parts, main, segs)
+    found.known = read
+    return found
+
+
+def _plan(state, data: bytes, options: tuple | None, parts: dict, main: bytes | None, segs) -> Plan:
 
     def fallback(reason: str, measured: bool, **cause) -> Plan:
         return Plan(state if isinstance(state, State) and reason not in ("no-state", "version") else None,
