@@ -40,6 +40,7 @@ from typing import TYPE_CHECKING, Callable
 from . import lines as line_model
 from . import table as table_model
 from .linebreak import Line as BrokenLine, ListCounters, column_boxes, is_multi_column
+from .errors import LayoutError, failure as layout_failure
 from .model import Document, Paragraph, Table
 from .resolve import autospaced, resolve_paragraph
 from .vertical import (
@@ -1327,45 +1328,51 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
             key = memo.table_key(item, section_number, block, labels, features, preceding) if memo is not None else None
             found = memo.get(key) if key is not None else None
             try:
-                if found is not None:
-                    laid, mode, approximation = found
-                    laid = dataclasses.replace(laid, overflowed=set())
-                    if approximation is not None:
-                        raise _Measured()
-                    mode = {}
-                laid = laid if found is not None else table_model.flow_table(
-                    document, item, document.sections[section_number], advances, metrics,
-                    block=block, labels=labels, features=features, cache=heights_cache,
-                    previous=preceding if isinstance(preceding, Paragraph) else None)
-                if is_multi_column(document.sections[section_number]) and laid.floating is not None:
-                    raise table_model.Unsupported("a floating table in a section of several text columns")
-            except _Measured:
-                # Laid out by the approximate rules last time: as then.
-                assert found is not None  # raised only for what the memo held
-                mode = found[1]
-                laid.approximation = approximation
-            except table_model.Unsupported as why:
-                if not CARRY_ON:
-                    reason = "columns" if laid_floating(why) else "table"
-                    out.append(Obstacle(block, reason, section_number, detail=str(why.args[0])))
-                    continue
-                # Laid out by the approximate rules (:func:`docx2svg.table.flow_table`'s
-                # ``carry_on``), else drawn as a placeholder of its estimated height.
-                approximation = str(why.args[0])
-                mode = {"carry_on": True, "inline": is_multi_column(document.sections[section_number])}
                 try:
-                    laid = table_model.flow_table(document, item, document.sections[section_number], advances,
-                                                  metrics, block=block, labels=labels, features=features,
-                                                  cache=heights_cache,
-                                                  previous=preceding if isinstance(preceding, Paragraph) else None,
-                                                  **mode)
-                except table_model.Unsupported as again:
-                    section_seen.add(section_number)
-                    out.append(placeholder_item(document, item, block, section_number, "table",
-                                                f"a table the layout does not model: {again.args[0]}",
-                                                section_start=section_start))
-                    continue
-                laid.approximation = approximation
+                    if found is not None:
+                        laid, mode, approximation = found
+                        laid = dataclasses.replace(laid, overflowed=set())
+                        if approximation is not None:
+                            raise _Measured()
+                        mode = {}
+                    laid = laid if found is not None else table_model.flow_table(
+                        document, item, document.sections[section_number], advances, metrics,
+                        block=block, labels=labels, features=features, cache=heights_cache,
+                        previous=preceding if isinstance(preceding, Paragraph) else None)
+                    if is_multi_column(document.sections[section_number]) and laid.floating is not None:
+                        raise table_model.Unsupported("a floating table in a section of several text columns")
+                except _Measured:
+                    # Laid out by the approximate rules last time: as then.
+                    assert found is not None  # raised only for what the memo held
+                    mode = found[1]
+                    laid.approximation = approximation
+                except table_model.Unsupported as why:
+                    if not CARRY_ON:
+                        reason = "columns" if laid_floating(why) else "table"
+                        out.append(Obstacle(block, reason, section_number, detail=str(why.args[0])))
+                        continue
+                    # Laid out by the approximate rules (:func:`docx2svg.table.flow_table`'s
+                    # ``carry_on``), else drawn as a placeholder of its estimated height.
+                    approximation = str(why.args[0])
+                    mode = {"carry_on": True, "inline": is_multi_column(document.sections[section_number])}
+                    try:
+                        laid = table_model.flow_table(document, item, document.sections[section_number], advances,
+                                                      metrics, block=block, labels=labels, features=features,
+                                                      cache=heights_cache,
+                                                      previous=preceding if isinstance(preceding, Paragraph) else None,
+                                                      **mode)
+                    except table_model.Unsupported as again:
+                        section_seen.add(section_number)
+                        out.append(placeholder_item(document, item, block, section_number, "table",
+                                                    f"a table the layout does not model: {again.args[0]}",
+                                                    section_start=section_start))
+                        continue
+                    laid.approximation = approximation
+            except (table_model.Unsupported, LayoutError):
+                raise
+            except Exception as error:
+                # Named: the table it failed in (round 53, R107), for a caller to say so.
+                raise layout_failure(item.path, error) from error
             if key is not None and found is None:
                 memo.put(key, (dataclasses.replace(laid, overflowed=set()), dict(mode), approximation))
             section_seen.add(section_number)

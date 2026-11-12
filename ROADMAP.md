@@ -5498,6 +5498,65 @@ autofit table whose cells' indents leave less than their widest word goes **past
 room** -- each column its indents and widest word, 12,744 twips in all -- where the model
 keeps to the room (stage 7c, measured on words without indents).
 
+### Stage 7e -- a row off its grid (production round 53, R107)
+
+docx-agent's live runs stopped every layout of a document -- render, check, live view --
+with an `IndexError` in `table.cell_box` once a table held a row whose cells reach past its
+`w:tblGrid`. Such a row comes from edits (a row copied from a table of another grid, a cell
+added without a grid column) and from **Word's own form of a tracked merge or column
+deletion**: the cell merged away stays in its row, with `w:cellDel`, beside the cell that
+now spans its columns. `tools/make_grid_mismatch_probe.py` / `read_grid_mismatch_probe.py`
+(`tests/test_grid_mismatch.py`): twenty tables over a grid of three 2,000-twip columns, two
+settings (none, 15): a row of four cells (2,000; 1,200; no `w:tcW`), a span past the grid,
+the wide row first, five cells, a row of two, autofit; table widths none, 9,000 and 100%;
+margins 0, 108, 300; borders none, `w:sz` 4, 24; a four-column grid that fits in a
+6,000-twip table (the control); a tracked merge, fixed and autofit. Word's grid read back
+from its own save.
+
+**The rules.**
+
+- **The grid is widened to the row** (`table.fitted_grid`): each added column is the part
+  of its cell's `w:tcW` past the grid's last line, or **360 twips** where the cell states no
+  width (`UNSIZED_COLUMN`: Word wrote 352 and 341 for it, the rule 351 and 340). The other
+  rows end short of the added columns, as a row with `w:gridAfter` does (Word writes that
+  `w:gridAfter` when it saves). A row of *fewer* cells is drawn short; the grid is kept.
+- **A fixed table is as wide as its `w:tblW`** (`table.fixed_widths`) -- in every fixed
+  table, not only a widened one: the control's four 2,000s in 6,000 are four of 1,500,
+  as Word saves them. Each column keeps its cells' margins and 20 twips (`FIXED_KEPT`,
+  fitted to eight grids: none, 22 twips off in all; 20, 6, each within a twip; the borders
+  change nothing), the rest grows or gives way in proportion, each grid line at the floor
+  of its cumulative width. 2,000 x 3 and 1,200 in 6,000: Word 1,661 / 1,662 / 1,662 /
+  1,015, the rule 1,661 / 1,662 / 1,661 / 1,016; margins 0 and 300 exact. 9,000 widens
+  (2,250 each), 100% is 9,242 (`percent_widths`' whole). A table with no width keeps its
+  columns.
+- **Word's final view draws a cell with `w:cellDel`** (its room, its text) until the
+  change is accepted: a tracked merge shows a row a column wider than the others, which
+  the model now draws as Word does (docx-agent's tracked merges and column deletions, made
+  and exported by Word's *No Markup*: every glyph within 2 px at 300 dpi, the rules' pixels
+  1,162 / 1,168 apart of 57,250).
+- **The row above's bottom border is drawn past a shorter row's end** (`layout._row_borders`;
+  it was left out wherever a lower row ended sooner).
+- Every grid line a cell, a nested table or a drawing in a cell is placed by is clamped to
+  the grid's (`table.line_at`): no row reaches past it now, and none ever stops a layout.
+  A failure laying out or drawing a table that the model did not foresee is raised as
+  `docx2svg.LayoutError`, naming the table's path (the failure its cause), so a caller says
+  which table; a table off its grid is warned of (`table-grid-mismatch`, the table's path
+  and its rows).
+
+| `grid-mismatch-none` / `-15` (1,901 glyphs each) | before | after |
+| --- | --- | --- |
+| glyphs at Word's x (a twip at 300 dpi) | 0 (`IndexError` at the first table) | **1,901** (1,873 / 1,879 exact) |
+| rectangles' pixels, model only / Word only | -- | 674 / 702, 336 / 340 (of 308,000) |
+
+The glyphs off are the grid's twip: a fifth of a pixel at 300 dpi.
+
+What is left: an **autofit** table whose widened grid is wider than the room (docx-agent's
+tracked merge of three of three 3,024-twip columns: five columns, 15,120 twips) is sized
+from its content on the widened grid as any autofit table is, and Word drew its columns up
+to 45 px at 300 dpi (200 twips) from that -- laid out and reported as an approximation
+(`layout-approximate:table`), not measured further. Two columns over (the tracked merge of
+two) was within 2 px.
+
 ## Headers, footers and fields — measured (Phase 6, Headers and footers and Fields rows)
 
 **Done: headers and footers are drawn, and `PAGE`, `NUMPAGES` and `SECTIONPAGES` are

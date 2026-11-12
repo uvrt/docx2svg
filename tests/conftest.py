@@ -90,7 +90,7 @@ WORD_FIXTURES = frozenset({"oracle_pdf"})
 #: Modules whose tests share work computed on first use rather than at import (every
 #: pytest-xdist worker collects every module): each module's tests join an xdist group of
 #: their own, so that one worker does that work once instead of each worker for its share.
-LAZY_MODULES = frozenset({"test_script.py", "test_page_top.py", "test_tables.py", "test_label.py", "test_justify.py",
+LAZY_MODULES = frozenset({"test_script.py", "test_grid_mismatch.py", "test_page_top.py", "test_tables.py", "test_label.py", "test_justify.py",
                           "test_hyphenation.py"})
 #: How the controller is distributing tests, handed to its workers (which xdist starts
 #: with ``dist`` reset to ``"no"``) through the environment they inherit.

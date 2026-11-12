@@ -157,10 +157,16 @@ class ResolvedTable:
     #: ``(row, cell index) -> (narrowest, widest)`` content of every cell, twips
     #: (:func:`cell_extent`): what an autofit table is sized by (:func:`autofit_widths`).
     extents: dict | None = None
+    #: The grid the table is laid out on, twips: ``w:tblGrid``, widened where a row
+    #: reaches past it (:func:`fitted_grid`).
+    grid: tuple = ()
+    #: ``(row, grid columns it reaches)`` of every row whose cells (with ``w:gridBefore``
+    #: and ``w:gridAfter``) do not reach exactly across ``w:tblGrid`` (:func:`fitted_grid`).
+    mismatched: tuple = ()
 
     @property
     def columns(self) -> int:
-        return len(self.table.grid)
+        return len(self.grid)
 
 
 def _merge(chain, attribute: str, direct: dict, conditions: tuple[str, ...] = (), index: int | None = None) -> dict:
@@ -188,6 +194,59 @@ def _margin(value) -> int:
         return 0
     width, kind = value
     return width if kind in ("dxa", None) else 0
+
+
+#: The width Word gives a grid column it adds for a cell past ``w:tblGrid`` that states no
+#: width (``w:tcW``), twips: ``make_grid_mismatch_probe.py``, ``no width``, margins 108 and
+#: 0 -- the fourth column 352 and 341 twips of a 6,000-twip fixed table, the rule (360,
+#: then :func:`fixed_widths`) 351 and 340.
+UNSIZED_COLUMN = 360
+
+
+def _reach(row: Row) -> int:
+    return row.grid_before + sum(cell.span for cell in row.cells) + row.grid_after
+
+
+def fitted_grid(grid, rows: list[Row]) -> tuple[tuple, tuple]:
+    """The grid a table is laid out on, and the rows that do not fit ``w:tblGrid``.
+
+    A row whose cells (with ``w:gridBefore`` and ``w:gridAfter``) reach past the grid --
+    a row copied from a table with another grid, a cell added without a grid column --
+    is laid out by Word on a grid **widened to the row**: measured by
+    ``make_grid_mismatch_probe.py`` (ROADMAP.md, "Tables -- measured", "A row off its
+    grid"), every added column is the part of its cell's ``w:tcW`` past the grid's last
+    line (a cell over two columns, one of them added: its width less the grid column it
+    covers), or :data:`UNSIZED_COLUMN` where the cell states none; the rows that do not
+    reach the added columns end short of them, as a row with ``w:gridAfter`` does.  The
+    table's own width then holds as it does for any fixed table (:func:`fixed_widths`):
+    four 2,000-twip cells over a grid of three in a 6,000-twip table are four columns of
+    1,500.  A row reaching *fewer* columns than the grid is drawn short, its last cell
+    ending where its width does (as with ``w:gridAfter``), the grid unchanged.
+
+    Returns ``(grid, mismatched)``: ``mismatched`` is ``(row, columns it reaches)`` of every
+    row not reaching exactly across ``w:tblGrid``."""
+    widths = list(grid)
+    count = len(widths)
+    mismatched = tuple((row.index, _reach(row)) for row in rows if row.cells and _reach(row) != count)
+    if not any(reach > count for _row, reach in mismatched):
+        return tuple(widths), mismatched
+    for row in rows:
+        for cell in row.cells:
+            end = cell.column + cell.span
+            if end <= len(widths):
+                continue
+            added = end - max(len(widths), cell.column)
+            stated = cell.properties.get("tcW")
+            covered = sum(widths[cell.column:])
+            if stated and stated[1] == "dxa" and isinstance(stated[0], int) and stated[0] > covered:
+                rest = stated[0] - covered
+            else:
+                rest = UNSIZED_COLUMN * added
+            widths += [UNSIZED_COLUMN] * max(cell.column - len(widths), 0)
+            widths += [rest // added + (1 if k < rest % added else 0) for k in range(added)]
+        if _reach(row) > len(widths):
+            widths += [UNSIZED_COLUMN] * (_reach(row) - len(widths))
+    return tuple(widths), mismatched
 
 
 def resolve_table(document: Document, table: Table) -> ResolvedTable:
@@ -220,7 +279,8 @@ def resolve_table(document: Document, table: Table) -> ResolvedTable:
             placed.append(cell)
             column += span
         rows.append(Row(r, row_properties, placed, grid_before, grid_after))
-    resolved = ResolvedTable(table, properties, rows, indent_stated)
+    grid, mismatched = fitted_grid(table.grid, rows)
+    resolved = ResolvedTable(table, properties, rows, indent_stated, grid=grid, mismatched=mismatched)
     columns = resolved.columns or max((cell.column + cell.span for row in rows for cell in row.cells), default=0)
     for row in rows:
         for cell in row.cells:
@@ -405,6 +465,13 @@ class CellBox:
     right: Fraction
 
 
+def line_at(lines, column: int):
+    """Grid line ``column`` of ``lines``, the last where the grid has fewer: a cell is never
+    placed off its table's lines (:func:`fitted_grid` widens the grid to every row; this
+    holds whatever reaches the drawing)."""
+    return lines[max(min(column, len(lines) - 1), 0)]
+
+
 def text_left_units(document: Document, resolved: ResolvedTable, page_left_twips: int, lines: list,
                     cell: Cell) -> int:
     """Where a cell's text starts, in Word's layout unit from the page's left edge,
@@ -420,7 +487,7 @@ def text_left_units(document: Document, resolved: ResolvedTable, page_left_twips
     pixel right exactly where the half's unit fraction is 0.6 or more (``w:sz`` 1, 2, 5,
     6, 9, 10, 18), and every other case agrees with plain rounding.
     """
-    offset = lines[cell.column] + left_offset(cell)
+    offset = line_at(lines, cell.column) + left_offset(cell)
     jc = resolved.properties.get("jc") or "left"
     if (not compatible_mode(document) and not resolved.nested and not resolved.indent_stated
             and jc not in ("center", "centre", "right", "end")
@@ -440,8 +507,8 @@ def cell_box(document: Document, resolved: ResolvedTable, page_left_twips: int, 
     every probe cell's text is drawn at a whole pixel -- and a line may reach from there
     the grid distance less both offsets, so its right edge moves with that rounding.
     """
-    left = lines[cell.column]
-    right = lines[min(cell.column + cell.span, len(lines) - 1)]
+    left = line_at(lines, cell.column)
+    right = line_at(lines, cell.column + cell.span)
     start = text_left_units(document, resolved, page_left_twips, lines, cell)
     budget = right - left - budget_left(cell) - right_offset(cell)
     return CellBox(quantise(Fraction(round_half_up(start * LAYOUT_UNIT_PX))), int(budget),
@@ -459,7 +526,7 @@ def column_widths(resolved: ResolvedTable) -> tuple[int, ...]:
     lays the table out on the cells' widths: measured with a grid of 1000/3000/2000
     under cells of 2000 each, and 2000s under 1000/3000/2000, in both layouts
     (``make_table_geometry_probe.py``, ``widths``)."""
-    grid = tuple(resolved.table.grid)
+    grid = tuple(resolved.grid)
     lines: set[int] | None = None
     count = 0
     for row in resolved.rows:
@@ -535,7 +602,7 @@ def percent_widths(document: Document, resolved: ResolvedTable, column_width: in
         raise Unsupported("autofit: a table in percent whose cells' widths are in twips, shared by their content")
     if kinds not in ({"pct"}, {"dxa"}) or any(share is None or share[0] <= 0 for share in shares):
         raise Unsupported("a table in percent whose cells' widths are not all in percent")
-    columns = len(resolved.table.grid)
+    columns = resolved.columns
     for row in rows:
         if (row.grid_before or row.grid_after or len(row.cells) != columns
                 or any(cell.span != 1 for cell in row.cells)
@@ -697,7 +764,7 @@ def column_minimums(document: Document, resolved: ResolvedTable, section, advanc
     """Each grid column's narrowest content, twips: the widest of its cells' narrowest
     paragraph or nested table (:func:`table_minimum`), with the cell's left and right
     offsets.  A cell spanning columns is not measured."""
-    columns = len(resolved.table.grid)
+    columns = resolved.columns
     out = [Fraction(0)] * columns
     for row in resolved.rows:
         for cell in row.cells:
@@ -735,9 +802,71 @@ def table_widths(document: Document, resolved: ResolvedTable, column_width: int)
     :func:`column_widths`."""
     if resolved.extents is not None:
         return autofit_widths(document, resolved, column_width)
-    if in_percent(resolved):
+    if in_percent(resolved) and not fixed(resolved):
         return percent_widths(document, resolved, column_width)
-    return column_widths(resolved)
+    return fixed_widths(document, resolved, column_width)
+
+
+def fixed(resolved: ResolvedTable) -> bool:
+    return (resolved.properties.get("tblLayout") or "autofit") == "fixed"
+
+
+#: Twips each column of a fixed table keeps besides its cells' margins when its columns are
+#: made as wide as the table (:func:`fixed_widths`): fitted to the grids Word wrote for
+#: ``make_grid_mismatch_probe.py`` (eight tables; none: 22 twips off in all, 20: 6, each
+#: within a twip), whatever the borders (none, ``w:sz`` 4 and 24 alike).
+FIXED_KEPT = 20
+
+
+def fixed_widths(document: Document, resolved: ResolvedTable, column_width: int) -> tuple[int, ...]:
+    """The columns of a fixed table (``w:tblLayout`` ``fixed``), twips: :func:`column_widths`,
+    **made as wide as the table's width** where it states one in ``dxa`` or in percent and
+    they add up to something else -- each column keeping its cells' left and right
+    margins and :data:`FIXED_KEPT`, the rest of it growing or giving way in proportion,
+    each grid line at the floor of its cumulative width.
+
+    Measured by ``make_grid_mismatch_probe.py`` (ROADMAP.md, "Tables -- measured", "A row
+    off its grid"), modes none and 15: a grid of four 2,000-twip columns in a table of
+    6,000 is drawn four columns of 1,500 (Word writes that grid when it saves), of 9,000
+    four of 2,250, of 100 percent four of 2,310 (9,242 twips, :func:`percent_widths`'
+    whole); 2,000 / 2,000 / 2,000 / 1,200 in 6,000 with margins of 108 is 1,661 / 1,662 /
+    1,662 / 1,015 (the rule 1,661 / 1,662 / 1,661 / 1,016), with margins of 0 1,666 / 1,666
+    / 1,666 / 1,002 (the rule exact), of 300 1,649 / 1,649 / 1,649 / 1,053 (exact) -- each
+    within the pixel Word drew it at.  A table with no width, or ``auto``, keeps its
+    columns."""
+    widths = column_widths(resolved)
+    stated = resolved.properties.get("tblW")
+    if not fixed(resolved) or not widths or not stated or not isinstance(stated[0], int) or stated[0] <= 0:
+        return widths
+    if stated[1] == "dxa":
+        target = stated[0]
+    elif stated[1] == "pct":
+        first, last = _outer_edges(resolved)
+        if compatible_mode(document) or resolved.nested:
+            whole = column_width - (outer_part(first.left_edge[0]) if first else 0) - (
+                outer_part(last.right_edge[0]) if last else 0)
+        else:
+            whole = column_width + (left_offset(first) if first else 0) + (right_offset(last) if last else 0)
+        target = whole * stated[0] // PERCENT_WHOLE
+    else:
+        return widths
+    if target == sum(widths):
+        return widths
+    kept = [0] * len(widths)
+    for row in resolved.rows:
+        for cell in row.cells:
+            if cell.span == 1 and cell.column < len(kept) and not kept[cell.column]:
+                kept[cell.column] = cell.margins.get("left", 0) + cell.margins.get("right", 0) + FIXED_KEPT
+    content = [width - k for width, k in zip(widths, kept)]
+    room = target - sum(kept)
+    if any(part < 0 for part in content) or sum(content) <= 0 or room <= 0:
+        kept, content, room = [0] * len(widths), list(widths), target
+    edges, x = [], Fraction(0)
+    for k, part in zip(kept, content):
+        x += k + Fraction(part * room, sum(content))
+        edges.append(math.floor(x))
+    edges[-1] = target
+    return tuple(b - a for a, b in zip([0] + edges, edges))
 
 
 def _outer_edges(resolved: ResolvedTable) -> tuple:
@@ -802,7 +931,7 @@ def autofit_widths(document: Document, resolved: ResolvedTable, column_width: in
     """
     extents = resolved.extents
     assert extents is not None, "measured content (:func:`table_widths`)"
-    columns = len(resolved.table.grid)
+    columns = resolved.columns
     rows = resolved.rows
     room = autofit_room(document, resolved, column_width)
     stated = resolved.properties.get("tblW")
@@ -1384,6 +1513,13 @@ def flow_table(document: Document, table: Table, section, advances, metrics, *, 
         on_grid(resolved, approximated, table.path)
         autofit = False
         lines = grid_lines(document, resolved, column_width)
+    if (autofit and resolved.extents is not None and len(resolved.grid) > len(table.grid)
+            and sum(resolved.grid) > autofit_room(document, resolved, column_width)):
+        # Measured where the widened grid fits the room, or the table states its width
+        # (make_grid_mismatch_probe.py); sized from its content past the room, not: a tracked
+        # merge over three of three columns of 3,024 twips was drawn up to 200 twips off.
+        approximated.append(("table", "an autofit table with a row past its w:tblGrid, wider than the room, is "
+                                      "sized from its content on the widened grid (not measured)", table.path))
     # Each cell's paragraphs and nested tables, with their index in ``baselines.blocks``
     # order (a nested table's: its first paragraph's).
     entries_of: dict[tuple[int, int], list] = {}
@@ -1610,12 +1746,12 @@ def nested_entry(document: Document, table: Table, cell: Cell, page_left, lines:
     room."""
     from dataclasses import replace as _replace
 
-    text_left = page_left + lines[cell.column] + left_offset(cell)
-    text_right = page_left + lines[min(cell.column + cell.span, len(lines) - 1)] - right_offset(cell)
+    text_left = page_left + line_at(lines, cell.column) + left_offset(cell)
+    text_right = page_left + line_at(lines, cell.column + cell.span) - right_offset(cell)
     if carry_on and "tblpPr" in table.properties:
         # A floating table nested in the cell (:func:`flow_table`'s ``carry_on``): laid out
         # against the cell's left grid line, its ``w:tblpX`` the indent from it.
-        text_left = page_left + lines[cell.column]
+        text_left = page_left + line_at(lines, cell.column)
     inner = _replace(section, margins=_replace(section.margins, left=text_left, gutter=0,
                                                right=section.page_size.width_twips - text_right),
                      column_count=1, columns=())
@@ -1798,11 +1934,10 @@ def wrap_cell(document: Document, cell: Cell, box: CellBox, placed: list, previo
     margin_top = twips_to_px(cell.margins["top"])
     width, height_twips = section.page_size.width_twips, section.page_size.height_twips
     m = section.margins
-    text_left = page_left + lines[cell.column] + left_offset(cell)
-    right_line = min(cell.column + cell.span, len(lines) - 1)
-    text_right = page_left + lines[right_line] - right_offset(cell)
-    box_left = page_left + lines[cell.column] + inner_part(cell.left_edge[0])
-    box_right = page_left + lines[right_line] - inner_part(cell.right_edge[0])
+    text_left = page_left + line_at(lines, cell.column) + left_offset(cell)
+    text_right = page_left + line_at(lines, cell.column + cell.span) - right_offset(cell)
+    box_left = page_left + line_at(lines, cell.column) + inner_part(cell.left_edge[0])
+    box_right = page_left + line_at(lines, cell.column + cell.span) - inner_part(cell.right_edge[0])
     tops = _stack_tops(paragraphs, margin_top, previous_style, default_style)
 
     def frames_of(k, here, source, run):
