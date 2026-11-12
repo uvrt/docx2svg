@@ -2641,9 +2641,11 @@ class _Placer:
                                       last_line=number == len(paragraph.lines) - 1)
         grid = flow.grid_twips
         c = cell.cell
-        text_left = flow.page_left_twips + grid[c.column] + table_model.left_offset(c)
-        text_right = flow.page_left_twips + grid[min(c.column + c.span, len(grid) - 1)] - table_model.right_offset(c)
-        box_left = flow.page_left_twips + grid[c.column] + table_model.inner_part(c.left_edge[0])
+        text_left = flow.page_left_twips + table_model.line_at(grid, c.column) + table_model.left_offset(c)
+        text_right = (flow.page_left_twips + table_model.line_at(grid, c.column + c.span)
+                      - table_model.right_offset(c))
+        box_left = (flow.page_left_twips + table_model.line_at(grid, c.column)
+                    + table_model.inner_part(c.left_edge[0]))
         width, height_twips = section.page_size.width_twips, section.page_size.height_twips
         line_top = paragraph_top if number == 0 else top
         for source, run_index, k, anchor, here in paragraph.anchors:
@@ -2723,12 +2725,12 @@ class _Placer:
 
         def vertical_span(border, index: int) -> tuple[int, int]:
             width = total_px(border)
-            x0 = grid_line_px(flow.page_left_twips, grid[index]) - (width + 1) // 2
+            x0 = grid_line_px(flow.page_left_twips, table_model.line_at(grid, index)) - (width + 1) // 2
             return x0, x0 + width
 
         def shading_edge(index: int, border, sign: int) -> int:
             inner = table_model.inner_part(border) if table_model.drawn(border) else 0
-            return round_half_up((flow.page_left_twips + grid[index] + sign * inner) * TWIP_PX)
+            return round_half_up((flow.page_left_twips + table_model.line_at(grid, index) + sign * inner) * TWIP_PX)
 
         def band(kind: str, path: str, border, x0: int, x1: int, y0: int, y1: int, vertical: bool) -> None:
             """A border line, or a double's two lines, filling ``[x0, x1) x [y0, y1)``."""
@@ -2781,10 +2783,10 @@ class _Placer:
             left_border = cell.cell.left_edge[0]
             right_border = cell.cell.right_edge[0]
             x0 = vertical_span(left_border, cell.cell.column)[1] if table_model.drawn(left_border) \
-                else grid_line_px(flow.page_left_twips, grid[cell.cell.column])
+                else grid_line_px(flow.page_left_twips, table_model.line_at(grid, cell.cell.column))
             right = right_index(cell)
             x1 = vertical_span(right_border, right)[0] if table_model.drawn(right_border) \
-                else grid_line_px(flow.page_left_twips, grid[right])
+                else grid_line_px(flow.page_left_twips, table_model.line_at(grid, right))
             return x0, x1
 
         def horizontal_edge(y0: int, y1: int, cells, winners, *, from_bottom: bool) -> None:
@@ -2818,9 +2820,11 @@ class _Placer:
             past = [k for k in range(other.cell.column, right_index(other)) if k not in covered]
             if not past or not table_model.drawn(border):
                 continue
-            x0 = grid_line_px(flow.page_left_twips, grid[past[0]])
-            x1 = vertical_span(other.cell.right_edge[0], past[-1] + 1)[1] if past[-1] + 1 == right_index(other) \
-                and table_model.drawn(other.cell.right_edge[0]) else grid_line_px(flow.page_left_twips, grid[past[-1] + 1])
+            x0 = grid_line_px(flow.page_left_twips, table_model.line_at(grid, past[0]))
+            end = past[-1] + 1
+            x1 = vertical_span(other.cell.right_edge[0], end)[1] if end == right_index(other) \
+                and table_model.drawn(other.cell.right_edge[0]) \
+                else grid_line_px(flow.page_left_twips, table_model.line_at(grid, end))
             y0 = round_half_up(row_top)
             band("table-border", other.cell.path, border, x0, x1, y0, y0 + total_px(border), False)
         y0 = round_half_up(content_top)
