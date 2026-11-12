@@ -443,6 +443,11 @@ class Table:
     #: Each cell's structural path (``w:body/w:tbl[1]/w:tr[2]/w:tc[3]``), counted among the
     #: document's rows and cells -- deleted ones too, which the final view leaves out.
     cell_paths: tuple[tuple[str, ...], ...] = field(default=(), compare=False)
+    #: The final view moved content across the table's edge (a paragraph whose mark is
+    #: deleted joined into its first cell, or a cell's paragraphs moved out of it: what
+    #: Accept All leaves, ROADMAP.md "Revisions -- measured", R.3): its model is more than
+    #: its element.
+    joined: bool = field(default=False, compare=False)
 
 
 @dataclass(frozen=True)
