@@ -55,6 +55,7 @@ from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Callable, Sequence
 
+from .errors import LayoutError
 from .model import Document, PageMargins, PageSize, Paragraph, Run, Section
 from .opc import Package
 from .paginate import PageInfo
@@ -72,12 +73,13 @@ if TYPE_CHECKING:
     from .measure import Advances
     from .vertical import FaceMetrics
 
-__version__ = "0.11.10"
+__version__ = "0.11.11"
 
 __all__ = [
     "Conversion",
     "ConvertOptions",
     "Document",
+    "LayoutError",
     "PageInfo",
     "PageMargins",
     "PageSize",

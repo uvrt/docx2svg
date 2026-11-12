@@ -2487,6 +2487,17 @@ class _Placer:
     # -- a table ------------------------------------------------------------------------------
 
     def _table(self, page: Page, item, laid) -> None:
+        """:meth:`_table_drawn`, a failure in it named by the table (round 53, R107)."""
+        from .errors import LayoutError, failure
+
+        try:
+            self._table_drawn(page, item, laid)
+        except LayoutError:
+            raise
+        except Exception as error:
+            raise failure(item.flow.table.path, error) from error
+
+    def _table_drawn(self, page: Page, item, laid) -> None:
         """The pieces of a table's rows on this page (:func:`docx2svg.table.place_table`):
         every cell paragraph's lines at the cell's text start and on the stack
         :func:`docx2svg.table.cell_stack` makes, each baseline rounded in its line box as
@@ -2510,6 +2521,18 @@ class _Placer:
             for reason, message, path in flow.approximated:
                 if reason != "placeholder":
                     self.layout.approximate(reason, message, page.number + 1, path)
+            mismatched = getattr(flow.resolved, "mismatched", ())
+            if mismatched:
+                # Round 53 (R107): a row off its w:tblGrid, laid out as Word lays it out
+                # (table.fitted_grid), and said.
+                grid = len(flow.table.grid)
+                rows = ", ".join(f"w:tr[{row + 1}] reaches {reach}" for row, reach in mismatched[:10])
+                more = f" and {len(mismatched) - 10} more" if len(mismatched) > 10 else ""
+                how = ("laid out on the grid widened to its widest row" if any(reach > grid for _, reach in mismatched)
+                       else "the shorter rows drawn short")
+                self.layout.warn("table-grid-mismatch",
+                                 f"{flow.table.path}: rows off its w:tblGrid of {grid} column(s) ({rows}{more} "
+                                 f"grid columns): {how}, as Word lays it out", page.number + 1)
         for index, piece in enumerate(laid.pieces):
             # A row beside a drawing text wraps around is drawn where the table was laid
             # out in the room beside it (``paginate.table_beside``).
@@ -2618,9 +2641,11 @@ class _Placer:
                                       last_line=number == len(paragraph.lines) - 1)
         grid = flow.grid_twips
         c = cell.cell
-        text_left = flow.page_left_twips + grid[c.column] + table_model.left_offset(c)
-        text_right = flow.page_left_twips + grid[min(c.column + c.span, len(grid) - 1)] - table_model.right_offset(c)
-        box_left = flow.page_left_twips + grid[c.column] + table_model.inner_part(c.left_edge[0])
+        text_left = flow.page_left_twips + table_model.line_at(grid, c.column) + table_model.left_offset(c)
+        text_right = (flow.page_left_twips + table_model.line_at(grid, c.column + c.span)
+                      - table_model.right_offset(c))
+        box_left = (flow.page_left_twips + table_model.line_at(grid, c.column)
+                    + table_model.inner_part(c.left_edge[0]))
         width, height_twips = section.page_size.width_twips, section.page_size.height_twips
         line_top = paragraph_top if number == 0 else top
         for source, run_index, k, anchor, here in paragraph.anchors:
@@ -2700,12 +2725,12 @@ class _Placer:
 
         def vertical_span(border, index: int) -> tuple[int, int]:
             width = total_px(border)
-            x0 = grid_line_px(flow.page_left_twips, grid[index]) - (width + 1) // 2
+            x0 = grid_line_px(flow.page_left_twips, table_model.line_at(grid, index)) - (width + 1) // 2
             return x0, x0 + width
 
         def shading_edge(index: int, border, sign: int) -> int:
             inner = table_model.inner_part(border) if table_model.drawn(border) else 0
-            return round_half_up((flow.page_left_twips + grid[index] + sign * inner) * TWIP_PX)
+            return round_half_up((flow.page_left_twips + table_model.line_at(grid, index) + sign * inner) * TWIP_PX)
 
         def band(kind: str, path: str, border, x0: int, x1: int, y0: int, y1: int, vertical: bool) -> None:
             """A border line, or a double's two lines, filling ``[x0, x1) x [y0, y1)``."""
@@ -2758,10 +2783,10 @@ class _Placer:
             left_border = cell.cell.left_edge[0]
             right_border = cell.cell.right_edge[0]
             x0 = vertical_span(left_border, cell.cell.column)[1] if table_model.drawn(left_border) \
-                else grid_line_px(flow.page_left_twips, grid[cell.cell.column])
+                else grid_line_px(flow.page_left_twips, table_model.line_at(grid, cell.cell.column))
             right = right_index(cell)
             x1 = vertical_span(right_border, right)[0] if table_model.drawn(right_border) \
-                else grid_line_px(flow.page_left_twips, grid[right])
+                else grid_line_px(flow.page_left_twips, table_model.line_at(grid, right))
             return x0, x1
 
         def horizontal_edge(y0: int, y1: int, cells, winners, *, from_bottom: bool) -> None:
@@ -2787,6 +2812,21 @@ class _Placer:
         top_winners = [edge_cells(above, cell) for cell in cells]
         horizontal_edge(round_half_up(row_top), round_half_up(row_top + row.top_border), cells, top_winners,
                         from_bottom=False)
+        # The row above reaching past this one's ends (a shorter row, a row off its grid):
+        # its bottom border there, as Word draws it (make_grid_mismatch_probe.py).
+        covered = {k for cell in cells for k in range(cell.cell.column, cell.cell.column + cell.cell.span)}
+        for other in above:
+            border = other.cell.borders.get("bottom")
+            past = [k for k in range(other.cell.column, right_index(other)) if k not in covered]
+            if not past or not table_model.drawn(border):
+                continue
+            x0 = grid_line_px(flow.page_left_twips, table_model.line_at(grid, past[0]))
+            end = past[-1] + 1
+            x1 = vertical_span(other.cell.right_edge[0], end)[1] if end == right_index(other) \
+                and table_model.drawn(other.cell.right_edge[0]) \
+                else grid_line_px(flow.page_left_twips, table_model.line_at(grid, end))
+            y0 = round_half_up(row_top)
+            band("table-border", other.cell.path, border, x0, x1, y0, y0 + total_px(border), False)
         y0 = round_half_up(content_top)
         y1 = round_half_up(bottom)
         if last:

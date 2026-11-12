@@ -5,6 +5,26 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.11 -- unreleased
+
+- **A row off its table's grid is laid out as Word lays it out** (production round 53,
+  R107). A table holding a row whose cells reach past `w:tblGrid` -- a row copied from a
+  table of another grid, a cell added without a grid column, Word's own form of a tracked
+  merge or column deletion (the cell merged away kept, with `w:cellDel`) -- stopped every
+  layout with an `IndexError` (`table.cell_box`). Measured
+  (`tools/make_grid_mismatch_probe.py`, ROADMAP.md "Tables -- measured", stage 7e): Word
+  widens the grid to the row, each added column its cell's width past the grid (360 twips
+  where it states none); **a fixed table is drawn at its `w:tblW`** (in every fixed table:
+  four 2,000-twip columns in a 6,000-twip table are four of 1,500), each column keeping its
+  margins; a cell with `w:cellDel` is drawn (its room) in the final view until accepted;
+  the row above's bottom border runs past a shorter row's end. Every grid line is clamped
+  to the grid's. A table off its grid is warned of (`table-grid-mismatch`: its path, its
+  rows); a failure laying out or drawing a table is raised as **`docx2svg.LayoutError`**
+  (new, public), naming the table's path, the failure its cause. 1,901 glyphs a document,
+  each within a twip of Word's (`tests/test_grid_mismatch.py`). Every page's SVG of 72
+  documents (this repository's fixtures and local corpora, docx-agent's fixtures) is 0.11.10's
+  byte for byte, and every recorded probe scores as before.
+
 ## 0.11.10 -- unreleased
 
 - **The parse kept between versions, in the process that laid them out** (production round
