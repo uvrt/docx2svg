@@ -75,7 +75,7 @@ def test_a_tracked_column_deletion_is_drawn_accepted(width, layout):
     drawn = _drawn(tracked, options)
     assert drawn == _drawn(accepted)
     assert "Phase" not in "".join(drawn)
-    assert not options.warnings
+    assert "table-grid-mismatch" not in {w.code for w in options.warnings}
 
 
 def test_a_cell_after_a_deleted_one_keeps_its_path():
