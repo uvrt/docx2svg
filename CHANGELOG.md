@@ -5,6 +5,26 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.12 -- unreleased
+
+- **A table's pending structure changes are drawn as Accept All leaves them** (production
+  round 54, R110). The final view is the document with every revision accepted; for a
+  table's structure that is not Word's *No Markup* screen, which keeps drawing a cell with a
+  pending deletion (`w:cellDel`: a tracked column deletion, a tracked merge's cell merged
+  away) until it is accepted. A column deleted with tracking on was drawn empty at its width
+  (round 53's rule); now the cell is left out and the grid columns only such cells cover go
+  with it, the other columns keeping their widths -- measured with Word for Mac on a
+  four-column table with no width, fixed and 100 % (ROADMAP.md, "Tables -- measured", stage
+  7f): every glyph where Word's Accept All draws it, every rule pixel (before: the last
+  column 471 px right). A deleted cell whose content is not deleted widens the cell before it, as Word's Accept
+  All does (measured); a row all of whose cells are deleted goes; `w:cellMerge` merges down
+  as accepting does. docx-agent's tracked table edits scored against Word's Accept All:
+  exact but for a merge across a body row, whose Accept All in Word keeps a widened grid
+  (recorded in ROADMAP.md as an approximation). Cells' paths name the document's own rows and cells
+  (`Table.cell_paths`), deleted ones counted. The grid-mismatch probe (its tracked merges now a
+  document of their own) and the revision probe's cell cases are scored against Word's
+  Accept All now.
+
 ## 0.11.11 -- unreleased
 
 - **A row off its table's grid is laid out as Word lays it out** (production round 53,

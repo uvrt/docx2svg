@@ -2,7 +2,8 @@
 (ROADMAP.md, "Revisions -- measured").
 
 ``tests/fixtures/revision-observations.json`` holds, for ``tools/make_revision_probe.py``,
-Word's text objects and fills in its *No Markup* view, each case's lines as Word drew
+Word's text objects and fills in its *No Markup* view (the cases of a table's structure
+tracked with every revision accepted, as the renderer draws them since round 54), each case's lines as Word drew
 them, the cases Word draws otherwise with every revision accepted, and every face number
 the renderer asked for (``tools/read_revision_probe.py``).  Each document is laid out here
 from those numbers alone: every case, every line, every glyph and every rule pixel as
@@ -57,8 +58,10 @@ def test_the_final_view_against_word(name, data, fonts):
     assert result["families"] == recorded["families"] == FAMILIES
     assert result["lines"] == recorded["lines"] == [291, 291]
     assert result["glyphs"] == recorded["glyphs"]
-    assert result["rules"] == recorded["rules"] == [344556, 344556, 0, 0]
-    assert result["warnings"] == recorded["warnings"] == []
+    # Fewer rule pixels than Word's No Markup draws: the deleted cell's sides are gone.
+    assert result["rules"] == recorded["rules"] == [341948, 341948, 0, 0]
+    # The cell deleted, drawn accepted (round 54), leaves its row a cell short of the grid.
+    assert result["warnings"] == recorded["warnings"] == ["table-grid-mismatch"]
     assert result["pages"] == recorded["pages"] == len(probe.CASES)
 
 
