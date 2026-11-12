@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import BinaryIO, Callable
+from typing import AbstractSet, BinaryIO, Callable
 from xml.etree.ElementTree import Element
 
 from ooxml_common.opc import OpcPackage
@@ -623,15 +623,12 @@ def _joined_into(first: Paragraph, table: Table) -> Table | None:
     cell = table.rows[0][0]
     if not cell:
         return None
-    head = cell[0]
+    head: Paragraph | Table | None = cell[0]
     if isinstance(head, Paragraph):
-        joined = dataclasses.replace(_joined(first, head), path=head.path, para_id=head.para_id)
-        head = joined
+        head = dataclasses.replace(_joined(first, head), path=head.path, para_id=head.para_id)
     elif isinstance(head, Table):
         head = _joined_into(first, head)
-        if head is None:
-            return None
-    else:
+    if head is None or not isinstance(head, (Paragraph, Table)):
         return None
     rows = ((((head,) + tuple(cell[1:])),) + tuple(table.rows[0][1:]),) + tuple(table.rows[1:])
     return dataclasses.replace(table, rows=rows, joined=True)
@@ -1057,7 +1054,7 @@ def _accepted_cell_properties(cell: Element) -> dict:
     return out
 
 
-def _vacated_columns(rows: list[Element], count: int, gone: set[int] = frozenset()) -> frozenset[int]:
+def _vacated_columns(rows: list[Element], count: int, gone: AbstractSet[int] = frozenset()) -> frozenset[int]:
     """The grid columns (of ``count``) that only cells with a pending deletion cover, in
     every one of ``rows`` that covers them at all: accepting the deletions removes them
     from the grid, the other columns keeping their widths (Word's Accept All, measured).
