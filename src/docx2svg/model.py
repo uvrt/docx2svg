@@ -440,6 +440,9 @@ class Table:
     look: dict = field(default_factory=dict, compare=False)
     #: The table style's conditional formats that apply to each cell, in order.
     conditions: tuple[tuple[tuple[str, ...], ...], ...] = field(default=(), compare=False)
+    #: Each cell's structural path (``w:body/w:tbl[1]/w:tr[2]/w:tc[3]``), counted among the
+    #: document's rows and cells -- deleted ones too, which the final view leaves out.
+    cell_paths: tuple[tuple[str, ...], ...] = field(default=(), compare=False)
 
 
 @dataclass(frozen=True)

@@ -270,8 +270,9 @@ def resolve_table(document: Document, table: Table) -> ResolvedTable:
             conditions = table.conditions[r][c] if r < len(table.conditions) and c < len(table.conditions[r]) else ()
             props = _merge(chain, "table_cell", direct, conditions, 4)
             span = max(1, props.get("gridSpan", 1) or 1)
+            known = table.cell_paths[r] if r < len(table.cell_paths) else ()
             cell = Cell(r, c, column, span, tuple(blocks), props, props.get("vMerge"),
-                        f"{table.path}/w:tr[{r + 1}]/w:tc[{c + 1}]")
+                        known[c] if c < len(known) else f"{table.path}/w:tr[{r + 1}]/w:tc[{c + 1}]")
             cell.margins = {side: _margin(props.get(f"tcMar.{side}", properties.get(f"tblCellMar.{side}")))
                             if (f"tcMar.{side}" in props or f"tblCellMar.{side}" in properties)
                             else (DEFAULT_SIDE_MARGIN if side in ("left", "right") else 0)

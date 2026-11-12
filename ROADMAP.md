@@ -5529,8 +5529,9 @@ from its own save.
   1,015, the rule 1,661 / 1,662 / 1,661 / 1,016; margins 0 and 300 exact. 9,000 widens
   (2,250 each), 100% is 9,242 (`percent_widths`' whole). A table with no width keeps its
   columns.
-- **Word's final view draws a cell with `w:cellDel`** (its room, its text) until the
-  change is accepted: a tracked merge shows a row a column wider than the others, which
+- **Word's *No Markup* view draws a cell with `w:cellDel`** (its room, its text) until the
+  change is accepted -- *superseded for the renderer by stage 7f*: the final view is now what
+  Accept All leaves, the cell gone; what follows is what Word's screen shows: a tracked merge shows a row a column wider than the others, which
   the model now draws as Word does (docx-agent's tracked merges and column deletions, made
   and exported by Word's *No Markup*: every glyph within 2 px at 300 dpi, the rules' pixels
   1,162 / 1,168 apart of 57,250).
@@ -5556,6 +5557,72 @@ from its content on the widened grid as any autofit table is, and Word drew its 
 to 45 px at 300 dpi (200 twips) from that -- laid out and reported as an approximation
 (`layout-approximate:table`), not measured further. Two columns over (the tracked merge of
 two) was within 2 px.
+
+### Stage 7f -- a table's structure tracked, drawn accepted (production round 54, R110)
+
+A production team deleted a column of a four-column report table with tracking on
+(docx-agent's `delete_column`: the column's cells `w:cellDel`, their content deleted) and saw
+render's final view still draw the column, empty, at its width. That was Word's *No Markup*
+screen, as stage 7e measured it. **Decision (2026-11-12): the final view is the result of
+Accept All**, wherever that and Word's screen differ for a table's pending structure.
+
+Measured with Word 16.106 for Mac (`agent-work` probe, made-up "Field report" table of four
+2,268-twip columns, autofit with no width, a 9,072-twip fixed table and a 100 % table, each
+exported in All Markup, No Markup and with every revision accepted, and saved accepted):
+
+- **No Markup draws the deleted column**, empty, at its width (the table 9,072 twips wide);
+  All Markup draws it with the deletions struck and a "Deleted cells" balloon.
+- **Accept All removes the column and its grid column; the other columns keep their
+  widths** in a table with no width (three of 2,268: the table 2,268 twips narrower). A
+  fixed 9,072-twip table and a 100 % one keep their width, the three columns sharing it (Word
+  saved 3,024 x 3; 3,020 / 3,021 / 3,021) -- what `table.fixed_widths` and
+  `percent_widths` already make of a grid of three in such a table.
+- Word itself **does not track a column's deletion**: its object model's `delete column`, with
+  tracking on, removes the column and its content at once, recording only the table's,
+  rows' and cells' old properties (`w:tblPrChange`, `w:tblGridChange` -- with no author,
+  as the schema has it -- `w:trPrChange`, `w:tcPrChange`); cutting the column records
+  nothing. Nor does it track a merge (`merge cell`: applied, no record), after a pending
+  column deletion or not.
+
+- **A deleted cell whose content is not deleted widens the cell before it** on Accept All
+  (its columns and width; its content goes): a merge of two cells written so -- the first
+  cell holding both texts, the second `w:cellDel` with its text -- accepts to one cell over
+  two columns, every glyph and rule pixel as the model draws it, and Reject All gives the
+  table back. One whose content is deleted (docx-agent's form) is removed.
+- **docx-agent's other tracked table edits**, each on the same table, scored against Word's
+  Accept All: a column deleted (first, third, last), a row deleted, a merge of the header
+  row's last three cells, a merge down, a split and a column inserted are drawn exactly
+  (0 px; the column inserted 1 px, as untracked). A merge across two cells of a body row
+  (the first cell's span applied, the other `w:cellDel`, every cell's old properties and
+  the old grid recorded) is **not**: Word's Accept All of it keeps a fifth grid column of
+  337 twips and leaves the other rows short of it (54 px); the model draws the merge on the
+  table's four columns, as docx-agent's own accept leaves it. A rectangle merge: 6 px.
+  Written instead with the first cell keeping its span and the other's content kept (above),
+  Word's Accept All is exact. The probe's tracked merges without those records (stage 7e's
+  form, content deleted) accept exactly too, in a document of their own
+  (`grid-mismatch-tracked-*`); among the other tables Word's Accept All kept a widened grid.
+
+**The rule** (`parse.document._table`): in the final view a cell with `w:cellDel` is left
+out (or, its content kept, given to the cell before it), and the grid columns that only such cells cover, in every row that covers them, go with
+it (a column a row skips with `w:gridBefore` / `w:gridAfter` is kept); a row all of whose
+cells are deleted goes; a `w:cellMerge` gives its cell the vertical merge it records
+(`rest` a merge's first cell, `cont` the cells below), as accepting does. Cells' paths keep
+their places among the document's rows and cells (`Table.cell_paths`), deleted ones counted,
+as paragraphs' paths always did.
+
+| Word's Accept All, our render of the tracked document | before (0.11.11) | after (0.11.12) |
+| --- | --- | --- |
+| no width: worst glyph dx | 471 px (the last column a column right) | **0 px** |
+| no width: rule pixels model only / Word only | 6,170 / 980 | **0 / 0** |
+| fixed 9,072 / 100 %: worst glyph dx | 158 px | **0 px** |
+| fixed / 100 %: rule pixels model only / Word only | 1,470 / 980 | **0 / 0** |
+
+The glyphs are scored as for Word's own accepted document (99 of 103 at 300 dpi, the rest
+within 0.37 px in a run: the same numbers for Word's saved accepted document). The
+grid-mismatch probe (stage 7e) and the revision probe's four cases of cells inserted,
+deleted and merged down (`read_revision_probe.ACCEPTED`) are now scored against Word's
+export with every revision accepted; their other cases and tables against No Markup as
+before.
 
 ## Headers, footers and fields — measured (Phase 6, Headers and footers and Fields rows)
 
@@ -7773,9 +7840,11 @@ text: here in the `PlaceholderText` character style, at its place in the line.
 
 **R.6 Rows, cells, property changes, comments.** A row whose `w:trPr` holds `w:del` is not
 drawn, whether or not its content is deleted, and a table all of whose rows are deleted
-is not drawn at all; an inserted row is. `w:cellIns` and `w:cellDel` change nothing in the
-final view (a deleted cell is drawn, empty); nor does `w:cellMerge`, whose `w:vMerge` is
-ignored: the cell's own `w:vMerge` decides (accepting applies it). `w:rPrChange` (on a
+is not drawn at all; an inserted row is. `w:cellIns` and `w:cellDel` change nothing in
+Word's *No Markup* view (a deleted cell is drawn, empty); nor does `w:cellMerge`, whose
+`w:vMerge` is ignored there: the cell's own `w:vMerge` decides (accepting applies it). Since
+round 54 (stage 7f) the renderer draws these as Accept All leaves them: a deleted cell gone,
+`w:cellMerge`'s merge applied. `w:rPrChange` (on a
 run and on a mark), `w:pPrChange` (a list's too), `w:tblPrChange`, `w:trPrChange`,
 `w:tcPrChange` and `w:sectPrChange` change nothing: the current properties are drawn. A
 deleted mark on a section's last paragraph removes the section break; the two sections

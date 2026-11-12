@@ -820,25 +820,122 @@ def _table(element: Element, path: str = "", fields: _Fields | None = None) -> T
     properties = child(element, "tblPr")
     style = attr(child(properties, "tblStyle"), "val") or ""
     look = _table_look(child(properties, "tblLook"))
-    # A deleted row (``w:trPr/w:del``) is not drawn in the final view, whether or not its
-    # content is deleted too (measured); its path keeps its place among the rows.
+    # The final view is the document with every revision accepted (round 54, R110): a
+    # deleted row (``w:trPr/w:del``) is not drawn, whether or not its content is deleted too;
+    # nor is a cell with a pending deletion (``w:cellDel``: a tracked column deletion, a
+    # tracked merge's cell merged away), the grid columns only such cells covered going with
+    # it -- as Word's Accept All leaves the table (measured, ROADMAP.md "Tables -- measured",
+    # stage 7f).  Word's *No Markup* screen still draws such a cell until it is accepted.
+    # Paths keep their places among the document's rows and cells.
+    # A row all of whose cells are deleted goes with them.
     row_elements = [(i, row) for i, row in enumerate(_row_level(element, "tr"))
-                    if child(child(row, "trPr"), "del") is None]
-    rows, row_properties, cell_properties, conditions = [], [], [], []
+                    if child(child(row, "trPr"), "del") is None
+                    and not _all_cells_deleted(row)]
+    grid_nodes = list(children(child(element, "tblGrid"), "gridCol"))
+    vacated = _vacated_columns([row for _, row in row_elements], len(grid_nodes))
+    rows, row_properties, cell_properties, conditions, cell_paths = [], [], [], [], []
     for k, (i, row) in enumerate(row_elements):
-        cells = list(_row_level(row, "tc"))
-        row_conditions = tuple(cell_conditions(look, k, j, len(row_elements), len(cells)) for j in range(len(cells)))
+        cells: list[tuple[int, Element]] = []
+        properties_of: list[dict] = []
+        for j, cell in enumerate(_row_level(row, "tc")):
+            if not _cell_deleted(cell):
+                cells.append((j, cell))
+                properties_of.append(_accepted_cell_properties(cell))
+            elif cells and _content_kept(cell):
+                _absorb(properties_of[-1], read_table_properties(child(cell, "tcPr")))
+        row_conditions = tuple(cell_conditions(look, k, n, len(row_elements), len(cells)) for n in range(len(cells)))
+        paths = tuple(f"{path}/w:tr[{i + 1}]/w:tc[{j + 1}]" for j, _ in cells)
         rows.append(tuple(
-            tuple(_blocks(cell, style, row_conditions[j], f"{path}/w:tr[{i + 1}]/w:tc[{j + 1}]", fields))
-            for j, cell in enumerate(cells)
+            tuple(_blocks(cell, style, row_conditions[n], paths[n], fields))
+            for n, (_, cell) in enumerate(cells)
         ))
         row_properties.append(read_table_properties(child(row, "trPr")))
-        cell_properties.append(tuple(read_table_properties(child(cell, "tcPr")) for cell in cells))
+        cell_properties.append(tuple(properties_of))
         conditions.append(row_conditions)
-    grid = tuple(attr_int(column, "w", 0) or 0 for column in children(child(element, "tblGrid"), "gridCol"))
+        cell_paths.append(paths)
+    grid = tuple(attr_int(column, "w", 0) or 0 for k, column in enumerate(grid_nodes) if k not in vacated)
     return Table(style_id=style or None, rows=tuple(rows), path=path, grid=grid,
                  properties=read_table_properties(properties), row_properties=tuple(row_properties),
-                 cell_properties=tuple(cell_properties), look=look, conditions=tuple(conditions))
+                 cell_properties=tuple(cell_properties), look=look, conditions=tuple(conditions),
+                 cell_paths=tuple(cell_paths))
+
+
+def _all_cells_deleted(row: Element) -> bool:
+    cells = list(_row_level(row, "tc"))
+    return bool(cells) and all(_cell_deleted(cell) for cell in cells)
+
+
+#: Run content a reader sees (a deleted cell whose content holds some is kept: its room).
+_SHOWN = frozenset({"t", "tab", "br", "cr", "drawing", "pict", "object", "sym", "noBreakHyphen", "ptab"})
+
+
+def _content_kept(cell: Element) -> bool:
+    """Whether a deleted cell's content is not deleted too: Word's Accept All then widens
+    the cell before it by its columns and width, its content going with it (measured,
+    round 54: ROADMAP.md, stage 7f); one whose content is deleted is removed."""
+    def shown(node: Element) -> bool:
+        for item in children(node):
+            name = local_name(item.tag)
+            if name in ("del", "moveFrom", "tcPr", "pPr", "rPr"):
+                continue                      # deleted content, or properties
+            if (name in _SHOWN and (name != "t" or item.text)) or shown(item):
+                return True
+        return False
+
+    return shown(cell)
+
+
+def _absorb(previous: dict, deleted: dict) -> None:
+    """``previous`` (a cell's properties) widened by a deleted cell's columns and width."""
+    previous["gridSpan"] = max(1, previous.get("gridSpan", 1) or 1) + max(1, deleted.get("gridSpan", 1) or 1)
+    mine, theirs = previous.get("tcW"), deleted.get("tcW")
+    if mine and theirs and mine[1] == theirs[1] == "dxa":
+        previous["tcW"] = (mine[0] + theirs[0], "dxa")
+
+
+def _cell_deleted(cell: Element) -> bool:
+    """Whether ``cell`` is a pending tracked deletion (``w:tcPr/w:cellDel``)."""
+    return child(child(cell, "tcPr"), "cellDel") is not None
+
+
+def _accepted_cell_properties(cell: Element) -> dict:
+    """A cell's properties with its revisions accepted: a ``w:cellMerge`` (a tracked merge
+    down) gives the cell its vertical merge, as accepting it does -- ``rest`` a merge's
+    first cell, ``cont`` the cells below it."""
+    properties = child(cell, "tcPr")
+    out = read_table_properties(properties)
+    merge = attr(child(properties, "cellMerge"), "vMerge")
+    if merge in ("rest", "cont"):
+        out["vMerge"] = "restart" if merge == "rest" else "continue"
+    return out
+
+
+def _vacated_columns(rows: list[Element], count: int) -> frozenset[int]:
+    """The grid columns (of ``count``) that only cells with a pending deletion cover, in
+    every one of ``rows`` that covers them at all: accepting the deletions removes them
+    from the grid, the other columns keeping their widths (Word's Accept All, measured).
+    A column some row skips (``w:gridBefore``, ``w:gridAfter``) is kept."""
+    if not count:
+        return frozenset()
+    covered: dict[int, bool] = {}
+    for row in rows:
+        properties = child(row, "trPr")
+        column = attr_int(child(properties, "gridBefore"), "val", 0) or 0
+        skipped = set(range(column))
+        kept_before = False
+        for cell in _row_level(row, "tc"):
+            span = max(1, attr_int(child(child(cell, "tcPr"), "gridSpan"), "val", 1) or 1)
+            # A deleted cell whose content is kept goes to the cell before it (_absorb).
+            deleted = _cell_deleted(cell) and not (kept_before and _content_kept(cell))
+            kept_before = kept_before or not _cell_deleted(cell)
+            for c in range(column, column + span):
+                covered[c] = covered.get(c, True) and deleted
+            column += span
+        after = attr_int(child(properties, "gridAfter"), "val", 0) or 0
+        skipped |= set(range(column, column + after))
+        for c in skipped:
+            covered[c] = False
+    return frozenset(c for c, only_deleted in covered.items() if only_deleted and c < count)
 
 
 _row_level = row_level
