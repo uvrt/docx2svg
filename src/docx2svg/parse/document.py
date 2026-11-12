@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import BinaryIO
+from typing import BinaryIO, Callable
 from xml.etree.ElementTree import Element
 
 from ooxml_common.opc import OpcPackage
@@ -589,9 +589,10 @@ def _joined(first: Paragraph, following: Paragraph) -> Paragraph:
 
 
 def _join(blocks: list) -> list:
-    """The final view of a container's blocks: each paragraph whose mark is deleted
-    joined to the paragraph after it (a chain into the last); one with no paragraph
-    after it stays, and one with nothing drawn before a table is not drawn at all."""
+    """The final view of a container's blocks -- what Accept All leaves: each paragraph
+    whose mark is deleted joined to the paragraph after it (a chain into the last); before
+    a table, to the first paragraph of the table's first cell (:func:`_joined_into`); one
+    with no paragraph after it stays."""
     out: list = []
     for block in reversed(blocks):
         if isinstance(block, Paragraph) and block.mark_deleted:
@@ -599,10 +600,41 @@ def _join(blocks: list) -> list:
             if isinstance(following, Paragraph):
                 out[-1] = _joined(block, following)
                 continue
-            if isinstance(following, Table) and _empty(block) and block.section is None:
-                continue
+            if isinstance(following, Table) and block.section is None:
+                table = _joined_into(block, following)
+                if table is not None:
+                    out[-1] = table
+                    continue
+                if _empty(block):
+                    continue
         out.append(block)
     return out[::-1]
+
+
+def _joined_into(first: Paragraph, table: Table) -> Table | None:
+    """``table`` with ``first`` (a paragraph whose mark is deleted, just before it) joined to
+    the first paragraph of its first cell -- a nested table's, where the cell begins with
+    one -- as Word's Accept All moves it (measured, round 54 lane J: ROADMAP.md,
+    "Revisions -- measured", R.3): ``first``'s runs first, under the cell paragraph's
+    properties, the cell paragraph's path and id kept (it is the cell's paragraph); ``None``
+    where the first cell holds no paragraph to join."""
+    if not table.rows or not table.rows[0]:
+        return None
+    cell = table.rows[0][0]
+    if not cell:
+        return None
+    head = cell[0]
+    if isinstance(head, Paragraph):
+        joined = dataclasses.replace(_joined(first, head), path=head.path, para_id=head.para_id)
+        head = joined
+    elif isinstance(head, Table):
+        head = _joined_into(first, head)
+        if head is None:
+            return None
+    else:
+        return None
+    rows = ((((head,) + tuple(cell[1:])),) + tuple(table.rows[0][1:]),) + tuple(table.rows[1:])
+    return dataclasses.replace(table, rows=rows, joined=True)
 
 
 def _block_list(parent: Element, table_style: str | None, conditions: tuple[str, ...], path: str,
@@ -622,10 +654,8 @@ def _block_of(node: Element, name: str, here: str, table_style: str | None, cond
     if name == "p":
         out.append(_paragraph(node, table_style, conditions, here, fields))
     elif name == "tbl":
-        table = _table(node, here, fields)
         # A table every row of which is deleted is not drawn at all.
-        if table.rows:
-            out.append(table)
+        out.extend(_table_blocks(node, here, fields))
     elif name == "sdt":
         # A block-level content control: its content, as the container's.
         content = child(node, "sdtContent")
@@ -809,8 +839,97 @@ def _text_box_story(parent: Element, path: str, fields: _Fields) -> list:
         fields.styleref = styleref
 
 
-def _table(element: Element, path: str = "", fields: _Fields | None = None) -> Table:
-    """A table: its rows and cells, the table style, and what its geometry is read from
+def _table_blocks(element: Element, path: str = "", fields: _Fields | None = None) -> list:
+    """A ``w:tbl``'s blocks in the final view: the table (:func:`_table`), or -- where a
+    cell's last paragraph mark is deleted in its row's first cell, and the cell holds
+    paragraphs before it -- those paragraphs moved out of the table before that row, the
+    table split there as Word's Accept All leaves it (:func:`_cell_ends`)."""
+    table, moved, grid_of = _table(element, path, fields)
+    if not moved:
+        return [table] if table.rows else []
+    out: list = []
+    start = 0
+    for row, blocks in moved:
+        if row > start:
+            out.append(_table_part(table, start, row, grid_of))
+        out.extend(blocks)
+        start = row
+    out.append(_table_part(table, start, len(table.rows), grid_of))
+    return out
+
+
+def _table_part(table: Table, start: int, end: int, grid_of: Callable) -> Table:
+    """Rows ``start``..``end`` of ``table``, a table of their own, its grid the columns
+    some cell of theirs covers (:func:`_vacated_columns`, applied to the part)."""
+    grid = grid_of(start, end)
+    return Table(style_id=table.style_id, rows=table.rows[start:end], path=table.path, grid=grid,
+                 properties=table.properties, row_properties=table.row_properties[start:end],
+                 cell_properties=table.cell_properties[start:end], look=table.look,
+                 conditions=table.conditions[start:end], cell_paths=table.cell_paths[start:end], joined=True)
+
+
+def _last_mark_removed(container: Element) -> bool:
+    """Whether the last paragraph of a cell (or a block-level control's content) has its
+    mark deleted: the cell's last block is that paragraph."""
+    for node in reversed(list(children(container))):
+        name = local_name(node.tag)
+        if name == "p":
+            return _mark_removed(node)
+        if name == "tbl":
+            return False
+        if name == "sdt":
+            content = child(node, "sdtContent")
+            if content is not None and any(local_name(n.tag) in ("p", "tbl", "sdt", "customXml")
+                                           for n in children(content)):
+                return _last_mark_removed(content)
+        elif name == "customXml":
+            if any(local_name(n.tag) in ("p", "tbl", "sdt", "customXml") for n in children(node)):
+                return _last_mark_removed(node)
+    return False
+
+
+def _cell_ends(cells: list) -> tuple[list[list[int]], set[int]]:
+    """What Word's Accept All makes of a row's cells (its ``w:tc`` elements, deleted ones
+    left out) whose last paragraph mark is deleted (measured, round 54 lane J: ROADMAP.md,
+    "Revisions -- measured", R.3): the cell takes the next cell in -- its last paragraph
+    joined to the next cell's first, the next cell's other blocks after it, the next cell
+    gone, its own span and width kept -- and a cell with no next cell in the row is gone
+    with its content.  Returns the row's cells as groups of indexes (the first of each the
+    cell kept, the others taken into it) and the indexes of the cells gone."""
+    groups: list[list[int]] = []
+    gone: set[int] = set()
+    n = 0
+    while n < len(cells):
+        group = [n]
+        while _last_mark_removed(cells[group[-1]]) and group[-1] + 1 < len(cells):
+            group.append(group[-1] + 1)
+        if _last_mark_removed(cells[group[-1]]):
+            gone.update(group)
+        else:
+            groups.append(group)
+            gone.update(group[1:])
+        n = group[-1] + 1
+    return groups, gone
+
+
+def _cell_taken(blocks: list, taken: list) -> list:
+    """A cell's blocks with the next cell's (``taken``) taken in: its last paragraph (its
+    mark deleted) joined to theirs first (:func:`_joined`, under the next one's properties;
+    the joined paragraph keeps the cell's path), the rest after."""
+    if blocks and taken and isinstance(blocks[-1], Paragraph) and isinstance(taken[0], Paragraph):
+        return blocks[:-1] + [_joined(blocks[-1], taken[0])] + list(taken[1:])
+    return list(blocks) + list(taken)
+
+
+def _moved_out(blocks: list) -> list:
+    """A cell's blocks moved out of its table: no longer under the table's style."""
+    return [dataclasses.replace(block, table_style_id=None, table_conditions=())
+            if isinstance(block, Paragraph) else block for block in blocks]
+
+
+def _table(element: Element, path: str = "", fields: _Fields | None = None) -> tuple[Table, list, Callable]:
+    """A table, the blocks the final view moves out of it (``[(row, blocks), ...]``: before
+    that row, :func:`_table_blocks`) and its grid for a run of its rows.  The table: its rows and cells, the table style, and what its geometry is read from
     -- ``w:tblGrid`` and every ``w:tblPr``, ``w:trPr`` and ``w:tcPr`` as declared.
 
     The cell paragraphs carry the table's style id (``""`` when it names none), because
@@ -832,32 +951,60 @@ def _table(element: Element, path: str = "", fields: _Fields | None = None) -> T
                     if child(child(row, "trPr"), "del") is None
                     and not _all_cells_deleted(row)]
     grid_nodes = list(children(child(element, "tblGrid"), "gridCol"))
-    vacated = _vacated_columns([row for _, row in row_elements], len(grid_nodes))
+    # A cell whose last paragraph mark is deleted takes the next cell in, or goes at its
+    # row's end (:func:`_cell_ends`): the cells gone are left out as deleted ones are.
+    plans = []
+    gone_cells: set[int] = set()
+    for i, row in row_elements:
+        shown = [cell for cell in _row_level(row, "tc") if not _cell_deleted(cell)]
+        groups, gone = _cell_ends(shown)
+        plans.append((shown, groups))
+        gone_cells.update(id(shown[n]) for n in gone)
     rows, row_properties, cell_properties, conditions, cell_paths = [], [], [], [], []
-    for k, (i, row) in enumerate(row_elements):
+    moved: list = []
+    for k, ((i, row), (shown, groups)) in enumerate(zip(row_elements, plans)):
+        kept = {id(shown[group[0]]) for group in groups}
+        taken = {id(shown[group[0]]): [shown[n] for n in group[1:]] for group in groups}
         cells: list[tuple[int, Element]] = []
         properties_of: list[dict] = []
         for j, cell in enumerate(_row_level(row, "tc")):
-            if not _cell_deleted(cell):
+            if id(cell) in kept:
                 cells.append((j, cell))
                 properties_of.append(_accepted_cell_properties(cell))
-            elif cells and _content_kept(cell):
+            elif cells and _cell_deleted(cell) and _content_kept(cell):
                 _absorb(properties_of[-1], read_table_properties(child(cell, "tcPr")))
         row_conditions = tuple(cell_conditions(look, k, n, len(row_elements), len(cells)) for n in range(len(cells)))
         paths = tuple(f"{path}/w:tr[{i + 1}]/w:tc[{j + 1}]" for j, _ in cells)
-        rows.append(tuple(
-            tuple(_blocks(cell, style, row_conditions[n], paths[n], fields))
-            for n, (_, cell) in enumerate(cells)
-        ))
+        row_blocks = []
+        for n, (j, cell) in enumerate(cells):
+            blocks = _blocks(cell, style, row_conditions[n], paths[n], fields)
+            others = taken[id(cell)]
+            if others:
+                if n == 0 and len(blocks) > 1:
+                    # The row's first cell's blocks before its last paragraph leave the
+                    # table, before the row (measured: Word's Accept All).
+                    moved.append((k, _moved_out(blocks[:-1])))
+                    blocks = blocks[-1:]
+                elements = list(_row_level(row, "tc"))
+                for other in others:
+                    there = f"{path}/w:tr[{i + 1}]/w:tc[{elements.index(other) + 1}]"
+                    blocks = _cell_taken(blocks, _blocks(other, style, row_conditions[n], there, fields))
+            row_blocks.append(tuple(blocks))
+        rows.append(tuple(row_blocks))
         row_properties.append(read_table_properties(child(row, "trPr")))
         cell_properties.append(tuple(properties_of))
         conditions.append(row_conditions)
         cell_paths.append(paths)
-    grid = tuple(attr_int(column, "w", 0) or 0 for k, column in enumerate(grid_nodes) if k not in vacated)
-    return Table(style_id=style or None, rows=tuple(rows), path=path, grid=grid,
-                 properties=read_table_properties(properties), row_properties=tuple(row_properties),
-                 cell_properties=tuple(cell_properties), look=look, conditions=tuple(conditions),
-                 cell_paths=tuple(cell_paths))
+
+    def grid_of(start: int, end: int) -> tuple[int, ...]:
+        vacated = _vacated_columns([row for _, row in row_elements[start:end]], len(grid_nodes), gone_cells)
+        return tuple(attr_int(column, "w", 0) or 0 for k, column in enumerate(grid_nodes) if k not in vacated)
+
+    table = Table(style_id=style or None, rows=tuple(rows), path=path, grid=grid_of(0, len(rows)),
+                  properties=read_table_properties(properties), row_properties=tuple(row_properties),
+                  cell_properties=tuple(cell_properties), look=look, conditions=tuple(conditions),
+                  cell_paths=tuple(cell_paths))
+    return table, moved, grid_of
 
 
 def _all_cells_deleted(row: Element) -> bool:
@@ -910,11 +1057,12 @@ def _accepted_cell_properties(cell: Element) -> dict:
     return out
 
 
-def _vacated_columns(rows: list[Element], count: int) -> frozenset[int]:
+def _vacated_columns(rows: list[Element], count: int, gone: set[int] = frozenset()) -> frozenset[int]:
     """The grid columns (of ``count``) that only cells with a pending deletion cover, in
     every one of ``rows`` that covers them at all: accepting the deletions removes them
     from the grid, the other columns keeping their widths (Word's Accept All, measured).
-    A column some row skips (``w:gridBefore``, ``w:gridAfter``) is kept."""
+    A column some row skips (``w:gridBefore``, ``w:gridAfter``) is kept.  ``gone``: the
+    ``id`` of other cells the final view leaves out (:func:`_cell_ends`)."""
     if not count:
         return frozenset()
     covered: dict[int, bool] = {}
@@ -926,7 +1074,7 @@ def _vacated_columns(rows: list[Element], count: int) -> frozenset[int]:
         for cell in _row_level(row, "tc"):
             span = max(1, attr_int(child(child(cell, "tcPr"), "gridSpan"), "val", 1) or 1)
             # A deleted cell whose content is kept goes to the cell before it (_absorb).
-            deleted = _cell_deleted(cell) and not (kept_before and _content_kept(cell))
+            deleted = (_cell_deleted(cell) and not (kept_before and _content_kept(cell))) or id(cell) in gone
             kept_before = kept_before or not _cell_deleted(cell)
             for c in range(column, column + span):
                 covered[c] = covered.get(c, True) and deleted

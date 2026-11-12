@@ -388,7 +388,8 @@ class Measures:
         # A table's flow holds its model -- its cells' paragraphs, their paths and ids, which
         # the page draws -- so it is kept by its whole digest and its path.
         base = self.blocks.get(id(table))
-        if base is None:
+        if base is None or table.joined:
+            # A table the final view moved content into or out of is more than its element.
             return None
         from .model import Paragraph
         from .table import cell_blocks

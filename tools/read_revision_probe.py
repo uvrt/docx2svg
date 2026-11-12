@@ -2,11 +2,12 @@
 """Score tracked changes, content controls and comments against Word's final view:
 ``make_revision_probe.py``.
 
-Word exports each document twice: in its *No Markup* view (``oracle.export``'s default,
-``final``), which is what the renderer is scored against, and with every revision
-accepted first (``accept``), which says whether the final view is what accepting makes --
-and is the reference for the cases of a table's structure tracked (:data:`ACCEPTED`: the
-renderer draws a table as accepting leaves it, round 54).
+Word exports each document twice: with every revision accepted first (``accept``), which
+is what the renderer is scored against -- its final view is what Accept All leaves (round
+54: a table's structure, R110; deleted paragraph marks, lane J) -- and in its *No Markup*
+view (``oracle.export``'s default, ``final``), which says where Word's screen draws
+otherwise (:func:`accept_differs`; those cases' lines as the screen draws them are
+recorded too, ``screen``).
 Word's PDF gives every text object (``read_render.word_objects``) and filled rectangle;
 the model lays each document out and draws it.  Scores, per document:
 
@@ -92,38 +93,6 @@ def families(word: dict, model: dict) -> dict:
     return out
 
 
-#: The cases of a table's structure tracked -- a cell inserted or deleted, cells merged
-#: down -- that the renderer draws as Word's Accept All leaves them, not as its *No
-#: Markup* screen does (round 54, R110: Word's screen keeps a deleted cell drawn until the
-#: deletion is accepted).  Their pages are scored against Word's export with every
-#: revision accepted.
-ACCEPTED = ("rows cell inserted", "rows cell deleted", "rows cellMerge with vMerge", "rows cellMerge alone")
-
-
-def case_pages(objects: list) -> dict:
-    """``{case key: its page}`` (every case is a page of its own)."""
-    lines = _lines(read_render.glyphs_of(objects))
-    pages = {text: page for page, _, _, text in lines if text.startswith("Case")}
-    return {case.key: pages.get(f"Case{number}") for number, case in enumerate(probe.CASES)}
-
-
-def accepted_reference(final: dict, accept_pdf) -> dict:
-    """``final`` (objects, fills) with the pages of :data:`ACCEPTED` cases taken from Word's
-    export with every revision accepted."""
-    accept = {"objects": read_render.word_objects(accept_pdf), "fills": read_render.word_fills(accept_pdf)}
-    final_pages, accept_pages = case_pages(final["objects"]), case_pages(accept["objects"])
-    out = {"objects": list(final["objects"]), "fills": list(final["fills"])}
-    for key in ACCEPTED:
-        page, other = final_pages[key], accept_pages[key]
-        assert page is not None and page == other, (key, page, other)
-        for kind in ("objects", "fills"):
-            out[kind] = [item for item in out[kind] if item[0] != page] + [item for item in accept[kind]
-                                                                          if item[0] == page]
-    for kind in ("objects", "fills"):
-        out[kind].sort(key=lambda item: item[:3])
-    return out
-
-
 def score(name: str, data: bytes, fonts, recorded: dict) -> dict:
     from docx2svg import _render
 
@@ -162,17 +131,17 @@ def main(argv: list[str]) -> int:
         for name, data in documents():
             pdf = oracle.export(data, name=name)
             accepted = oracle.export(data, name=name, view="accept")
-            final = {"objects": read_render.word_objects(pdf), "fills": read_render.word_fills(pdf)}
-            accept_objects = read_render.word_objects(accepted)
-            word = accepted_reference(final, accepted)
+            final_objects = read_render.word_objects(pdf)
+            word = {"objects": read_render.word_objects(accepted), "fills": read_render.word_fills(accepted)}
             fonts = render_record.RecordingFonts(data, faces)
             result = score(name, data, fonts, word)
-            differs = accept_differs(final["objects"], accept_objects)
+            differs = accept_differs(final_objects, word["objects"])
+            screen_cases = outcomes(read_render.glyphs_of(final_objects))
             print(result["result"].row())
             print(f"{'':34} cases {sum(a for a, _ in result['families'].values())} / {len(probe.CASES)} "
                   f"({', '.join(f'{k} {a}/{b}' for k, (a, b) in result['families'].items())}); lines "
                   f"{result['lines'][0]} / {result['lines'][1]}; rules {result['rules']}; pages {result['pages']}; "
-                  f"warnings {result['warnings']}; accepting differs in {differs}")
+                  f"warnings {result['warnings']}; Word's No Markup screen differs in {differs}")
             if args.verbose:
                 for case in probe.CASES:
                     k = case.key
@@ -185,16 +154,16 @@ def main(argv: list[str]) -> int:
                               "families": result["families"], "word": result["word"],
                               "disagree": result["disagree"], "rules": result["rules"],
                               "warnings": result["warnings"], "pages": result["pages"],
-                              "accept_differs": differs}
+                              "accept_differs": differs, "screen": {k: screen_cases[k] for k in differs}}
     finally:
         oracle.recover()
     if args.record:
         render_record.dump(OBSERVATIONS, {
-            "_about": ("What Word 16.106 drew for tools/make_revision_probe.py in its No Markup view (the pages "
-                       "of the cases of a table's structure tracked, read_revision_probe.ACCEPTED, with every "
-                       "revision accepted, as the renderer draws them): every text object and filled rectangle (as render-observations.json records them), each case's "
-                       "lines as Word drew them (page and baseline from the case's label, left edge, glyphs), "
-                       "the cases whose lines differ once every revision is accepted, the renderer's scores "
+            "_about": ("What Word 16.106 drew for tools/make_revision_probe.py with every revision accepted "
+                       "(the renderer's final view since round 54): every text object and filled rectangle (as "
+                       "render-observations.json records them), each case's lines as Word drew them (page and "
+                       "baseline from the case's label, left edge, glyphs), the cases whose lines Word's No "
+                       "Markup screen draws otherwise and those lines as the screen drew them, the renderer's scores "
                        "against them -- cases per family, lines within half a pixel, the glyph row, the rule "
                        "pixels -- and every face number the renderer asked for. Measurements only; regenerate "
                        "with tools/read_revision_probe.py --record."),

@@ -1055,28 +1055,6 @@ def ends_section(document: Document, paragraph_index: int) -> bool:
                for section in document.sections[:-1])
 
 
-def join_starts(paragraph: Paragraph, pieces, broken) -> list[int]:
-    """The lines of ``paragraph`` (other than its first) that begin the text of a paragraph
-    joined into it because the mark before was deleted (:attr:`Paragraph.joins`): the
-    lines Word's final view draws lower below mode 15 (ROADMAP.md, "Revisions --
-    measured", R.4)."""
-    joins = paragraph.joins
-    if not joins:
-        return []
-
-    def segment(run: int) -> int:
-        return sum(1 for join in joins if join <= run)
-
-    out = []
-    for number in range(1, len(broken)):
-        start, end = broken[number].start, broken[number].end
-        first = next((piece.run for piece in pieces[start:end] if piece.run >= 0), None)
-        previous = next((piece.run for piece in reversed(pieces[:start]) if piece.run >= 0), None)
-        if first is not None and previous is not None and segment(first) > segment(previous):
-            out.append(number)
-    return out
-
-
 def is_empty(paragraph: Paragraph) -> bool:
     """No text, tab, break, picture or drawing: nothing but the paragraph's mark."""
     return not any(run.text or run.breaks or run.anchors for run in paragraph.runs)
@@ -1512,12 +1490,6 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
         if autospaced(document, pp, "after") and not autospace_kept(
                 numbered=numbered[block], neighbour_numbered=numbered.get(block + 1, False)):
             after = 0
-        if (document.compatibility_mode or 0) < 15 and before:
-            # Below mode 15, every line of a joined paragraph that begins a joined
-            # paragraph's text is drawn lower by the space before, but what follows moves
-            # down by one fewer of them (R.4: ``make_revision_probe.py``, chains of breaks).
-            starts = len(join_starts(item, pieces, broken))
-            after += max(0, starts - 1) * before
         if item.note == "separator" and (document.compatibility_mode or 0) >= 15:
             # The endnotes' separator keeps no space before in mode 15; below it, it
             # does (``make_endnote_probe.py``, ``separators``: 120 twips, 25 px).

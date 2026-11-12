@@ -2883,25 +2883,6 @@ class _Placer:
 
     # -- one line ---------------------------------------------------------------------------
 
-    def _join_drop(self, info: _Paragraph, number: int) -> int:
-        """How much lower than laid out Word draws line ``number`` of a paragraph that
-        paragraphs whose marks are deleted were joined into (:attr:`Paragraph.joins`).
-
-        Below mode 15 Word's final view draws a line that begins one of the joined
-        paragraphs' text -- a line other than the first, the join falling at its start --
-        lower by the joined paragraph's space before, and every later line of the paragraph
-        with it, cumulatively; what follows the paragraph moves down by one fewer of them
-        (:func:`paginate.join_starts`), so its last line overlaps it.  In mode 15, and
-        with every revision accepted, nothing is drawn lower (ROADMAP.md, "Revisions --
-        measured", R.4)."""
-        if number == 0 or (self.document.compatibility_mode or 0) >= 15:
-            return 0
-        before = info.resolved.get("spacing.before", 0) or 0
-        if not before or not info.paragraph.joins:
-            return 0
-        count = sum(1 for m in paginate.join_starts(info.paragraph, info.pieces, info.lines) if m <= number)
-        return count * round_half_up(twips_to_px(before))
-
     def _line(self, page: Page, info: _Paragraph, item: paginate.Para | None, number: int, top: Fraction,
               height, baseline: int, band: tuple[int, int], *, left: Fraction | int | None = None) -> None:
         document = self.document
@@ -2917,9 +2898,6 @@ class _Placer:
                              "a distributed paragraph's last line is spread evenly between its glyphs; Word "
                              "spreads it by a rule not measured")
         column_left = page.column[0] if left is None else left
-        drop = self._join_drop(info, number)
-        if drop:
-            top, baseline, band = top + drop, baseline + drop, (band[0] + drop, band[1] + drop)
         line = Line(f"{paragraph.path}", number, baseline, top, height.pitch, paragraph_id=paragraph.para_id,
                     band=band)
         page.lines.append(line)
