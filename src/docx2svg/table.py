@@ -1208,6 +1208,34 @@ class TableFlow:
     nested_floating: "Floating | None" = None
 
 
+def rebased(flow: TableFlow, delta: int) -> TableFlow:
+    """``flow`` -- a table's, measured where its first paragraph was block ``b`` -- for the
+    same table at block ``b + delta`` (a block inserted or deleted before it, round 57):
+    every paragraph's :attr:`CellParagraph.block` moved by ``delta``, nested tables' too,
+    each cell's stack pointing at the moved paragraphs.  What it measured is shared."""
+    from dataclasses import replace
+
+    moved: dict[int, CellParagraph] = {}
+
+    def paragraph(old: CellParagraph) -> CellParagraph:
+        new = moved.get(id(old))
+        if new is None:
+            new = moved[id(old)] = replace(old, block=old.block + delta,
+                                           table=rebased(old.table, delta) if old.table is not None else None)
+        return new
+
+    rows = []
+    for row in flow.rows:
+        cells = []
+        for cell in row.cells:
+            paragraphs = [paragraph(p) for p in cell.paragraphs]
+            stack = [replace(line, paragraph=paragraph(line.paragraph)) if isinstance(line, StackedLine) else line
+                     for line in cell.stack]
+            cells.append(replace(cell, paragraphs=paragraphs, stack=stack))
+        rows.append(replace(row, cells=cells))
+    return replace(flow, rows=rows, overflowed=set())
+
+
 class Unsupported(Exception):
     """A table the model does not lay out yet; ``args[0]`` says why."""
 

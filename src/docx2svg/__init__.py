@@ -357,12 +357,25 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
     cause = plan.cause if plan is not None else None
     again = relayout.Again(plan, previous) if plan is not None and plan.reason is None else None
 
+    # Round 57 (lane R): the body's lines the previous layout drew, where its measurements
+    # are this one's (:meth:`docx2svg.layout._Placer._body_line`), and kept for the next.
+    line_cache = getattr(plan.state, "lines", None) if measured is not None and plan is not None \
+        and plan.state is not None else None
+    # And its headers and footers, where every part but the body is the same.
+    story_source = getattr(plan.state, "stories", None) if line_cache is not None and plan is not None \
+        and plan.state is not None and plan.state.parts == plan.parts else None
+
     def placer_for(memo):
         placer = _Placer(document, data, advances, metrics, decorations)
         if keep or plan is not None:
             placer.memo = relayout.Measures(memo)
             placer.segments = segments
             placer.digests = relayout.body_digests(segments)
+            if keep:
+                placer.line_cache = line_cache
+                placer.lines_drawn = {}
+                placer.story_source = story_source
+                placer.stories_drawn = {}
         return placer
 
     from . import layout as layout_module
@@ -406,6 +419,8 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
         state.blocks = kept
         state.parsed = parsed
         state.known_segments = known
+        state.lines = relayout.kept_lines(placer)
+        state.stories = relayout.kept_stories(placer, len(layout.pages))
         layout.state = state
         if measures is not None:
             measures.put(lineage, state.memo)

@@ -66,6 +66,7 @@ import os
 import re
 import threading
 import zipfile
+from fractions import Fraction
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
 
@@ -400,7 +401,9 @@ class Measures:
                     if isinstance(before, Paragraph) else None)
         from .layout import _all_paragraphs
 
-        return ("t", base, table.path, section, block, _texts(_all_paragraphs([table])),
+        # Not by its block number: a table that only moved (a block inserted or deleted before
+        # it) is taken with its paragraphs' block numbers moved (round 57, lane R).
+        return ("t", base, table.path, section, _texts(_all_paragraphs([table])),
                 tuple(labels.get(k) for k in range(block, block + count)),
                 tuple(features[k] if features and k < len(features) else None for k in range(block, block + count)),
                 previous)
@@ -570,6 +573,12 @@ class State:
     parsed: object = field(default=None, compare=False, repr=False)
     #: And the body's segments by their element's bytes (:func:`segments`' ``known``).
     known_segments: dict | None = field(default=None, compare=False, repr=False)
+    #: And (round 57, lane R) the body's lines drawn, by what they are drawn from
+    #: (:meth:`docx2svg.layout._Placer._body_line`): taken by the next layout made with
+    #: these measurements rather than drawn again.
+    lines: dict | None = field(default=None, compare=False, repr=False)
+    #: And its headers and footers drawn (:meth:`docx2svg.layout._Placer._draw_story`).
+    stories: dict | None = field(default=None, compare=False, repr=False)
 
     def __getstate__(self) -> dict:
         return {k: v for k, v in self.__dict__.items() if k not in _LOCAL}
@@ -580,7 +589,49 @@ class State:
 
 
 #: What a :class:`State` keeps in its process only.
-_LOCAL = ("blocks", "parsed", "known_segments")
+_LOCAL = ("blocks", "parsed", "known_segments", "lines", "stories")
+
+
+def kept_lines(placer) -> dict | None:
+    """The lines a layout keeps for the next (:attr:`State.lines`): those it drew or took,
+    and those of the previous layout's still measured by this one -- on the pages it kept."""
+    drawn = placer.lines_drawn
+    if drawn is None:
+        return None
+    previous = placer.line_cache
+    if not previous:
+        return drawn
+    kept = placer.memo.kept
+    # A cell's lines are kept by their paragraph's pieces (:meth:`_Placer._cell_line`): those
+    # of the tables still measured.
+    pieces: set = set()
+
+    def walk(flow) -> None:
+        for row in flow.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    pieces.add(id(paragraph.pieces))
+                    if paragraph.table is not None:
+                        walk(paragraph.table)
+
+    for key, value in kept.items():
+        if key[0] == "t":
+            walk(value[0])
+    out = {key: value for key, value in previous.items()
+           if (key[0][1] in pieces if key[0][0] == "cell" else key[0] in kept)}
+    out.update(drawn)
+    return out
+
+
+def kept_stories(placer, pages: int) -> dict | None:
+    """The headers and footers a layout keeps for the next (:attr:`State.lines`): those it
+    drew or took, and the previous layout's -- on the pages it kept -- unless they grew past
+    a few per page (each page count an edit made leaves its own)."""
+    drawn = placer.stories_drawn
+    if drawn is None:
+        return None
+    out = {**(placer.story_source or {}), **drawn}
+    return out if len(out) <= 4 * pages + 64 else dict(drawn)
 
 
 def options_key(options) -> tuple | None:
@@ -905,6 +956,46 @@ def renumbering(old: list[Segment], new: list[Segment], old_element: str | None,
 
 _STEP = re.compile(r"w:body/w:([A-Za-z]+)\[(\d+)\]")
 
+#: Values that hold no path, skipped without a call (round 57, lane R: a page's spans hold
+#: a string per character and a number per glyph -- most of what a walk of its pages met).
+_LEAVES = frozenset({int, float, bool, bytes, type(None), Fraction, frozenset, set})
+#: Per dataclass type, its fields' names; per other type, ``None``.
+_SHAPES: dict = {}
+
+
+def _path_fields() -> dict:
+    from .layout import Line, Rule, Span
+
+    # What else they hold is text, numbers, colours, faces and paint: never a body path.
+    return {Span: ("path",), Rule: ("path",), Line: ("path", "spans")}
+
+
+class _Paths(dict):
+    def get(self, key, default=None):
+        if not self:
+            self.update(_path_fields())
+        return dict.get(self, key, default)
+
+
+#: The page's most numerous objects, by the fields that may hold a body path (round 57).
+_PATHS = _Paths()
+
+
+def _shape(kind: type):
+    found = _SHAPES.get(kind, False)
+    if found is False:
+        found = _SHAPES[kind] = (tuple(item.name for item in dataclasses.fields(kind))
+                                 if dataclasses.is_dataclass(kind) else None)
+    return found
+
+
+def _step(match: re.Match, moves: dict) -> str:
+    name, index = match.group(1), int(match.group(2))
+    move = moves.get(name)
+    if move is None or index < move[0]:
+        return match.group(0)
+    return f"w:body/w:{name}[{index + move[1]}]"
+
 
 def renumbered(value, moves: dict, seen: dict | None = None):
     """``value`` -- a page, or anything a page holds -- with every body path's top-level
@@ -913,41 +1004,26 @@ def renumbered(value, moves: dict, seen: dict | None = None):
     nothing did."""
     if not moves:
         return value
-    seen = {} if seen is None else seen
+    return _renumbered(value, moves, {} if seen is None else seen)
+
+
+def _renumbered(value, moves: dict, seen: dict):
+    kind = type(value)
+    if kind in _LEAVES:
+        return value
+    if kind is str:
+        return _STEP.sub(lambda match: _step(match, moves), value) if "w:body/" in value else value
     key = id(value)
-    out: object
     if key in seen:
         return seen[key]
-
-    def step(match: re.Match) -> str:
-        name, index = match.group(1), int(match.group(2))
-        move = moves.get(name)
-        if move is None or index < move[0]:
-            return match.group(0)
-        return f"w:body/w:{name}[{index + move[1]}]"
-
-    if isinstance(value, str):
-        out = _STEP.sub(step, value) if "w:body/" in value else value
-    elif isinstance(value, list):
-        items = [renumbered(item, moves, seen) for item in value]
-        out = items if any(a is not b for a, b in zip(items, value)) else value
-    elif isinstance(value, tuple):
-        members = tuple(renumbered(item, moves, seen) for item in value)
-        out = members if any(a is not b for a, b in zip(members, value)) else value
-    elif isinstance(value, dict):
-        pairs = {renumbered(k, moves, seen): renumbered(v, moves, seen) for k, v in value.items()}
-        out = pairs if any(a is not b or pairs[a] is not value[b] for a, b in zip(pairs, value)) else value
-    elif dataclasses.is_dataclass(value) and not isinstance(value, type):
+    out: object
+    paths = _PATHS.get(kind)
+    if paths is not None:
+        # A span, a rule: only its path names a body element; a line's spans hold the rest.
         changes = {}
-        for item in dataclasses.fields(value):
-            current = getattr(value, item.name)
-            moved = renumbered(current, moves, seen)
-            if moved is not current:
-                changes[item.name] = moved
-        extra = {k: v for k, v in vars(value).items() if k not in {f.name for f in dataclasses.fields(value)}} \
-            if hasattr(value, "__dict__") else {}
-        for name, current in extra.items():
-            moved = renumbered(current, moves, seen)
+        for name in paths:
+            current = getattr(value, name)
+            moved = _renumbered(current, moves, seen)
             if moved is not current:
                 changes[name] = moved
         if changes:
@@ -955,11 +1031,61 @@ def renumbered(value, moves: dict, seen: dict | None = None):
 
             out = copy.copy(value)
             for name, moved in changes.items():
-                object.__setattr__(out, name, moved)
+                setattr(out, name, moved)
         else:
             out = value
+    elif kind is list or kind is tuple:
+        changed = False
+        members = []
+        for item in value:
+            sort = type(item)
+            if sort in _LEAVES or (sort is str and "w:body/" not in item):
+                members.append(item)
+                continue
+            moved = _renumbered(item, moves, seen)
+            changed = changed or moved is not item
+            members.append(moved)
+        out = (members if kind is list else tuple(members)) if changed else value
+    elif kind is dict:
+        pairs = {_renumbered(k, moves, seen): _renumbered(v, moves, seen) for k, v in value.items()}
+        out = pairs if any(a is not b or pairs[a] is not value[b] for a, b in zip(pairs, value)) else value
+    elif isinstance(value, list):
+        items = [_renumbered(item, moves, seen) for item in value]
+        out = items if any(a is not b for a, b in zip(items, value)) else value
+    elif isinstance(value, tuple):
+        members_ = tuple(_renumbered(item, moves, seen) for item in value)
+        out = members_ if any(a is not b for a, b in zip(members_, value)) else value
+    elif isinstance(value, dict):
+        pairs = {_renumbered(k, moves, seen): _renumbered(v, moves, seen) for k, v in value.items()}
+        out = pairs if any(a is not b or pairs[a] is not value[b] for a, b in zip(pairs, value)) else value
+    elif isinstance(value, str):
+        out = _STEP.sub(lambda match: _step(match, moves), value) if "w:body/" in value else value
     else:
-        out = value
+        names = _shape(kind)
+        if names is None:
+            out = value
+        else:
+            changes = {}
+            for name in names:
+                current = getattr(value, name)
+                moved = _renumbered(current, moves, seen)
+                if moved is not current:
+                    changes[name] = moved
+            if hasattr(value, "__dict__"):
+                for name, current in vars(value).items():
+                    if name in names:
+                        continue
+                    moved = _renumbered(current, moves, seen)
+                    if moved is not current:
+                        changes[name] = moved
+            if changes:
+                import copy
+
+                out = copy.copy(value)
+                for name, moved in changes.items():
+                    object.__setattr__(out, name, moved)
+            else:
+                out = value
     seen[key] = out
     return out
 

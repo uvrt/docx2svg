@@ -694,6 +694,9 @@ class _Paragraph:
     lines: list
     geometry: linebreak.Geometry
     label: str | None
+    #: What its lines are drawn from (:meth:`docx2svg.relayout.Measures.paragraph_key`), for
+    #: :attr:`_Placer.line_cache`; ``None`` where they are not kept (round 57, lane R).
+    key: object = None
 
 
 def _color(value) -> str | None:
@@ -726,6 +729,30 @@ def _marks(page: Page, log: list) -> tuple:
     page kept from a previous layout whose number or page count changed)."""
     return (len(page.lines), len(page.rules), len(page.pictures), len(page.floats), len(page.boxes), len(log),
             None if page.defs is None else (len(page.defs.defs), page.defs._next_id))
+
+
+def _line_moved(line: Line, path: str, paragraph, baseline: int, top: Fraction, band) -> Line:
+    """``line`` -- drawn for the paragraph at ``path`` -- drawn again for ``paragraph`` with
+    its baseline at ``baseline``, its pitch from ``top`` and its text in ``band``
+    (:meth:`_Placer._body_line`): each glyph's baseline is the line's less what moves it
+    (a script, ``w:position``), so the glyphs move by as much as the baseline."""
+    import copy
+
+    dy = baseline - line.baseline
+    new_path = paragraph.path
+    spans = []
+    for span in line.spans:
+        moved = copy.copy(span)
+        moved.y = span.y + dy
+        moved.line_baseline = baseline
+        if new_path != path and span.path.startswith(path):
+            moved.path = new_path + span.path[len(path):]
+        spans.append(moved)
+    again = copy.copy(line)
+    again.path = new_path if new_path != path else line.path
+    again.baseline, again.top, again.band, again.spans = baseline, top, band, spans
+    again.paragraph_id = paragraph.para_id
+    return again
 
 
 class _Lazy(dict):
@@ -786,6 +813,16 @@ class _Placer:
         self.memo = None
         #: Per pagination iteration placed: :meth:`place_pages`.
         self.placed: list = []
+        #: Round 57 (lane R): the body's lines a previous layout of the same measurements
+        #: drew (:attr:`docx2svg.relayout.State.lines`), and those this one drew or took --
+        #: ``(paragraph key, line number, column's left edge) -> (line, paragraph path)``;
+        #: ``None``: none kept (:meth:`_body_line`).
+        self.line_cache: dict | None = None
+        self.lines_drawn: dict | None = None
+        #: And the headers and footers drawn: ``(story key, kind, column, page size) ->
+        #: (lines, rules)`` (:meth:`_draw_story`), of a previous layout and of this one.
+        self.story_source: dict | None = None
+        self.stories_drawn: dict | None = None
         #: The body's elements' digests by element key (:func:`docx2svg.relayout.body_digests`),
         #: what :attr:`memo` keys the flow's blocks by; and the elements
         #: (:func:`docx2svg.relayout.segments`).
@@ -1192,8 +1229,16 @@ class _Placer:
         items = self.items
         if result.stopped is not None and section >= items[result.stopped].section:
             return None
-        pages = {page for index, found in result.pages.items() if items[index].section == section for page in found}
-        return len(pages)
+        # Asked for on every page a footer shows it on: counted once per pagination (round 57).
+        held = self.__dict__.get("_section_counts")
+        if held is None or held[0] is not result or held[1] is not items:
+            held = self.__dict__["_section_counts"] = (result, items, {})
+        counts = held[2]
+        if section not in counts:
+            pages = {page for index, found in result.pages.items() if items[index].section == section
+                     for page in found}
+            counts[section] = len(pages)
+        return counts[section]
 
     def _body_field_values(self, items, result) -> dict:
         """``(block, run) -> text`` for every computed field of the body, on the page its
@@ -1497,6 +1542,23 @@ class _Placer:
         substituted = substitute_blocks(blocks, text_of)
         cache = self.__dict__.setdefault("story_cache", {})
         key = (relationship, info.section, tuple(sorted(texts.items())))
+        # Round 57 (lane R): the story drawn on a page of the same geometry with the same
+        # texts -- on another page, or by the layout this one is made from -- taken again.
+        drawn = self.stories_drawn
+        log = self.layout.log
+        whole = (key, kind, page.column, page.width_px, page.height_px) if drawn is not None and log is not None \
+            else None
+        if whole is not None:
+            found = drawn.get(whole)
+            if found is None and self.story_source is not None:
+                found = self.story_source.get(whole)
+            if found is not None:
+                import copy
+
+                drawn[whole] = found
+                page.lines.extend(copy.copy(line) for line in found[0])
+                page.rules.extend(copy.copy(rule) for rule in found[1])
+                return
         if key not in cache:
             # A floating drawing text does not wrap around is drawn with the story, from
             # where it is anchored (ROADMAP.md, "Floating drawings -- measured", F.6).
@@ -1523,6 +1585,8 @@ class _Placer:
         else:
             y0 = twips_to_px(section.page_size.height_twips - section.margins.footer) - height
         lines, pictures, floats, boxes = len(page.lines), len(page.pictures), len(page.floats), len(page.boxes)
+        marks = (len(page.rules), len(log) if log is not None else None, page.defs is None,
+                 self.__dict__.get("_float_count", [0])[0])
         placer._walk(page, items, details, paginate.Position(0), paginate.Position(len(items)), y0,
                      bottom=Fraction(10 ** 7))
         for box in page.boxes[boxes:]:
@@ -1535,6 +1599,11 @@ class _Placer:
             placed.story, placed.part = kind, part
             for line in placed.lines:
                 line.story, line.part = kind, part
+        if whole is not None and obstacle is None and (len(page.pictures), len(page.floats), len(page.boxes)) == (
+                pictures, floats, boxes) and (len(log), page.defs is None,
+                                              self.__dict__.get("_float_count", [0])[0]) == marks[1:]:
+            # Only lines and rules, and no warning: what the page's number does not change.
+            drawn[whole] = (tuple(page.lines[lines:]), tuple(page.rules[marks[0]:]))
 
     def _notes(self, items) -> None:
         for section in self.document.sections:
@@ -1819,11 +1888,15 @@ class _Placer:
                     drawn and after is not None and vertical.border_box(after) == box)
             section = document.sections[item.section]
             pp = resolve_paragraph(document, paragraph)
+            key = memo.paragraph_key(paragraph, item.section, labels.get(item.block)) if memo is not None else None
+            # What its lines are drawn from, for :meth:`_body_line` (round 57).
+            drawn_by = (key if memo is not None else self.memo.paragraph_key(paragraph, item.section,
+                                                                              labels.get(item.block))) \
+                if self.lines_drawn is not None and self.memo is not None else None
             if item.source is not None and lazy:
                 # Beside a drawing text wraps around, the lines as the paginator placed them.
                 return _Paragraph(paragraph, pp, item.source.pieces, list(item.lines), item.source.geometry,
-                                  labels.get(item.block))
-            key = memo.paragraph_key(paragraph, item.section, labels.get(item.block)) if memo is not None else None
+                                  labels.get(item.block), drawn_by)
             measured = memo.get(key) if key is not None else None
             if measured is not None:
                 pieces, lines = measured[0], list(measured[1])
@@ -1831,11 +1904,11 @@ class _Placer:
                 pieces, lines = linebreak.break_paragraph(document, paragraph, section, self.advances, self.metrics,
                                                           labels.get(item.block))
             found = _Paragraph(paragraph, pp, pieces, lines, linebreak.geometry(document, paragraph, section, pp),
-                               labels.get(item.block))
+                               labels.get(item.block), drawn_by)
             if item.source is not None:
                 # Beside a drawing text wraps around, the lines as the paginator placed them.
                 found = _Paragraph(paragraph, pp, item.source.pieces, list(item.lines), item.source.geometry,
-                                   labels.get(item.block))
+                                   labels.get(item.block), drawn_by)
             return found
 
         if lazy:
@@ -2164,7 +2237,7 @@ class _Placer:
                     box_top = y if box_top is None else box_top
                 elif number_ not in item.undrawn:
                     assert info is not None  # a paragraph laid out (not a placeholder) has its details
-                    self._line(page, info, item, number_, y, height, baseline, band)
+                    self._body_line(page, info, item, number_, y, height, baseline, band)
                 y += height.pitch
                 first_on_page = False
             if placeholder is not None and box_top is not None:
@@ -2593,10 +2666,8 @@ class _Placer:
                     # A line that starts below the page's edge (a row that may not split,
                     # taller than the page, below mode 15) is not drawn.
                     if placed.number not in paragraph.undrawn and top < page.height_px:
-                        info = _Paragraph(paragraph.paragraph, paragraph.resolved, paragraph.pieces, paragraph.lines,
-                                          paragraph.geometry, paragraph.label)
-                        self._line(page, info, None, placed.number, top, height, baseline, band,
-                                   left=cell.box.text_left)
+                        self._cell_line(page, paragraph, placed.number, top, height, baseline, band,
+                                        cell.box.text_left)
                     if paragraph.anchors:
                         self._cell_anchors(page, item, flow, piece, cell, paragraph, placed.number, top, height,
                                            paragraph_top, content_top, offset)
@@ -2882,6 +2953,76 @@ class _Placer:
                 page.rules.append(rule)
 
     # -- one line ---------------------------------------------------------------------------
+
+    def _body_line(self, page: Page, info: _Paragraph, item: paginate.Para, number: int, top: Fraction, height,
+                   baseline: int, band: tuple[int, int]) -> None:
+        """:meth:`_line` for a line of the body's flow -- or the same line a layout drew before,
+        moved (round 57, lane R).  A line is what its paragraph's measurements (its
+        :attr:`_Paragraph.key`: its bytes, section, label and text), its number and its
+        column's left edge make of it, with where it starts and ends in its pieces, wherever
+        its pitch starts: drawn once, it is taken again -- its glyphs moved down by as much as
+        its baseline moved, its paths those of the paragraph it is now -- unless it is broken
+        beside a drawing text wraps around (in segments) or in a section of several columns,
+        or its paragraph anchors floating drawings.  Only a line whose drawing added nothing
+        to the page but itself, and warned of nothing, is taken again (an underline's rule,
+        an inline picture, a warning are drawn each time)."""
+        drawn = self.lines_drawn
+        key = info.key if drawn is not None else None
+        log = self.layout.log
+        if key is None or log is None or item.anchors or getattr(self, "_column_box", None) is not None:
+            self._line(page, info, item, number, top, height, baseline, band)
+            return
+        line = info.lines[number]
+        if type(line) is not linebreak.Line:
+            # A line broken beside a drawing, or for another column: drawn.
+            self._line(page, info, item, number, top, height, baseline, band)
+            return
+        # The line as broken -- its pieces and how it ended -- and whether it is the last:
+        # all a paragraph's measurements set of it (its lines may be the paginator's).
+        whole = (key, number, page.column[0], line.start, line.end, line.forced, line.emergency, line.hyphenated,
+                 number == len(info.lines) - 1)
+        found = drawn.get(whole)
+        if found is None and self.line_cache is not None:
+            found = self.line_cache.get(whole)
+        if found is not None:
+            drawn[whole] = found
+            page.lines.append(_line_moved(found[0], found[1], info.paragraph, baseline, top, band))
+            return
+        marks = (len(page.lines), len(page.rules), len(page.pictures), len(page.floats), len(page.boxes), len(log),
+                 page.defs is None, self.__dict__.get("_float_count", [0])[0])
+        self._line(page, info, item, number, top, height, baseline, band)
+        if (len(page.lines) - 1, len(page.rules), len(page.pictures), len(page.floats), len(page.boxes), len(log),
+                page.defs is None, self.__dict__.get("_float_count", [0])[0]) == marks:
+            drawn[whole] = (page.lines[-1], info.paragraph.path)
+
+    def _cell_line(self, page: Page, paragraph, number: int, top: Fraction, height, baseline: int,
+                   band: tuple[int, int], left) -> None:
+        """:meth:`_line` for a line of a cell's paragraph (``paragraph``, a
+        :class:`docx2svg.table.CellParagraph`) -- or the same line a layout drew before, moved,
+        as :meth:`_body_line` takes a body's: by the paragraph's measured pieces and lines (the
+        very objects: a table's flow taken from :attr:`memo` holds the ones it was measured
+        with), its line number and the cell's text start."""
+        info = _Paragraph(paragraph.paragraph, paragraph.resolved, paragraph.pieces, paragraph.lines,
+                          paragraph.geometry, paragraph.label)
+        drawn = self.lines_drawn
+        log = self.layout.log
+        if drawn is None or log is None or getattr(self, "_column_box", None) is not None:
+            self._line(page, info, None, number, top, height, baseline, band, left=left)
+            return
+        whole = (("cell", id(paragraph.pieces)), number, left)
+        found = drawn.get(whole)
+        if found is None and self.line_cache is not None:
+            found = self.line_cache.get(whole)
+        if found is not None and found[2] is paragraph.pieces and found[3] is paragraph.lines:
+            drawn[whole] = found
+            page.lines.append(_line_moved(found[0], found[1], paragraph.paragraph, baseline, top, band))
+            return
+        marks = (len(page.lines), len(page.rules), len(page.pictures), len(page.floats), len(page.boxes), len(log),
+                 page.defs is None, self.__dict__.get("_float_count", [0])[0])
+        self._line(page, info, None, number, top, height, baseline, band, left=left)
+        if (len(page.lines) - 1, len(page.rules), len(page.pictures), len(page.floats), len(page.boxes), len(log),
+                page.defs is None, self.__dict__.get("_float_count", [0])[0]) == marks:
+            drawn[whole] = (page.lines[-1], paragraph.paragraph.path, paragraph.pieces, paragraph.lines)
 
     def _line(self, page: Page, info: _Paragraph, item: paginate.Para | None, number: int, top: Fraction,
               height, baseline: int, band: tuple[int, int], *, left: Fraction | int | None = None) -> None:
