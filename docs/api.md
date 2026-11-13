@@ -145,6 +145,18 @@ result.page_numbers    # [2, 3]: the page each SVG is of
   parse as it was made, before the layout set its locale -- and `parse_package(data)`
   otherwise: a caller reading the model of the version it laid out does not parse it again.
   The document handed over is shared with the layout, and nothing may change it.
+
+  **What did not change, taken again** (round 57). In the same process only (a pickle leaves
+  them out; a layout from an unpickled `previous` draws them again, the same), a layout that
+  keeps its state also keeps the body's lines it drew, its headers' and footers' drawings,
+  where the body's elements are in the main part's bytes and what `scope.paragraph_features`
+  found in each. The next layout from it takes a line of a paragraph or cell whose
+  measurements are the same -- the same pieces and line breaks, the same column -- moved to
+  where its pitch starts now, rather than drawing it; a header or footer with the same texts
+  (its page number, the page count) on a page of the same size; and scans and reads only the
+  body elements between the first and last bytes that differ. A table that only moved (a
+  block inserted or deleted before it) keeps its measurements, its paragraphs' block
+  numbers moved with it. The layout is the same, page for page, byte for byte in every SVG.
 - <a id="warm"></a>**A worker's one-time work, done at its start**: a process's first
   layout pays for what later ones reuse -- the modules, the font folders' index (which
   faces each installed file holds), and each face it uses read from its file.
