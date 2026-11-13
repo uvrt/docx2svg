@@ -5,6 +5,19 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.14 -- unreleased
+
+- **An empty cell merged away with tracking on is drawn merged** (round 54 follow-up, lane
+  K). docx-agent 0.1.100 writes a tracked merge as `w:cellDel` cells with their content and
+  marks kept; Word's Accept All gives such a cell to the cell before it, and removes it
+  only when its content and its own paragraph marks are all deleted (measured by lane M,
+  Word 16.106 for Mac). The final view counted only text as kept, so an empty cell merged
+  away was drawn removed, the row's later cells a column left (472 px off Word's Accept
+  All). A paragraph mark not deleted now counts as kept, the same rule as docx-agent's
+  accept: `m-empty` and a cell whose text alone is deleted are exact (0 px, every rule
+  pixel); the other merges and the revision probe (79 / 79) are unchanged. ROADMAP.md,
+  stage 7f.
+
 ## 0.11.13 -- unreleased
 
 - **Deleted paragraph marks at a table's edge are drawn as Accept All leaves them** (round

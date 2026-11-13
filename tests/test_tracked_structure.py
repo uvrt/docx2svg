@@ -43,13 +43,14 @@ def _cell(text: str, width: int = 2268, extra: str = "", deleted: bool = False) 
     return f"<w:tc><w:tcPr>{props}</w:tcPr><w:p>{run}</w:p></w:tc>"
 
 
-def _docx(rows: list[str], grid: tuple, width: str = '<w:tblW w:w="0" w:type="auto"/>', layout: str = "") -> bytes:
+def _docx(rows: list[str], grid: tuple, width: str = '<w:tblW w:w="0" w:type="auto"/>', layout: str = "",
+          before: str = "") -> bytes:
     columns = "".join(f'<w:gridCol w:w="{w}"/>' for w in grid)
     body = "".join(f"<w:tr>{row}</w:tr>" for row in rows)
     borders = ('<w:tblBorders>' + "".join(f'<w:{side} w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
                                           for side in ("top", "left", "bottom", "right", "insideH", "insideV"))
                + "</w:tblBorders>")
-    return probe_docx.package(f"<w:tbl><w:tblPr>{width}{layout}{borders}</w:tblPr><w:tblGrid>{columns}</w:tblGrid>"
+    return probe_docx.package(f"{before}<w:tbl><w:tblPr>{width}{layout}{borders}</w:tblPr><w:tblGrid>{columns}</w:tblGrid>"
                               f"{body}</w:tbl><w:p><w:r><w:t>After.</w:t></w:r></w:p>")
 
 
@@ -130,3 +131,82 @@ def test_a_deleted_cell_whose_content_is_kept_widens_the_cell_before():
               '<w:p><w:r><w:t>Harbour</w:t></w:r></w:p><w:p><w:r><w:t>Ines</w:t></w:r></w:p></w:tc>')
     accepted = ["".join(_cell(t) for t in REPORT[0]), merged + _cell("draft") + _cell("awaits figures")]
     assert _drawn(_docx(rows, (2268,) * 4)) == _drawn(_docx(accepted, (2268,) * 4))
+
+
+def _merged_away(inner: str) -> str:
+    return f'<w:tc><w:tcPr><w:tcW w:w="2268" w:type="dxa"/>{DELETED}</w:tcPr>{inner}</w:tc>'
+
+
+_HARBOUR = '<w:tc><w:tcPr><w:tcW w:w="2268" w:type="dxa"/></w:tcPr><w:p><w:r><w:t>Harbour</w:t></w:r></w:p></w:tc>'
+_MERGED = ('<w:tc><w:tcPr><w:tcW w:w="4536" w:type="dxa"/><w:gridSpan w:val="2"/></w:tcPr>'
+           '<w:p><w:r><w:t>Harbour</w:t></w:r></w:p></w:tc>')
+_DELETED_MARK = f'<w:pPr><w:rPr><w:del w:id="7" {WHO}/></w:rPr></w:pPr>'
+_DELETED_INES = f'<w:del w:id="8" {WHO}><w:r><w:delText>Ines</w:delText></w:r></w:del>'
+
+
+def _merge_row(merged_away: str) -> list[str]:
+    return ["".join(_cell(t) for t in REPORT[0]), _HARBOUR + merged_away + _cell("draft") + _cell("awaits figures"),
+            "".join(_cell(t) for t in REPORT[2])]
+
+
+_ACCEPTED_MERGE = ["".join(_cell(t) for t in REPORT[0]), _MERGED + _cell("draft") + _cell("awaits figures"),
+                   "".join(_cell(t) for t in REPORT[2])]
+
+
+@pytest.mark.parametrize("inner", [
+    "<w:p/>",                                                  # an empty cell merged away (m-empty)
+    f"<w:p>{_DELETED_INES}</w:p>",                             # its text alone deleted (c-textdel)
+    f"<w:p>{_DELETED_MARK}{_DELETED_INES}</w:p><w:p/>",       # one of its marks kept
+])
+def test_a_deleted_cell_with_a_paragraph_mark_kept_widens_the_cell_before(inner):
+    """A paragraph mark not deleted is kept content: Word's Accept All gives the cell to the
+    cell before it, as for kept text (measured, round 54 lane M: ``m-empty``, an empty cell
+    merged away, and ``c-textdel``, its text deleted, each accepted to one cell over two
+    columns, every glyph and rule as Word draws it; before, 472 px off)."""
+    tracked = _docx(_merge_row(_merged_away(inner)), (2268,) * 4)
+    assert _drawn(tracked) == _drawn(_docx(_ACCEPTED_MERGE, (2268,) * 4))
+    table = next(item for item in parse_package(tracked).body if isinstance(item, docx2svg.model.Table))
+    assert table.grid == (2268,) * 4
+    assert table.cell_properties[1][0]["gridSpan"] == 2
+
+
+def test_a_deleted_cell_with_its_text_and_marks_deleted_goes():
+    """Content and every mark of the cell's own deleted: Accept All removes the cell (and the
+    grid column no other row covers). A nested table's marks are its own cells'
+    (docx-agent's rule): its empty paragraphs keep nothing of the outer cell."""
+    nested = ('<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr><w:tblGrid><w:gridCol w:w="1000"/>'
+              '</w:tblGrid><w:tr><w:tc><w:tcPr><w:tcW w:w="1000" w:type="dxa"/></w:tcPr><w:p/></w:tc></w:tr></w:tbl>')
+    for inner in (f"<w:p>{_DELETED_MARK}{_DELETED_INES}</w:p>", f"{nested}<w:p>{_DELETED_MARK}</w:p>"):
+        rows = _merge_row(_merged_away(inner))
+        table = next(item for item in parse_package(_docx(rows, (2268,) * 4)).body
+                     if isinstance(item, docx2svg.model.Table))
+        assert len(table.rows[1]) == 3
+        assert table.cell_properties[1][0].get("gridSpan", 1) in (None, 1)
+
+
+def test_edits_around_an_empty_cell_merged_away_lay_out_as_a_full_layout():
+    from docx2svg import ConvertOptions, lay_out_docx, page_svgs
+
+    filler = "".join(f"<w:p><w:r><w:t>Paragraph {k} of the made-up report, with words enough to wrap once on the "
+                     "page so that every edit moves the lines after it.</w:t></w:r></w:p>" for k in range(12))
+
+    def document(before: str, draft: str, inner: str) -> bytes:
+        rows = ["".join(_cell(t) for t in REPORT[0]),
+                _HARBOUR + _merged_away(inner) + _cell(draft) + _cell("awaits figures"),
+                "".join(_cell(t) for t in REPORT[2])]
+        return _docx(rows, (2268,) * 4, before=filler + f"<w:p><w:r><w:t>{before}</w:t></w:r></w:p>")
+
+    versions = [("Before.", "draft", "<w:p/>"),
+                ("Before, now with more words than fit on one line of the page, so that it wraps once more.",
+                 "draft", "<w:p/>"),
+                ("Before.", "draft, longer now and wrapping within its cell twice or more", "<w:p/>"),
+                ("Before.", "draft", f"<w:p>{_DELETED_MARK}{_DELETED_INES}</w:p>"),
+                ("Before.", "draft", "<w:p/>")]
+    previous = None
+    for version in versions:
+        data = document(*version)
+        layout, data, fonts = lay_out_docx(data, ConvertOptions(), previous=previous)
+        full, full_data, full_fonts = lay_out_docx(data, ConvertOptions(), keep=False)
+        assert page_svgs(layout, data, fonts=fonts) == page_svgs(full, full_data, fonts=full_fonts), version
+        previous = layout
+

@@ -1014,19 +1014,24 @@ _SHOWN = frozenset({"t", "tab", "br", "cr", "drawing", "pict", "object", "sym", 
 
 
 def _content_kept(cell: Element) -> bool:
-    """Whether a deleted cell's content is not deleted too: Word's Accept All then widens
-    the cell before it by its columns and width, its content going with it (measured,
-    round 54: ROADMAP.md, stage 7f); one whose content is deleted is removed."""
-    def shown(node: Element) -> bool:
+    """Whether a deleted cell keeps anything: content not deleted (outside ``w:del`` and
+    ``w:moveFrom``) or a paragraph mark of its own not deleted.  Word's Accept All then
+    widens the cell before it by its columns and width, its content going with it -- an
+    empty cell, or one whose text alone is deleted, too -- and removes only a cell whose
+    content and marks are all deleted (measured, round 54: ROADMAP.md, stage 7f; lane M's
+    ``m-empty`` and ``c-textdel``).  The same rule as docx-agent's accept."""
+    def shown(node: Element, nested: bool) -> bool:
         for item in children(node):
             name = local_name(item.tag)
             if name in ("del", "moveFrom", "tcPr", "pPr", "rPr"):
                 continue                      # deleted content, or properties
-            if (name in _SHOWN and (name != "t" or item.text)) or shown(item):
+            if name == "p" and not nested and not _mark_removed(item):
+                return True                   # a mark of the cell's own, kept
+            if (name in _SHOWN and (name != "t" or item.text)) or shown(item, nested or name == "tbl"):
                 return True
         return False
 
-    return shown(cell)
+    return shown(cell, False)
 
 
 def _absorb(previous: dict, deleted: dict) -> None:
