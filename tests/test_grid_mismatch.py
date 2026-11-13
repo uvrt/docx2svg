@@ -155,8 +155,12 @@ def test_a_row_off_its_grid_never_stops_the_layout(rows, grid, row_properties, l
 def test_a_tracked_merge_is_drawn_accepted(layout):
     """A tracked merge, Word's own form -- the cell merged away kept, with ``w:cellDel`` --
     reaches past the grid only until it is accepted: the final view is the accepted table
-    (round 54, R110), whose row fits its grid, as Word's Accept All leaves it."""
-    deleted = _cell("", extra='<w:cellDel w:id="9" w:author="A" w:date="2026-11-12T09:00:00Z"/>')
+    (round 54, R110), whose row fits its grid, as Word's Accept All leaves it.  Its content
+    and paragraph mark are deleted (a mark kept would give the cell to the one before it:
+    stage 7f, round 54 lane K)."""
+    who = 'w:author="A" w:date="2026-11-12T09:00:00Z"'
+    deleted = (f'<w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/><w:cellDel w:id="9" {who}/></w:tcPr>'
+               f'<w:p><w:pPr><w:rPr><w:del w:id="10" {who}/></w:rPr></w:pPr></w:p></w:tc>')
     tracked = _docx([THREE, _cell("ab", 4000, span=2) + deleted + _cell("c")], layout=layout)
     accepted = _docx([THREE, _cell("ab", 4000, span=2) + _cell("c")], layout=layout)
     options = docx2svg.ConvertOptions()

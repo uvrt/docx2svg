@@ -5624,6 +5624,30 @@ deleted and merged down are now scored against Word's export with every revision
 the grid-mismatch probe's other tables against No Markup as before. (Lane J, round 54, then
 scored the whole revision probe against Accept All: "Revisions -- measured", R.0.)
 
+- **A paragraph mark not deleted is kept content** (round 54 follow-up, lane K; docx2svg
+  0.11.14). docx-agent 0.1.100 writes a tracked merge as `w:cellDel` cells with their
+  content and marks kept. Lane M measured with Word 16.106 for Mac
+  (`agent-work/feedback-round54/probe-M`, exported with every revision accepted and saved
+  accepted): Word's Accept All gives such a cell to the cell before it -- an **empty** cell
+  (`m-empty`: one empty paragraph) and one whose **text alone is deleted** (`c-textdel`)
+  too -- and removes a cell only when its content and its own paragraph marks are all
+  deleted. `parse.document._content_kept` counted text only, so the empty cell merged away
+  was drawn removed. Now a paragraph of the cell's own (not a nested table's) whose mark is
+  not deleted or moved away counts as kept: the same rule as docx-agent's
+  `revisions.review._content_kept`.
+
+  | render's final view vs Word's Accept All (probe-M) | before (0.11.13) | after (0.11.14) |
+  | --- | --- | --- |
+  | `m-empty`: worst glyph dx; rule pixels model only / Word only | 472 px; 124 / 124 | **0 px; 0 / 0** |
+  | `c-textdel` (hand-made variant) | 472 px; 246 / 246 | **0 px; 0 / 0** |
+  | the other ten merges (`m-across` ... `m-spanned`) | 0 px (`m-fixed` 1 px) | the same |
+  | revision probe (79 cases) | 79 / 79, 6,505 glyphs | the same |
+
+  Not drawn as Word: `c-markdel` (hand-made; the merged-away cell's text kept, its mark
+  deleted) -- Word's Accept All gives the cell to the one before it *and* loses the next
+  cell of the row, leaving the row a column short (472 px, as before). docx-agent never
+  writes that form.
+
 ## Headers, footers and fields — measured (Phase 6, Headers and footers and Fields rows)
 
 **Done: headers and footers are drawn, and `PAGE`, `NUMPAGES` and `SECTIONPAGES` are
