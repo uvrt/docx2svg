@@ -801,7 +801,8 @@ class _Placer:
     separator_clip: Fraction | None
     approximated_tables: set[int]
 
-    def __init__(self, document: Document, package: bytes | None, advances, metrics, decorations) -> None:
+    def __init__(self, document: Document, package: bytes | None, advances, metrics, decorations, *,
+                 features: list | None = None) -> None:
         self.document = document
         self.advances = advances
         self.metrics = metrics
@@ -833,7 +834,8 @@ class _Placer:
         self.field_values: dict = {}
         from .scope import paragraph_features
 
-        self.features = paragraph_features(package) if package is not None else None
+        self.features = features if features is not None else \
+            paragraph_features(package) if package is not None else None
         from .chart import Frames
 
         #: Draws charts and SmartArt from the package's parts (:mod:`docx2svg.chart`).
@@ -1233,7 +1235,7 @@ class _Placer:
         held = self.__dict__.get("_section_counts")
         if held is None or held[0] is not result or held[1] is not items:
             held = self.__dict__["_section_counts"] = (result, items, {})
-        counts = held[2]
+        counts: dict = held[2]
         if section not in counts:
             pages = {page for index, found in result.pages.items() if items[index].section == section
                      for page in found}
@@ -1548,7 +1550,7 @@ class _Placer:
         log = self.layout.log
         whole = (key, kind, page.column, page.width_px, page.height_px) if drawn is not None and log is not None \
             else None
-        if whole is not None:
+        if drawn is not None and whole is not None:
             found = drawn.get(whole)
             if found is None and self.story_source is not None:
                 found = self.story_source.get(whole)
@@ -1599,9 +1601,9 @@ class _Placer:
             placed.story, placed.part = kind, part
             for line in placed.lines:
                 line.story, line.part = kind, part
-        if whole is not None and obstacle is None and (len(page.pictures), len(page.floats), len(page.boxes)) == (
-                pictures, floats, boxes) and (len(log), page.defs is None,
-                                              self.__dict__.get("_float_count", [0])[0]) == marks[1:]:
+        if drawn is not None and whole is not None and log is not None and obstacle is None and (
+                len(page.pictures), len(page.floats), len(page.boxes)) == (pictures, floats, boxes) and (
+                len(log), page.defs is None, self.__dict__.get("_float_count", [0])[0]) == marks[1:]:
             # Only lines and rules, and no warning: what the page's number does not change.
             drawn[whole] = (tuple(page.lines[lines:]), tuple(page.rules[marks[0]:]))
 
@@ -2967,9 +2969,10 @@ class _Placer:
         to the page but itself, and warned of nothing, is taken again (an underline's rule,
         an inline picture, a warning are drawn each time)."""
         drawn = self.lines_drawn
-        key = info.key if drawn is not None else None
+        key = info.key
         log = self.layout.log
-        if key is None or log is None or item.anchors or getattr(self, "_column_box", None) is not None:
+        if drawn is None or key is None or log is None or item.anchors or \
+                getattr(self, "_column_box", None) is not None:
             self._line(page, info, item, number, top, height, baseline, band)
             return
         line = info.lines[number]

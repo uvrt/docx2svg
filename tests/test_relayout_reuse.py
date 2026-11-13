@@ -207,6 +207,35 @@ def test_renumbering_a_page_is_the_walk_of_all_it_holds(report16):
         fast = relayout.renumbered(page, moves)
         slow = _renumbered_by_walking(page, moves)
         assert fast == slow
-        assert (fast is page) == (slow is page)
+        # Copied only where a path changed (the walk copied wherever a path matched).
+        assert fast is page or slow is not page
     # Nothing to move: the page itself.
     assert relayout.renumbered(layout.pages[0], {}) is layout.pages[0]
+
+
+def test_a_body_scanned_from_the_previous_version_is_the_scan_of_the_whole():
+    from docx2svg.scope import kept_features, paragraph_features
+
+    rng = random.Random(41)
+    blocks = report_docs.report(8, seed=41, toc=True, notes=True, fields=True)
+    data = report_docs.package(blocks)
+    _, main = relayout.part_digests(data)
+    scan = relayout.scan_body(main)
+    segments = relayout.segments(main)
+    features, by = kept_features(data, scan, [s.digest for s in segments], None)
+    assert features == paragraph_features(data)
+    kinds = report_docs.EDIT_KINDS + ("caption-insert", "caption-delete", "toc-insert", "toc-delete")
+    for _ in range(24):
+        blocks, what = report_docs.edit(blocks, rng, kinds=kinds)
+        data = report_docs.package(blocks)
+        _, main = relayout.part_digests(data)
+        again = relayout.scan_body(main, scan)
+        assert again is not None and again.spans == relayout.scan_body(main).spans, what
+        scan = again
+        segments = relayout.segments(main)
+        # What the flow leaves out, read from the elements that changed only: all of it.
+        features, by = kept_features(data, scan, [s.digest for s in segments], by)
+        assert features == paragraph_features(data), what
+    # A body the scan cannot read (a comment in it) is not read from the previous one either.
+    commented = main.replace(b"<w:body>", b"<w:body><!-- made up -->", 1)
+    assert relayout.scan_body(commented, scan) is None and relayout.scan_body(commented) is None

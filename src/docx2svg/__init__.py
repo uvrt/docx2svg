@@ -73,7 +73,7 @@ if TYPE_CHECKING:
     from .measure import Advances
     from .vertical import FaceMetrics
 
-__version__ = "0.11.14"
+__version__ = "0.12.0"
 
 __all__ = [
     "Conversion",
@@ -321,13 +321,17 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
 
     parts: dict | None
     known: dict | None
+    scan = None
     if plan is not None:
         parts, main, segments = plan.parts, plan.main, plan.segments
         known = plan.known
+        scan = plan.scan
     elif keep:
         parts, main = relayout.part_digests(data)
         known = {}
-        segments = relayout.segments(main, keep=known) if main is not None else None
+        scanned: list = []
+        segments = relayout.segments(main, keep=known, scanned=scanned) if main is not None else None
+        scan = scanned[0] if scanned else None
     else:
         parts = main = segments = known = None
     # Round 41: the body's blocks the previous layout's parse kept, taken where their bytes
@@ -365,8 +369,18 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
     story_source = getattr(plan.state, "stories", None) if line_cache is not None and plan is not None \
         and plan.state is not None and plan.state.parts == plan.parts else None
 
+    # Round 57 (lane R): what the flow leaves out, read only from the body elements that
+    # changed (:func:`docx2svg.scope.kept_features`).
+    features = features_by = None
+    if keep and scan is not None and segments is not None:
+        from .scope import kept_features
+
+        features, features_by = kept_features(data, scan, [segment.digest for segment in segments],
+                                              getattr(plan.state, "features", None)
+                                              if plan is not None and plan.state is not None else None)
+
     def placer_for(memo):
-        placer = _Placer(document, data, advances, metrics, decorations)
+        placer = _Placer(document, data, advances, metrics, decorations, features=features)
         if keep or plan is not None:
             placer.memo = relayout.Measures(memo)
             placer.segments = segments
@@ -420,6 +434,7 @@ def lay_out_docx(source, options: ConvertOptions | None = None, *, previous=None
         state.parsed = parsed
         state.known_segments = known
         state.lines = relayout.kept_lines(placer)
+        state.scan, state.features = scan, features_by
         state.stories = relayout.kept_stories(placer, len(layout.pages))
         layout.state = state
         if measures is not None:

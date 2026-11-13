@@ -127,7 +127,7 @@ _PART_REASONS = (
 )
 
 #: The version of what :class:`State` keeps; a state of another is not read.
-STATE_FORMAT = 4
+STATE_FORMAT = 5
 
 
 def _digest(data: bytes) -> bytes:
@@ -167,17 +167,24 @@ class Segment:
     measure: bytes = b""
 
 
-def segments(xml: bytes, known: dict | None = None, keep: dict | None = None) -> list[Segment] | None:
+def segments(xml: bytes, known: dict | None = None, keep: dict | None = None, *, previous: "Scan | None" = None,
+             scanned: list | None = None) -> list[Segment] | None:
     """The body's elements of ``word/document.xml``, in order, read from its bytes; ``None``
     where they cannot be read that way (a comment, a processing instruction or CDATA in
     the body, or a tag the scan does not parse).
 
     ``known`` (round 41): segments read before, by their element's bytes (what a segment is
     read from alone: its name is its first tag's), taken for the same bytes rather than
-    digested again; ``keep`` gets this body's, by their bytes (the next version's ``known``)."""
-    found = elements(xml)
-    if found is None:
+    digested again; ``keep`` gets this body's, by their bytes (the next version's ``known``).
+    ``previous`` (round 57): the :class:`Scan` of an earlier version of the part, whose
+    elements are taken where its bytes are the same (:func:`scan_body`); ``scanned`` gets
+    this one's."""
+    scan = scan_body(xml, previous)
+    if scan is None:
         return None
+    if scanned is not None:
+        scanned.append(scan)
+    found = [(name, xml[start:end]) for name, start, end in scan.spans]
     if known is None and keep is None:
         return [_segment(name, data) for name, data in found]
     out = []
@@ -194,6 +201,26 @@ def segments(xml: bytes, known: dict | None = None, keep: dict | None = None) ->
 def elements(xml: bytes) -> list[tuple[str, bytes]] | None:
     """The body's elements of ``word/document.xml`` as ``(local name, bytes)``, in order
     (:func:`segments`)."""
+    scan = scan_body(xml)
+    return None if scan is None else [(name, xml[start:end]) for name, start, end in scan.spans]
+
+
+@dataclass
+class Scan:
+    """Where the body's elements are in the bytes of ``word/document.xml`` (:func:`scan_body`):
+    ``(local name, start, end)`` of each, in order, and where the body's content starts."""
+
+    xml: bytes
+    spans: list
+    body: int
+
+
+def scan_body(xml: bytes, previous: Scan | None = None) -> Scan | None:
+    """The body's elements of ``xml`` (:class:`Scan`); ``None`` where they cannot be read
+    from its bytes.  With ``previous`` (an earlier version's, round 57), the elements before
+    the first whose bytes differ and after the last are taken from it -- at the same place,
+    and moved by as many bytes as the part grew -- and only those between are scanned: an
+    edit's, the same elements as a scan of the whole body finds."""
     found = _BODY.search(xml)
     if found is None:
         return None
@@ -201,16 +228,95 @@ def elements(xml: bytes) -> list[tuple[str, bytes]] | None:
     end = xml.rfind(b"</", start)
     if end < 0:
         return None
-    body = xml[start:end]
-    if b"<!--" in body or b"<?" in body or b"<![CDATA[" in body:
+    if xml.find(b"<!--", start, end) >= 0 or xml.find(b"<?", start, end) >= 0 or \
+            xml.find(b"<![CDATA[", start, end) >= 0:
         return None
-    out: list[tuple[str, bytes]] = []
+    if previous is not None and previous.body == start and xml[:start] == previous.xml[:start]:
+        spans = _rescanned(xml, start, end, previous)
+        if spans is not None:
+            return Scan(xml, spans, start)
+    scanned = _scan(xml, start, end)
+    if scanned is None or scanned[1] not in (0, -1):
+        return None
+    return Scan(xml, scanned[0], start)
+
+
+def _rescanned(xml: bytes, start: int, end: int, previous: Scan) -> list | None:
+    import bisect
+
+    old, spans = previous.xml, previous.spans
+    same = _common_prefix(xml, old)
+    # The elements that end before the first byte that differs: the same, at the same place.
+    k = bisect.bisect_right([b for _, _, b in spans], same)
+    head_end = spans[k - 1][2] if k else start
+    delta = len(xml) - len(old)
+    # And those that start after the last: the same, moved by ``delta``.
+    after = len(old) - _common_suffix(xml, old, min(len(xml), len(old)) - head_end)
+    j = max(bisect.bisect_left([a for _, a, _ in spans], after), k)
+    tail = [(name, a + delta, b + delta) for name, a, b in spans[j:]]
+    middle_end = tail[0][1] if tail else end
+    scanned = _scan(xml, head_end, middle_end)
+    if scanned is None:
+        return None
+    middle, depth, last = scanned
+    if tail:
+        # Between the elements scanned and those taken, only text that is not a tag.
+        if depth != 0 or xml.count(b"<", last, middle_end):
+            return None
+    elif depth not in (0, -1):
+        return None
+    return spans[:k] + middle + tail
+
+
+def _common_prefix(a: bytes, b: bytes) -> int:
+    """How many bytes ``a`` and ``b`` start with in common."""
+    n = min(len(a), len(b))
+    low, step = 0, 1 << 16
+    while low < n:
+        high = min(low + step, n)
+        if a[low:high] == b[low:high]:
+            low = high
+            continue
+        while high - low > 1:
+            middle = (low + high) // 2
+            if a[low:middle] == b[low:middle]:
+                low = middle
+            else:
+                high = middle
+        return low
+    return n
+
+
+def _common_suffix(a: bytes, b: bytes, most: int) -> int:
+    """How many bytes ``a`` and ``b`` end with in common, ``most`` at most."""
+    la, lb = len(a), len(b)
+    low, step = 0, 1 << 16
+    while low < most:
+        high = min(low + step, most)
+        if a[la - high:la - low] == b[lb - high:lb - low]:
+            low = high
+            continue
+        while high - low > 1:
+            middle = (low + high) // 2
+            if a[la - middle:la - low] == b[lb - middle:lb - low]:
+                low = middle
+            else:
+                high = middle
+        return low
+    return max(most, 0)
+
+
+def _scan(xml: bytes, start: int, end: int) -> tuple[list, int, int] | None:
+    """The top-level elements between ``start`` and ``end`` of ``xml`` as ``(local name,
+    start, end)``, the depth the scan ended at (-1: at the body's own end tag) and where it
+    stopped reading; ``None`` where a ``<`` is not read as a tag."""
+    out: list = []
     depth = 0
     begin = 0
-    position = 0
+    position = start
     name = ""
-    for match in _TAG.finditer(body):
-        if body[position:match.start()].count(b"<"):
+    for match in _TAG.finditer(xml, start, end):
+        if xml.count(b"<", position, match.start()):
             return None  # a "<" the scan did not read as a tag
         position = match.end()
         closing, tag, empty = match.group(1), match.group(2), match.group(4)
@@ -219,17 +325,15 @@ def elements(xml: bytes) -> list[tuple[str, bytes]] | None:
             if depth < 0:
                 break
             if depth == 0:
-                out.append((name, body[begin:match.end()]))
+                out.append((name, begin, match.end()))
         elif empty:
             if depth == 0:
-                out.append((tag.split(b":")[-1].decode(), body[match.start():match.end()]))
+                out.append((tag.split(b":")[-1].decode(), match.start(), match.end()))
         else:
             if depth == 0:
                 begin, name = match.start(), tag.split(b":")[-1].decode()
             depth += 1
-    if depth != 0 and depth != -1:
-        return None
-    return out
+    return out, depth, position
 
 
 def body_context(xml: bytes) -> bytes | None:
@@ -579,6 +683,10 @@ class State:
     lines: dict | None = field(default=None, compare=False, repr=False)
     #: And its headers and footers drawn (:meth:`docx2svg.layout._Placer._draw_story`).
     stories: dict | None = field(default=None, compare=False, repr=False)
+    #: And where the body's elements are in the main part (:class:`Scan`), and what
+    #: :func:`docx2svg.scope.paragraph_features` found in each (:func:`kept_features`).
+    scan: "Scan | None" = field(default=None, compare=False, repr=False)
+    features: dict | None = field(default=None, compare=False, repr=False)
 
     def __getstate__(self) -> dict:
         return {k: v for k, v in self.__dict__.items() if k not in _LOCAL}
@@ -589,7 +697,7 @@ class State:
 
 
 #: What a :class:`State` keeps in its process only.
-_LOCAL = ("blocks", "parsed", "known_segments", "lines", "stories")
+_LOCAL = ("blocks", "parsed", "known_segments", "lines", "stories", "scan", "features")
 
 
 def kept_lines(placer) -> dict | None:
@@ -801,6 +909,8 @@ class Plan:
     cause: dict | None = None
     #: The new version's segments by their element's bytes (:func:`segments`' ``keep``).
     known: dict | None = None
+    #: And where its body's elements are (:class:`Scan`).
+    scan: "Scan | None" = None
 
 
 _PARA_ID = re.compile(rb'\s(?:\w+:)?paraId\s*=\s*"([^"]*)"')
@@ -868,9 +978,12 @@ def plan(previous, data: bytes, options: tuple | None) -> Plan:
     # Round 41: the previous version's segments by their bytes, digested once.
     known = getattr(state, "known_segments", None) if isinstance(state, State) else None
     read: dict = {}
-    segs = segments(main, known, read) if main is not None else None
+    scanned: list = []
+    previous_scan = getattr(state, "scan", None) if isinstance(state, State) else None
+    segs = segments(main, known, read, previous=previous_scan, scanned=scanned) if main is not None else None
     found = _plan(state, data, options, parts, main, segs)
     found.known = read
+    found.scan = scanned[0] if scanned else None
     return found
 
 
@@ -979,6 +1092,8 @@ class _Paths(dict):
 
 #: The page's most numerous objects, by the fields that may hold a body path (round 57).
 _PATHS = _Paths()
+#: The key :func:`renumbered`'s ``seen`` keeps the paths it moved under, by their text.
+_TEXTS = object()
 
 
 def _shape(kind: type):
@@ -1001,7 +1116,7 @@ def renumbered(value, moves: dict, seen: dict | None = None):
     """``value`` -- a page, or anything a page holds -- with every body path's top-level
     step moved as ``moves`` (:func:`renumbering`) says, in its strings (paths, and the
     warnings that name them); a copy where anything changed, ``value`` itself where
-    nothing did."""
+    nothing did (round 57: a path the moves leave as it was is not a change)."""
     if not moves:
         return value
     return _renumbered(value, moves, {} if seen is None else seen)
@@ -1012,7 +1127,17 @@ def _renumbered(value, moves: dict, seen: dict):
     if kind in _LEAVES:
         return value
     if kind is str:
-        return _STEP.sub(lambda match: _step(match, moves), value) if "w:body/" in value else value
+        if "w:body/" not in value:
+            return value
+        # By its text: the spans of one run on many lines hold equal paths.
+        texts = seen.get(_TEXTS)
+        if texts is None:
+            texts = seen[_TEXTS] = {}
+        found = texts.get(value)
+        if found is None:
+            found = texts[value] = _STEP.sub(lambda match: _step(match, moves), value)
+        # The same text: the string itself, and what holds it is not copied.
+        return value if found == value else found
     key = id(value)
     if key in seen:
         return seen[key]
@@ -1020,18 +1145,18 @@ def _renumbered(value, moves: dict, seen: dict):
     paths = _PATHS.get(kind)
     if paths is not None:
         # A span, a rule: only its path names a body element; a line's spans hold the rest.
-        changes = {}
+        changes = None
         for name in paths:
             current = getattr(value, name)
             moved = _renumbered(current, moves, seen)
             if moved is not current:
+                if changes is None:
+                    changes = {}
                 changes[name] = moved
         if changes:
-            import copy
-
-            out = copy.copy(value)
-            for name, moved in changes.items():
-                setattr(out, name, moved)
+            out = object.__new__(kind)
+            out.__dict__.update(value.__dict__)
+            out.__dict__.update(changes)
         else:
             out = value
     elif kind is list or kind is tuple:
