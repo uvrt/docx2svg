@@ -49,7 +49,9 @@ never read from the server ([docs/api.md](docs/api.md#locale)).
   numbers, paragraph borders; inline pictures; tables; text columns; footnotes and
   endnotes; headers and footers with `PAGE`, `NUMPAGES`, `SECTIONPAGES`, `PAGEREF`, `REF`
   and `SEQ` computed; floating drawings, shapes and text boxes; charts and SmartArt;
-  content controls; tracked changes as Word's final (*No Markup*) view.
+  content controls; tracked changes as Word's Accept All leaves the document -- a table's
+  pending structure changes (a tracked column deletion, a tracked merge's cells) and deleted
+  paragraph marks at a table's edge too, where Word's *No Markup* screen draws otherwise.
 - **Not drawn yet:** a chart's 3-D scene (drawn flat), SmartArt with no cached drawing,
   a picture fill, a header's drawing the body wraps around, and some floating and note
   cases in multi-column sections. Each is reported with a stable warning code, never

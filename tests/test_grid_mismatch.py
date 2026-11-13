@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import functools
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -54,7 +55,8 @@ def test_every_glyph_where_word_drew_it(name, fonts):
     result, rects, warnings = read_render.score(name, _documents()[name], fonts, recorded["objects"],
                                                 recorded["fills"])
     assert read_render.row(result) == recorded["glyphs"]
-    assert warnings == recorded["warnings"] == ["table-grid-mismatch"]
+    # The tracked merges, drawn accepted (round 54), are on their grid: no mismatch.
+    assert warnings == recorded["warnings"] == ([] if "tracked" in name else ["table-grid-mismatch"])
     assert rects == recorded["rects"]
     assert result.extra == 0 and result.not_drawn == 0 and result.matched == result.model
     assert result.matched == min(result.y_agree, result.face_agree, result.size_agree)
@@ -140,9 +142,6 @@ def test_a_table_with_no_width_keeps_its_columns():
     ([THREE, THREE], (2000, 2000, 2000), ('<w:trPr><w:gridBefore w:val="5"/></w:trPr>',)),
     # no grid at all
     ([THREE, THREE + _cell("d")], (), ()),
-    # a tracked merge, Word's own form: the cell merged away kept, with w:cellDel
-    ([THREE, _cell("ab", 4000, span=2) + _cell("", extra='<w:cellDel w:id="9" w:author="A" w:date="2026-11-12T09:00:00Z"/>')
-      + _cell("c")], (2000, 2000, 2000), ()),
 ])
 @pytest.mark.parametrize("layout", ['<w:tblLayout w:type="fixed"/>', ""])
 def test_a_row_off_its_grid_never_stops_the_layout(rows, grid, row_properties, layout):
@@ -150,6 +149,21 @@ def test_a_row_off_its_grid_never_stops_the_layout(rows, grid, row_properties, l
     svgs = docx2svg.convert_docx_to_svg(_docx(rows, grid=grid, layout=layout, row_properties=row_properties), options)
     assert svgs and "After." in "".join(svgs)
     assert "table-grid-mismatch" in {w.code for w in options.warnings}
+
+
+@pytest.mark.parametrize("layout", ['<w:tblLayout w:type="fixed"/>', ""])
+def test_a_tracked_merge_is_drawn_accepted(layout):
+    """A tracked merge, Word's own form -- the cell merged away kept, with ``w:cellDel`` --
+    reaches past the grid only until it is accepted: the final view is the accepted table
+    (round 54, R110), whose row fits its grid, as Word's Accept All leaves it."""
+    deleted = _cell("", extra='<w:cellDel w:id="9" w:author="A" w:date="2026-11-12T09:00:00Z"/>')
+    tracked = _docx([THREE, _cell("ab", 4000, span=2) + deleted + _cell("c")], layout=layout)
+    accepted = _docx([THREE, _cell("ab", 4000, span=2) + _cell("c")], layout=layout)
+    options = docx2svg.ConvertOptions()
+    drawn = docx2svg.convert_docx_to_svg(tracked, options)
+    assert "table-grid-mismatch" not in {w.code for w in options.warnings}
+    strip = functools.partial(re.sub, r' data-docx-path="[^"]*"', "")
+    assert [strip(s) for s in drawn] == [strip(s) for s in docx2svg.convert_docx_to_svg(accepted)]
 
 
 def test_a_grid_line_past_the_last_is_the_last():

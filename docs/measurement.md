@@ -11,8 +11,9 @@ output code:
 - **An oracle.** Microsoft Word, driven by AppleScript, exporting a document to PDF whose
   text is *vector* — so every glyph's position is readable as a number rather than as a
   pixel. `tools/word_export_pdf.applescript`. A document with revisions or comments is
-  exported in Word's *No Markup* view, since Word's default prints them in balloons
-  (ROADMAP.md, "Revisions — measured").
+  exported in Word's *No Markup* view, since Word's default prints them in balloons, or
+  with every revision accepted, the renderer's final view since round 54 (ROADMAP.md,
+  "Revisions — measured").
 - **A fixture that is ours.** `tests/fixtures/layout-sweep.docx` is written by
   `tools/make_layout_sweep.py` and contains no third-party content. Word opens it and
   exports it, which is the only acceptance test that means anything for generated OOXML.

@@ -5529,8 +5529,9 @@ from its own save.
   1,015, the rule 1,661 / 1,662 / 1,661 / 1,016; margins 0 and 300 exact. 9,000 widens
   (2,250 each), 100% is 9,242 (`percent_widths`' whole). A table with no width keeps its
   columns.
-- **Word's final view draws a cell with `w:cellDel`** (its room, its text) until the
-  change is accepted: a tracked merge shows a row a column wider than the others, which
+- **Word's *No Markup* view draws a cell with `w:cellDel`** (its room, its text) until the
+  change is accepted -- *superseded for the renderer by stage 7f*: the final view is now what
+  Accept All leaves, the cell gone; what follows is what Word's screen shows: a tracked merge shows a row a column wider than the others, which
   the model now draws as Word does (docx-agent's tracked merges and column deletions, made
   and exported by Word's *No Markup*: every glyph within 2 px at 300 dpi, the rules' pixels
   1,162 / 1,168 apart of 57,250).
@@ -5556,6 +5557,72 @@ from its content on the widened grid as any autofit table is, and Word drew its 
 to 45 px at 300 dpi (200 twips) from that -- laid out and reported as an approximation
 (`layout-approximate:table`), not measured further. Two columns over (the tracked merge of
 two) was within 2 px.
+
+### Stage 7f -- a table's structure tracked, drawn accepted (production round 54, R110)
+
+A production team deleted a column of a four-column report table with tracking on
+(docx-agent's `delete_column`: the column's cells `w:cellDel`, their content deleted) and saw
+render's final view still draw the column, empty, at its width. That was Word's *No Markup*
+screen, as stage 7e measured it. **Decision (2026-11-12): the final view is the result of
+Accept All**, wherever that and Word's screen differ for a table's pending structure.
+
+Measured with Word 16.106 for Mac (`agent-work` probe, made-up "Field report" table of four
+2,268-twip columns, autofit with no width, a 9,072-twip fixed table and a 100 % table, each
+exported in All Markup, No Markup and with every revision accepted, and saved accepted):
+
+- **No Markup draws the deleted column**, empty, at its width (the table 9,072 twips wide);
+  All Markup draws it with the deletions struck and a "Deleted cells" balloon.
+- **Accept All removes the column and its grid column; the other columns keep their
+  widths** in a table with no width (three of 2,268: the table 2,268 twips narrower). A
+  fixed 9,072-twip table and a 100 % one keep their width, the three columns sharing it (Word
+  saved 3,024 x 3; 3,020 / 3,021 / 3,021) -- what `table.fixed_widths` and
+  `percent_widths` already make of a grid of three in such a table.
+- Word itself **does not track a column's deletion**: its object model's `delete column`, with
+  tracking on, removes the column and its content at once, recording only the table's,
+  rows' and cells' old properties (`w:tblPrChange`, `w:tblGridChange` -- with no author,
+  as the schema has it -- `w:trPrChange`, `w:tcPrChange`); cutting the column records
+  nothing. Nor does it track a merge (`merge cell`: applied, no record), after a pending
+  column deletion or not.
+
+- **A deleted cell whose content is not deleted widens the cell before it** on Accept All
+  (its columns and width; its content goes): a merge of two cells written so -- the first
+  cell holding both texts, the second `w:cellDel` with its text -- accepts to one cell over
+  two columns, every glyph and rule pixel as the model draws it, and Reject All gives the
+  table back. One whose content is deleted (docx-agent's form) is removed.
+- **docx-agent's other tracked table edits**, each on the same table, scored against Word's
+  Accept All: a column deleted (first, third, last), a row deleted, a merge of the header
+  row's last three cells, a merge down, a split and a column inserted are drawn exactly
+  (0 px; the column inserted 1 px, as untracked). A merge across two cells of a body row
+  (the first cell's span applied, the other `w:cellDel`, every cell's old properties and
+  the old grid recorded) is **not**: Word's Accept All of it keeps a fifth grid column of
+  337 twips and leaves the other rows short of it (54 px); the model draws the merge on the
+  table's four columns, as docx-agent's own accept leaves it. A rectangle merge: 6 px.
+  Written instead with the first cell keeping its span and the other's content kept (above),
+  Word's Accept All is exact. The probe's tracked merges without those records (stage 7e's
+  form, content deleted) accept exactly too, in a document of their own
+  (`grid-mismatch-tracked-*`); among the other tables Word's Accept All kept a widened grid.
+
+**The rule** (`parse.document._table`): in the final view a cell with `w:cellDel` is left
+out (or, its content kept, given to the cell before it), and the grid columns that only such cells cover, in every row that covers them, go with
+it (a column a row skips with `w:gridBefore` / `w:gridAfter` is kept); a row all of whose
+cells are deleted goes; a `w:cellMerge` gives its cell the vertical merge it records
+(`rest` a merge's first cell, `cont` the cells below), as accepting does. Cells' paths keep
+their places among the document's rows and cells (`Table.cell_paths`), deleted ones counted,
+as paragraphs' paths always did.
+
+| Word's Accept All, our render of the tracked document | before (0.11.11) | after (0.11.12) |
+| --- | --- | --- |
+| no width: worst glyph dx | 471 px (the last column a column right) | **0 px** |
+| no width: rule pixels model only / Word only | 6,170 / 980 | **0 / 0** |
+| fixed 9,072 / 100 %: worst glyph dx | 158 px | **0 px** |
+| fixed / 100 %: rule pixels model only / Word only | 1,470 / 980 | **0 / 0** |
+
+The glyphs are scored as for Word's own accepted document (99 of 103 at 300 dpi, the rest
+within 0.37 px in a run: the same numbers for Word's saved accepted document). The
+grid-mismatch probe (stage 7e) and the revision probe's four cases of cells inserted,
+deleted and merged down are now scored against Word's export with every revision accepted;
+the grid-mismatch probe's other tables against No Markup as before. (Lane J, round 54, then
+scored the whole revision probe against Accept All: "Revisions -- measured", R.0.)
 
 ## Headers, footers and fields — measured (Phase 6, Headers and footers and Fields rows)
 
@@ -7712,16 +7779,16 @@ which blocks, and -- after each small edit -- which pages to draw again.
 | Floating objects and text wrap | XL | Word's wrap geometry is not CSS floats. The field approximates this universally. *Stages 1 (anchors that do not move text), 2 (in headers and footers), 3 (`wrapTopAndBottom`) and 4 (text beside a drawing: `wrapSquare`, `wrapTight`, `wrapThrough`), a table beside a drawing (F.15), a drawing in a table cell (F.16, F.17), a floating table (F.18) and a drop cap (F.19) done; other frames stop the layout; a header's drawing the body wraps around is not: see* Floating drawings — measured. |
 | `w:compat` | M–L | Not a feature; a bundle of switches. Measure which ones move this oracle. |
 | East Asian typography, justification, hyphenation | L each | Each its own measurement; do not combine. *Justification in mode 15 measured (3.8); automatic hyphenation measured for English, Dutch, German and French, and at a page's end (3.9).* |
-| ~~Tracked changes, content controls, comments~~ | M | **Done for the final view** — see *Revisions — measured*: moves, deleted paragraph marks, content controls at every level, property changes, rows and cells, as Word's *No Markup* view draws them; comments take no room. No markup view is drawn, and none is planned. |
+| ~~Tracked changes, content controls, comments~~ | M | **Done for the final view** — see *Revisions — measured*: moves, deleted paragraph marks, content controls at every level, property changes, rows and cells, as Word's Accept All leaves the document (since round 54; Word's *No Markup* screen differs at a table's edge and below mode 15, recorded); comments take no room. No markup view is drawn, and none is planned. |
 
 ### Revisions — measured
 
 docx-agent's roadmap found three gaps in the final view of tracked changes the renderer
 drew: text in `w:moveTo` was dropped, a paragraph whose mark is deleted was not joined to
 the next, and an inline content control's text was not drawn. `tools/make_revision_probe.py`
-measures what Word draws instead: 70 cases, one a page, in seven families (moves; deleted
-marks; content controls; property-change records; rows and cells; comments; section
-ends), with no compatibility mode, in mode 14 and in mode 15; `tools/read_revision_probe.py`
+measures what Word draws instead: 79 cases (70 until round 54), one a page, in seven
+families (moves; deleted marks; content controls; property-change records; rows and cells;
+comments; section ends), with no compatibility mode, in mode 14 and in mode 15; `tools/read_revision_probe.py`
 scores them (`tests/fixtures/revision-observations.json`, `tests/test_revisions.py`). A
 case agrees when every line of its pages is Word's: the same glyphs, page, baseline below
 the case's label and left edge, to the device pixel.
@@ -7729,9 +7796,13 @@ the case's label and left edge, to the device pixel.
 **R.0 The oracle exports the final view.** See Phase 0, 0.1: Word's default export prints
 the markup; the probe is exported in the *No Markup* view, and once more with every
 revision accepted first (the script's `accept`, also with markup hidden, since a
-comment's pane is printed otherwise). **The final view is not always what accepting
-makes**: the two differ in 8 cases in mode 15 and 17 below it (R.3, R.4, R.6), and the
-renderer draws the final view.
+comment's pane is printed otherwise). **Word's *No Markup* screen is not always what
+accepting makes**: of the 70 cases the two differed in 8 in mode 15 and 17 below it (R.3,
+R.4, R.6); of the 79, in 16 in mode 15 and 25 below it. **Since round 54 the renderer's
+final view is what Accept All leaves** (user decision, 2026-11-12: stage 7f for a table's
+structure, R110; lane J for deleted marks), and the probe is scored against Word's export
+with every revision accepted, every case; what the screen draws where it differs is kept
+below as a measurement (and in the fixture, `screen`), not drawn.
 
 **R.1 Moves.** The final view draws `w:moveTo`'s content where it stands and nothing of
 `w:moveFrom`'s, with range markers in paragraphs or between them, or none; a paragraph
@@ -7747,23 +7818,49 @@ paragraph, under the last's properties, in every mode. Measured both ways: the j
 paragraph under the *first* paragraph's properties scores 11 / 32 of the family (and 4 /
 6 moves, 2 / 4 section ends). The one paragraph is kept by its first paragraph's path.
 
-**R.3 With no paragraph to join.** Before a table, at the end of a cell and at the end of
-the body, the paragraph keeps its own text where it stands, but under the paragraph
-properties of **the next paragraph in the story** — the table's first cell's first
-paragraph, the next cell's, none at the body's end (then no properties of its own: the
-default paragraph style). One whose text is all deleted, before a table, is not drawn at
-all. Accepting differs here: Word moves the text into the table's first cell, and with a
-cell's last mark deleted moves the cell's first paragraph out of the table.
+**R.3 At a table's edge (Accept All, round 54).** Word's *No Markup* screen keeps a
+paragraph with no paragraph to join -- before a table, at the end of a cell -- where it
+stands, under the paragraph properties of **the next paragraph in the story** (the table's
+first cell's first paragraph, the next cell's); at the end of the body under none of its
+own; one whose text is all deleted, before a table, not at all. **Accept All moves it**,
+and that is what the renderer draws (`parse.document._joined_into`, `_cell_ends`), measured
+with Word 16.106 for Mac on nine more cases (exports with every revision accepted, and the
+documents Word saved accepted):
 
-**R.4 Below mode 15, a join at a line's start draws the line lower.** In the final view
-below mode 15 (none and 14 alike), a line other than the paragraph's first that begins a
-joined paragraph's text — because the text before it filled its line or ended in a
-`w:br` — is drawn lower by the paragraph's space before, and every later line of the
-paragraph with it, cumulatively (25 px for 120 twips, 100 px for 480). What follows the
-paragraph moves down by **one fewer** of them: by nothing for one such join, so the last
-line overlaps what follows; by one space before for two, by two for three. A join
-mid-line moves nothing. Mode 15, and accepting, draw no line lower. Without the rule the
-family scores 23 / 32 below mode 15.
+- **Before a table** the paragraph joins **the table's first cell's first paragraph** (R.2:
+  its text first, under the cell paragraph's properties -- a style of its own lost, the
+  cell's alignment, indents and spacing taken), wrapping in the cell; a chain of two joins
+  in order (`Short alpha. Short bravo. 35.t1 a`); the cell's other paragraphs follow. One
+  whose text is all deleted adds nothing. The joined paragraph is the cell's (its path and
+  id). Where the first cell begins with a nested table, the join goes into its first cell
+  (not measured); a paragraph ending a section is left as the screen draws it (not
+  measured).
+- **At a cell's end, the cell takes the next cell of its row in**: its last paragraph
+  joins the next cell's first paragraph (under the next one's properties), the next cell's
+  other paragraphs after it; the next cell is gone and its grid columns with it where no
+  other row covers them (stage 7f's rule), the cell keeping its own span and width -- so a
+  one-row table of two 4,000-twip cells is one cell over the fixed table's 8,000 twips
+  (the next cell's centred text centred across the table), and in a two-row table the row
+  ends short at the cell's column. **A row's first cell's other paragraphs leave the
+  table**, drawn before that row -- before the table in the first row; in a later row the
+  table is split there, the rows above a table of their own (`Kept 1.` between, each part
+  with its own grid). A later cell's other paragraphs stay in it (the middle of three:
+  `Kept 1.` above the joined `Cell last paragraph.32.r1c3`, two cells of 3,000 twips in the
+  fixed 6,000). **A cell with no next cell in its row -- a row's last, the table's last --
+  is gone with all its content**, its row ending short: Word's Accept All loses that text
+  (its saved document differs again, splitting tables where its screen did not; the
+  export, what Word draws, is the reference).
+
+**R.4 Below mode 15, Word's screen draws a join at a line's start lower** (not drawn since
+round 54). In Word's *No Markup* view below mode 15 (none and 14 alike), a line other than
+the paragraph's first that begins a joined paragraph's text -- because the text before it
+filled its line or ended in a `w:br` -- is drawn lower by the paragraph's space before,
+and every later line of the paragraph with it, cumulatively (25 px for 120 twips, 100 px
+for 480). What follows the paragraph moves down by **one fewer** of them: by nothing for
+one such join, so the last line overlaps what follows; by one space before for two, by two
+for three. A join mid-line moves nothing. Mode 15, and Accept All in every mode, draw no
+line lower, and the renderer now draws none (the rule, `paginate.join_starts`, is gone:
+nine cases below mode 15 that Word's screen draws so are drawn as accepted).
 
 **R.5 Content controls.** Run-level `w:sdt` draws its `w:sdtContent` as ordinary runs —
 nested, inside a hyperlink, holding revisions; block-level `w:sdt` draws its paragraphs
@@ -7773,9 +7870,11 @@ text: here in the `PlaceholderText` character style, at its place in the line.
 
 **R.6 Rows, cells, property changes, comments.** A row whose `w:trPr` holds `w:del` is not
 drawn, whether or not its content is deleted, and a table all of whose rows are deleted
-is not drawn at all; an inserted row is. `w:cellIns` and `w:cellDel` change nothing in the
-final view (a deleted cell is drawn, empty); nor does `w:cellMerge`, whose `w:vMerge` is
-ignored: the cell's own `w:vMerge` decides (accepting applies it). `w:rPrChange` (on a
+is not drawn at all; an inserted row is. `w:cellIns` and `w:cellDel` change nothing in
+Word's *No Markup* view (a deleted cell is drawn, empty); nor does `w:cellMerge`, whose
+`w:vMerge` is ignored there: the cell's own `w:vMerge` decides (accepting applies it). Since
+round 54 (stage 7f) the renderer draws these as Accept All leaves them: a deleted cell gone,
+`w:cellMerge`'s merge applied. `w:rPrChange` (on a
 run and on a mark), `w:pPrChange` (a list's too), `w:tblPrChange`, `w:trPrChange`,
 `w:tcPrChange` and `w:sectPrChange` change nothing: the current properties are drawn. A
 deleted mark on a section's last paragraph removes the section break; the two sections
@@ -7790,10 +7889,30 @@ Word's position (two object starts in mode 15 0.001 px off, as elsewhere), and e
 pixel**, in all three settings. The committed documents have no revisions, controls or
 comments: the fidelity baselines do not move.
 
-**Not handled.** What accepting makes, and any markup view: not drawn, by decision. The
+**Scored against Accept All (round 54, lane J).** With the nine cases at a table's edge
+added (79), against Word's export with every revision accepted: before, 64 / 79 cases in
+mode 15 (marks 26 / 41: the 15 of them where Word's screen differs, drawn as the screen;
+`rows cellMerge alone` already accepted by stage 7f) and 55 / 79 below it (the nine R.4
+cases too); lines 285 / 343 (264 below mode 15); 75,674 rule pixels the model's only and
+75,212 Word's only. After: **79 / 79 cases, 343 / 343 lines, all 6,505 glyphs at Word's position
+(two object starts in mode 15 0.001 px off) and all 409,834 rule pixels, none of the
+model's own**, in all three settings. Measured against, refuted: the joined paragraph
+under the first paragraph's properties (marks 5 / 41, moves 4 / 6, section ends 2 / 4);
+no paragraph joined at all (marks 2 / 41); Word's screen at a table's edge (marks 26 / 41)
+(`tests/test_revisions.py`). Word's screen lines for the cases where it differs are kept in
+the fixture (`screen`). The model's rules on small made-up documents, and an incremental
+layout around them agreeing with a full one: `tests/test_accept_joins.py` (a table the
+final view moves content into or out of, `Table.joined`, is laid out afresh).
+
+**Not handled.** Any markup view, and Word's *No Markup* screen where it differs from
+Accept All: not drawn, by decision (since round 54 the final view is Accept All's). The
 paths of a deleted row's neighbours' cells keep their place among the rows, but a
 table's border rules are named by row index after deletion. Not measured: a deleted mark
-before a table whose paragraph also ends a section; a run-level control's `w:rPr` (its
+before a table whose paragraph also ends a section (drawn as the screen draws it); one
+before a table whose first cell begins with a nested table (joined into the nested
+table's first cell); a chain of cells' last marks across a row (each cell taking the next
+in, the last at the row's end gone); a row's first cell with only its last paragraph and
+the row not the first (no split: nothing leaves the table); a run-level control's `w:rPr` (its
 runs' own are drawn); a dropped line falling past the page's foot; `w:numberingChange`,
 `w:tblGridChange` and `w:tblPrExChange` (read as nothing, as the others measured); a
 deleted mark in a header, a footer, a note or a text box (handled as in the body,

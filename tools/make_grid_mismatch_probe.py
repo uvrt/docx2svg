@@ -23,8 +23,10 @@ the drawing.  Cases, three 2000-twip grid columns unless said:
 * ``grid of four`` -- a four-column grid that fits, the table width 6000 (the control);
 * ``one more, narrow`` autofit with no table width;
 * ``tracked merge`` -- a merge tracked as Word tracks one (the cell merged away kept, with
-  ``w:cellDel``), fixed in 6,000 twips and autofit with no width: Word's final view draws
-  the deleted cell's room (its text hidden) on a grid widened to the row.
+  ``w:cellDel``), fixed in 6,000 twips and autofit with no width: Word's *No Markup* view
+  draws the deleted cell's room (its text hidden) on a grid widened to the row (round 53);
+  the reader scores Word's export with every revision accepted, the renderer's final view
+  (round 54), where the cell is gone.
 
 Borders ``w:sz`` 4, margins 108; one document per compatibility setting (none, 15).
 Reader: ``read_grid_mismatch_probe.py``.
@@ -63,8 +65,16 @@ def _cell(name: str, width: int | None = WIDTH, span: int = 1, deleted: int = 0)
     if span > 1:
         props += f'<w:gridSpan w:val="{span}"/>'
     if deleted:
-        # A cell merged away, tracked (Word's own form): w:cellDel.
+        # A cell merged away, tracked: w:cellDel, its content and paragraph marks deleted, as
+        # docx-agent writes it (round 54: Word's Accept All of a deleted cell whose content is
+        # not deleted widens the cell before it instead -- ROADMAP.md, stage 7f).
         props += f'<w:cellDel w:id="{deleted}" {TRACKED}/>'
+        right = '<w:jc w:val="right"/>'
+        content = "".join(
+            f'<w:p><w:pPr>{right if side == "R" else ""}<w:rPr>'
+            f'<w:del w:id="{deleted}{k}" {TRACKED}/></w:rPr></w:pPr><w:del w:id="{deleted}{k + 2}" {TRACKED}>'
+            f'<w:r><w:delText>{name}{side}</w:delText></w:r></w:del></w:p>' for k, side in enumerate("LR"))
+        return f"<w:tc><w:tcPr>{props}</w:tcPr>{content}</w:tc>"
     content = wml.paragraph(wml.run(f"{name}L")) + wml.paragraph(wml.run(f"{name}R"), jc="right")
     return f"<w:tc><w:tcPr>{props}</w:tcPr>{content}</w:tc>"
 
@@ -135,8 +145,8 @@ def _cases() -> list[tuple[str, str]]:
     out.append(("one more, narrow, borders 3 pt", _table(narrow("Q"), border=24)))
     out.append(("one more, narrow, no borders", _table(narrow("R"), border=0)))
     out.append(("one more, narrow, margins 0, no borders", _table(narrow("S"), margin=0, border=0)))
-    # A merge tracked as Word tracks one: the first cell over two columns, the cell merged
-    # away still there with w:cellDel -- four columns' worth over a grid of three.
+    # A merge tracked: the first cell over two columns, the cell merged away still there
+    # with w:cellDel -- four columns' worth over a grid of three until it is accepted.
     tracked = [_three("T", "a"), _row(_cell("Tb1", 2 * WIDTH, span=2) + _cell("Tb2", deleted=901) + _cell("Tb3")),
                _three("T", "c")]
     out.append(("tracked merge", _table(tracked)))
@@ -149,9 +159,17 @@ def _cases() -> list[tuple[str, str]]:
 CASES = _cases()
 
 
-def body() -> str:
+#: The tracked merges' cases: a document of their own (``build(..., tracked=True)``), the
+#: rest without them.  Word's Accept All of a row past its grid keeps the widened grid and
+#: leaves it ragged (round 54, stage 7f); the renderer draws the table as accepting it in
+#: docx-agent leaves it, its row on the grid -- an approximation, scored and held apart.
+TRACKED_CASES = tuple(name for name, _ in CASES if name.startswith("tracked merge"))
+
+
+def body(tracked: bool = False) -> str:
     out = ""
-    for number, (_, table) in enumerate(CASES):
+    cases = [(name, table) for name, table in CASES if (name in TRACKED_CASES) == tracked]
+    for number, (_, table) in enumerate(cases):
         props = {"pageBreakBefore": True} if number and number % PER_PAGE == 0 else {}
         out += wml.paragraph(wml.run(f"Case {number}"), **props) + table + wml.paragraph(wml.run(f"After {number}"))
     return out
@@ -165,10 +183,10 @@ def styles() -> str:
     )
 
 
-def build(setting: str) -> bytes:
+def build(setting: str, tracked: bool = False) -> bytes:
     mode = SETTINGS[setting]
     extra = () if mode is None else (wml.settings_part({"val": "en-GB"}, compatibility_mode=mode),)
-    return probe_docx.package(body(), styles=styles(), extra_parts=extra)
+    return probe_docx.package(body(tracked), styles=styles(), extra_parts=extra)
 
 
 if __name__ == "__main__":
@@ -178,3 +196,4 @@ if __name__ == "__main__":
     out = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
     for setting in SETTINGS:
         (out / f"grid-mismatch-{setting}.docx").write_bytes(build(setting))
+        (out / f"grid-mismatch-tracked-{setting}.docx").write_bytes(build(setting, tracked=True))

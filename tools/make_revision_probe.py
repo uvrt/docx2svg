@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Tracked changes and content controls: what Word's final view draws.
+"""Tracked changes and content controls: what Word's final view draws -- since round 54,
+what Word leaves with every revision accepted.
 
 docx-agent's roadmap found three gaps in the final view docx2svg drew: text inside
 ``w:moveTo`` was dropped, a paragraph whose mark is deleted was not joined to the next,
@@ -20,7 +21,11 @@ paragraph spacing, unless the case says otherwise.  Families:
   without content, styled, spaced, the first cell right-aligned), before a block-level
   content control, in a cell and at a cell's end (styled; the next cell centred), an
   inserted mark as the control, and the second paragraph's spacing before and after
-  with the join at a line's end, mid-line and in a chain;
+  with the join at a line's end, mid-line and in a chain; and what Accept All makes of a
+  mark at a table's edge (round 54, lane J): a cell's last mark alone in its cell, after
+  two paragraphs, in a two-row table, in the second row, in the middle of three cells, at
+  a row's end and in the table's last cell; a chain of two before a table, and one before
+  a first cell of two paragraphs;
 * ``sdt`` -- content controls: run-level (plain, showing its placeholder, nested, holding
   revisions, inside a hyperlink), block-level (paragraphs, placeholder, a table, nested),
   cell-level and row-level;
@@ -291,6 +296,37 @@ def _mark_cell_end(props: dict | None = None, following: dict | None = None) -> 
     return body
 
 
+def _mark_cell_edge(n: int, *, rows: int = 1, columns: int = 2, at: tuple[int, int] = (0, 0), kept: int = 1,
+                    width: int = 3000) -> str:
+    """A table of ``rows`` x ``columns`` cells whose cell ``at`` (row, column) holds
+    ``kept`` paragraphs and then one whose mark is deleted; the other cells one paragraph
+    each, named by place (round 54, lane J: what Accept All makes of a cell's last mark)."""
+    out = ""
+    for r in range(rows):
+        cells = ""
+        for c in range(columns):
+            if (r, c) == at:
+                inner = "".join(para(run(f"Kept {k + 1}.")) for k in range(kept))
+                inner += para(run("Cell last paragraph."), props={"jc": "center"}, mark_rev="del")
+            else:
+                inner = para(run(f"{n}.r{r + 1}c{c + 1}"))
+            cells += cell(inner, width)
+        out += row(cells)
+    return table(out, columns, width)
+
+
+def _mark_chain_before_table(n: int) -> str:
+    return (para(run("Short alpha. "), props=PA, mark_rev="del") + para(run("Short bravo. "), props=PC, mark_rev="del")
+            + table(row(cell(para(run(f"{n}.t1 a"), props=PB)) + cell(para(run(f"{n}.t1 b"))))
+                    + text_row(f"{n}.t2")))
+
+
+def _mark_before_table_cell_of_two(n: int) -> str:
+    first = para(run(f"{n}.t1 a"), props=PB) + para(run(f"{n}.t1 a2"), props={"jc": "center"})
+    return para(run("Short alpha. "), props=PA, mark_rev="del") + table(row(cell(first) + cell(para(run(f"{n}.t1 b"))))
+                                                                         + text_row(f"{n}.t2"))
+
+
 def _sdt_run(n: int) -> str:
     return para(run("Before the control ") + sdt(run("INSIDE THE CONTROL")) + run(" after it."))
 
@@ -504,6 +540,17 @@ def _cases() -> tuple[Case, ...]:
         Case("mark", "before a table, spaced", _mark_before_table(False, props=PB)),
         Case("mark", "at a cell's end, next centred", _mark_cell_end(PB, {"jc": "center"})),
         Case("mark", "at a cell's end, styled", _mark_cell_end({"pStyle": "Big"})),
+        # What Accept All makes of a deleted mark at a table's edge (round 54, lane J).
+        Case("mark", "at a cell's end, alone", lambda n: _mark_cell_edge(n, kept=0)),
+        Case("mark", "at a cell's end, two kept", lambda n: _mark_cell_edge(n, kept=2)),
+        Case("mark", "at a cell's end, two rows", lambda n: _mark_cell_edge(n, rows=2)),
+        Case("mark", "at a cell's end, second row", lambda n: _mark_cell_edge(n, rows=2, at=(1, 0))),
+        Case("mark", "at a cell's end, middle of three", lambda n: _mark_cell_edge(n, columns=3, at=(0, 1),
+                                                                                   width=2000)),
+        Case("mark", "at a row's end", lambda n: _mark_cell_edge(n, rows=2, at=(0, 1))),
+        Case("mark", "at the table's last cell", lambda n: _mark_cell_edge(n, rows=2, at=(1, 1))),
+        Case("mark", "chain before a table", _mark_chain_before_table),
+        Case("mark", "before a table, cell of two", _mark_before_table_cell_of_two),
         # Where the second paragraph's spacing before goes below mode 15.
         Case("mark", "short first", _joined(("Short alpha. ", PA, "del", False, {}), (TEXT_B, PB, None, False, {}))),
         Case("mark", "second spaced 480", _joined((TEXT_A, PA, "del", False, {}),

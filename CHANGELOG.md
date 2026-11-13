@@ -5,6 +5,47 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.11.13 -- unreleased
+
+- **Deleted paragraph marks at a table's edge are drawn as Accept All leaves them** (round
+  54 follow-up, lane J). The final view is the document with every revision accepted
+  (0.11.12 for a table's structure); for a deleted mark with no paragraph after it in its
+  container it still drew Word's *No Markup* screen, which keeps the paragraph where it
+  stands. Measured with Word 16.106 for Mac (the revision probe, nine cases more, exported
+  with every revision accepted and saved accepted; ROADMAP.md, "Revisions -- measured",
+  R.3): **before a table** the paragraph joins the first cell's first paragraph, under its
+  properties; **at a cell's end** the cell takes the next cell of its row in (its last
+  paragraph joined to the next cell's first, the next cell's grid columns gone where no
+  other row covers them), a row's first cell's other paragraphs leave the table before that
+  row (the table split there in a later row), and a cell with no next cell in its row goes
+  with its content, as Word's Accept All loses it. **Below mode 15 no joined line is drawn
+  lower** (R.4 was Word's screen only; Accept All draws none). The whole revision probe is
+  scored against Word's Accept All now: 79 / 79 cases, every line, glyph and rule pixel, in
+  every setting (before: 64 / 79 in mode 15, 55 / 79 below it -- the 15 and 24 cases where
+  Word's screen differs, drawn as the screen). Word's screen lines for those cases are kept in the fixture as a
+  measurement. A table the final view moves content into or out of is laid out afresh by
+  an incremental layout (`Table.joined`), as a full layout lays it out.
+
+## 0.11.12 -- unreleased
+
+- **A table's pending structure changes are drawn as Accept All leaves them** (production
+  round 54, R110). The final view is the document with every revision accepted; for a
+  table's structure that is not Word's *No Markup* screen, which keeps drawing a cell with a
+  pending deletion (`w:cellDel`: a tracked column deletion, a tracked merge's cell merged
+  away) until it is accepted. A column deleted with tracking on was drawn empty at its width
+  (round 53's rule); now the cell is left out and the grid columns only such cells cover go
+  with it, the other columns keeping their widths -- measured with Word for Mac on a
+  four-column table with no width, fixed and 100 % (ROADMAP.md, "Tables -- measured", stage
+  7f): every glyph where Word's Accept All draws it, every rule pixel (before: the last
+  column 471 px right). A deleted cell whose content is not deleted widens the cell before it, as Word's Accept
+  All does (measured); a row all of whose cells are deleted goes; `w:cellMerge` merges down
+  as accepting does. docx-agent's tracked table edits scored against Word's Accept All:
+  exact but for a merge across a body row, whose Accept All in Word keeps a widened grid
+  (recorded in ROADMAP.md as an approximation). Cells' paths name the document's own rows and cells
+  (`Table.cell_paths`), deleted ones counted. The grid-mismatch probe (its tracked merges now a
+  document of their own) and the revision probe's cell cases are scored against Word's
+  Accept All now.
+
 ## 0.11.11 -- unreleased
 
 - **A row off its table's grid is laid out as Word lays it out** (production round 53,

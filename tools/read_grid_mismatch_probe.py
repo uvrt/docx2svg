@@ -33,8 +33,8 @@ OBSERVATIONS = read_render.FIXTURES / "grid-mismatch-observations.json"
 def documents() -> list[tuple[str, bytes]]:
     import make_grid_mismatch_probe
 
-    return [(f"grid-mismatch-{setting}", make_grid_mismatch_probe.build(setting))
-            for setting in make_grid_mismatch_probe.SETTINGS]
+    return [(f"grid-mismatch-{kind}{setting}", make_grid_mismatch_probe.build(setting, tracked=bool(kind)))
+            for kind in ("", "tracked-") for setting in make_grid_mismatch_probe.SETTINGS]
 
 
 def main(argv: list[str]) -> int:
@@ -47,7 +47,10 @@ def main(argv: list[str]) -> int:
     faces: dict = {}
     recorded: dict = {}
     for name, data in documents():
-        pdf = oracle.export(data, name=name)
+        # Word with every revision accepted: the renderer's final view (round 54, R110) --
+        # the tracked merges' cells merged away gone, as Accept All leaves them; Word's No
+        # Markup screen still draws them (round 53).  The other tables have no revisions.
+        pdf = oracle.export(data, name=name, view="accept")
         objects, fills = read_render.word_objects(pdf), read_render.word_fills(pdf)
         fonts = render_record.RecordingFonts(data, faces)
         result, rects, warnings = read_render.score(name, data, fonts, objects, fills)
@@ -62,7 +65,7 @@ def main(argv: list[str]) -> int:
     if args.record:
         render_record.dump(OBSERVATIONS, {
             "_about": ("What Word 16.106 drew for the grid-mismatch probe documents "
-                       "(tools/make_grid_mismatch_probe.py) -- every text object and filled rectangle, as "
+                       "(tools/make_grid_mismatch_probe.py), every revision accepted -- every text object and filled rectangle, as "
                        "read_table_probes.py records them -- the model's scores against them, and every face "
                        "number the renderer asked for. Measurements only; regenerate with "
                        "tools/read_grid_mismatch_probe.py --record."),

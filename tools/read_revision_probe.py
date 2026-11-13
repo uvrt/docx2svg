@@ -2,9 +2,12 @@
 """Score tracked changes, content controls and comments against Word's final view:
 ``make_revision_probe.py``.
 
-Word exports each document twice: in its *No Markup* view (``oracle.export``'s default,
-``final``), which is what the renderer is scored against, and with every revision
-accepted first (``accept``), which says whether the final view is what accepting makes.
+Word exports each document twice: with every revision accepted first (``accept``), which
+is what the renderer is scored against -- its final view is what Accept All leaves (round
+54: a table's structure, R110; deleted paragraph marks, lane J) -- and in its *No Markup*
+view (``oracle.export``'s default, ``final``), which says where Word's screen draws
+otherwise (:func:`accept_differs`; those cases' lines as the screen draws them are
+recorded too, ``screen``).
 Word's PDF gives every text object (``read_render.word_objects``) and filled rectangle;
 the model lays each document out and draws it.  Scores, per document:
 
@@ -128,16 +131,17 @@ def main(argv: list[str]) -> int:
         for name, data in documents():
             pdf = oracle.export(data, name=name)
             accepted = oracle.export(data, name=name, view="accept")
-            word = {"objects": read_render.word_objects(pdf), "fills": read_render.word_fills(pdf)}
-            accept_objects = read_render.word_objects(accepted)
+            final_objects = read_render.word_objects(pdf)
+            word = {"objects": read_render.word_objects(accepted), "fills": read_render.word_fills(accepted)}
             fonts = render_record.RecordingFonts(data, faces)
             result = score(name, data, fonts, word)
-            differs = accept_differs(word["objects"], accept_objects)
+            differs = accept_differs(final_objects, word["objects"])
+            screen_cases = outcomes(read_render.glyphs_of(final_objects))
             print(result["result"].row())
             print(f"{'':34} cases {sum(a for a, _ in result['families'].values())} / {len(probe.CASES)} "
                   f"({', '.join(f'{k} {a}/{b}' for k, (a, b) in result['families'].items())}); lines "
                   f"{result['lines'][0]} / {result['lines'][1]}; rules {result['rules']}; pages {result['pages']}; "
-                  f"warnings {result['warnings']}; accepting differs in {differs}")
+                  f"warnings {result['warnings']}; Word's No Markup screen differs in {differs}")
             if args.verbose:
                 for case in probe.CASES:
                     k = case.key
@@ -150,15 +154,16 @@ def main(argv: list[str]) -> int:
                               "families": result["families"], "word": result["word"],
                               "disagree": result["disagree"], "rules": result["rules"],
                               "warnings": result["warnings"], "pages": result["pages"],
-                              "accept_differs": differs}
+                              "accept_differs": differs, "screen": {k: screen_cases[k] for k in differs}}
     finally:
         oracle.recover()
     if args.record:
         render_record.dump(OBSERVATIONS, {
-            "_about": ("What Word 16.106 drew for tools/make_revision_probe.py in its No Markup view: every text "
-                       "object and filled rectangle (as render-observations.json records them), each case's "
-                       "lines as Word drew them (page and baseline from the case's label, left edge, glyphs), "
-                       "the cases whose lines differ once every revision is accepted, the renderer's scores "
+            "_about": ("What Word 16.106 drew for tools/make_revision_probe.py with every revision accepted "
+                       "(the renderer's final view since round 54): every text object and filled rectangle (as "
+                       "render-observations.json records them), each case's lines as Word drew them (page and "
+                       "baseline from the case's label, left edge, glyphs), the cases whose lines Word's No "
+                       "Markup screen draws otherwise and those lines as the screen drew them, the renderer's scores "
                        "against them -- cases per family, lines within half a pixel, the glyph row, the rule "
                        "pixels -- and every face number the renderer asked for. Measurements only; regenerate "
                        "with tools/read_revision_probe.py --record."),
