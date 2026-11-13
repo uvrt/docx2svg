@@ -1308,8 +1308,11 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
             try:
                 try:
                     if found is not None:
-                        laid, mode, approximation = found
-                        laid = dataclasses.replace(laid, overflowed=set())
+                        laid, mode, approximation, measured_at = found
+                        # Measured where the table stood in an earlier version of the body:
+                        # its paragraphs' block numbers moved with it (round 57, lane R).
+                        laid = dataclasses.replace(laid, overflowed=set()) if measured_at == block \
+                            else table_model.rebased(laid, block - measured_at)
                         if approximation is not None:
                             raise _Measured()
                         mode = {}
@@ -1352,7 +1355,7 @@ def flow(document: Document, advances, metrics, *, features: list[str | None] | 
                 # Named: the table it failed in (round 53, R107), for a caller to say so.
                 raise layout_failure(item.path, error) from error
             if key is not None and found is None:
-                memo.put(key, (dataclasses.replace(laid, overflowed=set()), dict(mode), approximation))
+                memo.put(key, (dataclasses.replace(laid, overflowed=set()), dict(mode), approximation, block))
             section_seen.add(section_number)
 
             def reflow(section, item=item, block=block, preceding=preceding, mode=mode):

@@ -134,9 +134,19 @@ def quantise_down(px: Fraction) -> Fraction:
     return math.floor(px / LAYOUT_UNIT_PX) * LAYOUT_UNIT_PX
 
 
+#: :func:`twips_to_px` of the lengths met so far (round 57: a long document asks for the
+#: same few spacings, borders and margins hundreds of thousands of times).
+_TWIPS_PX: dict = {}
+
+
 def twips_to_px(twips: int | Fraction) -> Fraction:
     """An authored twip length, as Word holds it, in device px."""
-    return quantise(Fraction(twips) / TWIPS_PER_POINT * PX_PER_PT)
+    found = _TWIPS_PX.get(twips)
+    if found is None:
+        found = quantise(Fraction(twips) / TWIPS_PER_POINT * PX_PER_PT)
+        if len(_TWIPS_PX) < 1 << 16:
+            _TWIPS_PX[twips] = found
+    return found
 
 
 def round_half_up(x: Fraction) -> int:

@@ -5,6 +5,33 @@ docx2svg has not been released to PyPI. Each version that reaches `main` is tagg
 snapshot commit; the development history before it is summarised here.
 [`ROADMAP.md`](ROADMAP.md) records every measurement in detail.
 
+## 0.12.0 -- unreleased
+
+- **A layout from a previous one costs what the edit changed** (round 57, lane R). On a
+  made-up 295-page report with a table of contents and a "Page X of Y" footer, laying it out
+  again after one edit took 1.1-9.3 s of CPU; where it went: renumbering the kept pages'
+  paths (a walk of every glyph: up to 5 s after an inserted block), measuring again every
+  table after an inserted block (its key held its block number), drawing every line of the
+  pages after an edit that moves text on (up to 125 pages, each line drawn again though only
+  its height on the page changed), each page's footer laid out and drawn again, and per
+  layout reading the whole main part twice (the body's elements; the paragraphs' features).
+  Now, kept in the process (a pickled layout leaves them out, as the parse kept in round 41):
+  a table that only moved keeps its measurements, its paragraphs' block numbers moved
+  (`table.rebased`); a line of a paragraph or cell with the same measurements is taken from
+  the layout that drew it, moved to where its pitch starts (`layout._Placer._body_line`,
+  `_cell_line`: not a line broken beside a drawing, in columns, or with its paragraph's
+  floating drawings; not one whose drawing added a rule, a picture or a warning); a header
+  or footer with the same texts on a page of the same size is drawn once (`_draw_story`);
+  only the body elements between the first and last bytes that differ are scanned and read
+  for their features (`relayout.scan_body`, `scope.kept_features`); renumbering copies a
+  span, rule or line only where its path moved; a section's page count and a twip length are
+  found once. Same report, CPU per edit (best of three; five edit kinds at the start, middle
+  and end): 1.1-9.3 s before, 0.87-1.9 s after; the 15 edits 44.3 s -> 18.1 s; without the
+  contents and footer 30.4 s -> 12.6 s; a whole layout 24.4 -> 21.4 s. The layout is the
+  same: every page's SVG byte for byte against a full layout for all 30 edits, and
+  `tests/test_relayout.py`'s property over random edits (its full set too); new
+  `tests/test_relayout_reuse.py`. Layout state format 5.
+
 ## 0.11.14 -- unreleased
 
 - **An empty cell merged away with tracking on is drawn merged** (round 54 follow-up, lane

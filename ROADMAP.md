@@ -7787,6 +7787,30 @@ which blocks, and -- after each small edit -- which pages to draw again.
   modelled yet: see "Floating objects and text wrap" below). Held by
   `tests/test_relayout.py` and, on the local corpus, every document laid out again after
   its settings were written otherwise and after a header's or footer's text changed.
+- **Cost following the change (round 57).** After lane P of round 57 (docx-agent's checks)
+  the relayout was the largest part of a range-scoped check on a long report: 1.1-9.3 s of
+  CPU per edit on a made-up 295-page report (`feedback-round57/probe-R/edits.py`: five edit
+  kinds at its start, middle and end). Where it went, by profile: the kept pages' paths
+  renumbered by a walk of every field of every glyph (5 s after a paragraph inserted at the
+  start); every table after an inserted block measured again, its measurements keyed by its
+  block number (3.4 s); every line of the pages laid out again drawn again, though most only
+  moved down (up to 125 pages after a cell grew mid-report); each page's footer laid out as
+  a document and drawn; the main part read whole twice per layout (its elements scanned, its
+  paragraphs' features parsed); and the cyclic garbage collector, 0.1-0.9 s of a relayout on
+  a heap of two 295-page layouts. Now a table that only moved is taken with its block
+  numbers moved; a line is taken from the layout that drew it where its paragraph's
+  measurements, its line break and its column are the same, moved by as much as its baseline
+  (only a line whose drawing added nothing to the page but itself and warned of nothing:
+  an underline's rule, a picture bullet, a warning are drawn each time; a line beside a
+  drawing, in columns or with its paragraph's floating drawings always); a header or footer
+  is drawn once per texts and page size; the elements between the first and last differing
+  bytes are scanned and parsed for features; renumbering copies only what moved. Per edit
+  0.87-1.9 s; what is left: the flow of every pass over the whole body (about 0.3 s), the
+  pagination and placing of the pages laid out again (tables' borders, each line's
+  baseline), the fields' values, and the collector. A layout's pickle (17.8 MB, about 1.1 s
+  to write and 1.5-2 s to read for this report) is docx-agent's per check where it hands
+  layouts between processes.
+
 
 ## Phase 6 — Everything else, sized
 
